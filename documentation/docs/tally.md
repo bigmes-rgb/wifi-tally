@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `station.ssid` | **(required)** |The name of the WiFi that the Tally should connect to |
 | `station.password` | (none) | The password to connect to the WiFi. If the WiFi has no password, leave it empty. |
-| `hub.ip` | **(required)** | The IP address the hub is running on |
+| `hub.ip` | *(auto)* | The IP address the hub is running on. Leave it out (or set `auto`) and the tally finds the hub by broadcast on the local network, which also survives the hub's address changing. Set it only on networks that block broadcasts. |
 | `hub.port` | `{{ tally_default_port }}` | The port where the hub listens. |
 | `tally.name` | (chip id) | How you want _this_ tally to be labeled in the hub. This name needs to be unique amongst all tallies in your network. It must not be longer than `26` characters. Use of ASCII characters is recommended. |
 | `operator.type` | `grb+` | How the pins for the operator light are driven. Use `grb+` when a `high` state signalizes _off_ and `grb-` when a `low` state signalizes _off_. |

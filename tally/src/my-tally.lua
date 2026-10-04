@@ -12,6 +12,13 @@ local listenSocket = nil
 
 local timeLastPackageReceived = nil
 
+-- the hub's address as learned from its replies. Only used while no hub.ip is
+-- configured: then "tally-ho" goes to the network's broadcast address and
+-- whoever answers with a valid tally command is the hub.
+local learnedHubIp = nil
+-- give up on a learned address after this long without a packet and search again
+local searchAgainAfterMicroSeconds = 10000000
+
 local parseMessage = function(data)
     data = data:match("^%s*(.-)%s*$") -- trim
     local len = string.len(data)
@@ -47,12 +54,20 @@ local parseMessage = function(data)
     return opR, opG, opB, stR, stG, stB, pattern, duration
 end
 
-_G.myHandleReceive = function(data)
-    timeLastPackageReceived = tmr.now()
+_G.myHandleReceive = function(data, ip)
+    if data:sub(1, 9) == "tally-ho " or data:sub(1, 4) == "log " then
+        -- another tally searching for the hub by broadcast. Not for us.
+        return
+    end
     local opR, opG, opB, stR, stG, stB, pattern, duration = parseMessage(data)
     if not opR then
         MyLog.warning(string.format('invalid package: %s', data))
         return
+    end
+    timeLastPackageReceived = tmr.now()
+    if ip ~= nil and MySettings:hubIp() == nil and learnedHubIp ~= ip then
+        learnedHubIp = ip
+        MyLog.info("Found hub at " .. ip)
     end
     if pattern ~= nil and duration ~= nil then
         MyLed.flash(opR, opG, opB, stR, stG, stB, pattern, duration)
@@ -67,13 +82,21 @@ _G.MyTally = {
         if listenSocket == nil then
             listenSocket = net.createUDPSocket()
             listenSocket:on("receive", function(sck, c, port, ip)
-                myHandleReceive(c)
+                myHandleReceive(c, ip)
             end)
             listenSocket:listen(listenPort)
         end
         MyLog.info(string.format("Listening for hub on port %d", listenPort))
-        MyLog.info(string.format("Contacting hub on %s:%d", MySettings:hubIp(), MySettings:hubPort()))
+        if MySettings:hubIp() ~= nil then
+            MyLog.info(string.format("Contacting hub on %s:%d", MySettings:hubIp(), MySettings:hubPort()))
+        else
+            MyLog.info(string.format("Searching for hub by broadcast on port %d", MySettings:hubPort()))
+        end
         self:sendInfo()
+    end,
+    -- where "tally-ho" goes: the configured hub, else the hub that answered, else everyone
+    hubAddress = function()
+        return MySettings:hubIp() or learnedHubIp or MyWifi.getBroadcast()
     end,
     isReady = function()
         return MyWifi.isConnected() and listenSocket ~= nil
@@ -89,7 +112,7 @@ _G.MyTally = {
             MyLog.error("Not sending packet, because UDP is not set up yet.")
             return
         end
-        listenSocket:send(MySettings:hubPort(), MySettings:hubIp(), data .. "\n")
+        listenSocket:send(MySettings:hubPort(), MyTally.hubAddress(), data .. "\n")
     end,
     sendInfo = function(self)
         self:send(string.format('tally-ho "%s"', MySettings:name()))
@@ -104,6 +127,10 @@ tmr.create():alarm(1000, tmr.ALARM_AUTO, function()
         -- check if we seemed to have lost connection to the base station
         if not MyTally:isConnected() then
             MyLed.waitForServerConnection()
+            if learnedHubIp ~= nil and diffMicroSeconds(timeLastPackageReceived) > searchAgainAfterMicroSeconds then
+                MyLog.info("Lost hub at " .. learnedHubIp .. ". Searching again.")
+                learnedHubIp = nil
+            end
         end
 
         -- send probes to show the base station that we are still there

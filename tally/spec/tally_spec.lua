@@ -79,3 +79,88 @@ insulate("myHandleReceive", function()
         assert.is_same(1, #warnings)
     end)
 end)
+
+insulate("hub discovery", function()
+    require "spec.nodemcu-mock"
+
+    local sentTo = {}
+    local logs = {}
+    _G.net = {
+        createUDPSocket = function()
+            return {
+                on = function() end,
+                listen = function() end,
+                send = function(_, port, ip, data) table.insert(sentTo, ip .. ":" .. port) end,
+            }
+        end,
+    }
+    _G.MyWifi = {
+        isConnected = function() return true end,
+        getBroadcast = function() return "192.168.1.255" end,
+    }
+    _G.MyLog = {
+        info = function(msg) table.insert(logs, msg) end,
+        warning = function(msg) table.insert(logs, msg) end,
+        error = function(msg) table.insert(logs, msg) end,
+    }
+    _G.MyLed = {
+        static = function() end,
+        flash = function() end,
+        waitForServerConnection = function() end,
+    }
+
+    local realIt = it
+    it = function(name, func)
+        insulate(function()
+            realIt(name, func)
+        end)
+    end
+
+    local function useSettings(hubIp)
+        _G.MySettings = {
+            hubIp = function() return hubIp end,
+            hubPort = function() return 7411 end,
+            name = function() return "Doe" end,
+        }
+        sentTo = {}
+        require "src.my-tally"
+        MyTally:connect()
+    end
+
+    it("talks to the configured hub when hub.ip is set", function()
+        useSettings("10.10.1.1")
+        assert.is_same("10.10.1.1", MyTally.hubAddress())
+        assert.is_same({"10.10.1.1:7411"}, sentTo)
+    end)
+    it("broadcasts when no hub.ip is set", function()
+        useSettings(nil)
+        assert.is_same("192.168.1.255", MyTally.hubAddress())
+        assert.is_same({"192.168.1.255:7411"}, sentTo)
+    end)
+    it("learns the hub address from the first valid reply", function()
+        useSettings(nil)
+        myHandleReceive("O000/000/000 S000/000/000", "192.168.1.20")
+        assert.is_same("192.168.1.20", MyTally.hubAddress())
+        MyTally:sendInfo()
+        assert.is_same("192.168.1.20:7411", sentTo[#sentTo])
+    end)
+    it("keeps the configured hub.ip even when a reply comes from elsewhere", function()
+        useSettings("10.10.1.1")
+        myHandleReceive("O000/000/000 S000/000/000", "192.168.1.20")
+        assert.is_same("10.10.1.1", MyTally.hubAddress())
+    end)
+    it("does not learn an address from an invalid package", function()
+        useSettings(nil)
+        myHandleReceive("garbage", "192.168.1.20")
+        assert.is_same("192.168.1.255", MyTally.hubAddress())
+    end)
+    it("ignores other tallies' broadcasts without logging", function()
+        useSettings(nil)
+        local before = #logs
+        myHandleReceive('tally-ho "Cam 2"', "192.168.1.21")
+        myHandleReceive('log "Cam 2" INFO "hello"', "192.168.1.21")
+        assert.is_same("192.168.1.255", MyTally.hubAddress())
+        assert.is_same(before, #logs)
+        assert.is_false(MyTally:isConnected())
+    end)
+end)

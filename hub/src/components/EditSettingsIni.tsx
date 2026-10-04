@@ -93,7 +93,7 @@ const EditSettingsIni = ({settingsIni, onSave, disabled}: EditTallySettingsProps
         setIni(clone)
         setStringContent(clone.toString())
       }} />
-      <TextField label="Hub IP" disabled={disabled} value={ini?.getHubIp() || ""} className={classes.textField} data-testid="tally-settings-ip" onChange={(e) => {
+      <TextField label="Hub IP" helperText="Leave empty: the tally finds the hub on its own" disabled={disabled} value={ini?.getHubIp() || ""} className={classes.textField} data-testid="tally-settings-ip" onChange={(e) => {
         const value = e.currentTarget.value
         const clone = ini?.clone() || new TallySettingsIni()
         clone.setHubIp(value)
