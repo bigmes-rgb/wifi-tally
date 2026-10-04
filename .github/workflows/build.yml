@@ -223,6 +223,9 @@ jobs:
       - hub-package
     defaults:
       run:
+        # a job-level "defaults.run" replaces the workflow-level one, so the
+        # shell has to be repeated here or the steps run under PowerShell
+        shell: bash
         working-directory: ./electron
     steps:
       - uses: actions/checkout@v4
