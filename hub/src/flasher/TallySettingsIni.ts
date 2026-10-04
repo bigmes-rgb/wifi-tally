@@ -84,6 +84,36 @@ class TallySettingsIni {
   setTallyName(name: string) {
     this.writeSetting("tally.name", name)
   }
+  getOperatorType(): string {
+    return this.readSetting("operator.type")
+  }
+  setOperatorType(type: string) {
+    this.writeSetting("operator.type", type)
+  }
+  getOperatorWs2812(): string {
+    return this.readSetting("operator.ws2812")
+  }
+  setOperatorWs2812(value: string) {
+    this.writeSetting("operator.ws2812", value)
+  }
+  getStageType(): string {
+    return this.readSetting("stage.type")
+  }
+  setStageType(type: string) {
+    this.writeSetting("stage.type", type)
+  }
+  getStageWs2812(): string {
+    return this.readSetting("stage.ws2812")
+  }
+  setStageWs2812(value: string) {
+    this.writeSetting("stage.ws2812", value)
+  }
+  removeSetting(name: string) {
+    const lineIdx = this.findSetting(name)
+    if (lineIdx !== null) {
+      this.lines.splice(lineIdx, 1)
+    }
+  }
   
   toString(): string {
     const lines = Array.from(this.lines)

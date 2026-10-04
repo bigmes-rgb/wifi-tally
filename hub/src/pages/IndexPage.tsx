@@ -95,7 +95,7 @@ const IndexPage = () => {
           <Tooltip title={nrConnectedTallies + " connected tallies"}>
             <Button data-testid="tallies-connected" className={classes.button} color="default" variant="outlined"><WifiIcon className={classes.buttonIcon} /> {nrConnectedTallies === null ? "?" : nrConnectedTallies}</Button>
           </Tooltip>
-          <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/lights"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
+          <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/light"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
         </ButtonGroup>
       </div>
       { isHubConnected ? "" : (

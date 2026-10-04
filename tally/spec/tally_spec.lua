@@ -154,6 +154,18 @@ insulate("hub discovery", function()
         myHandleReceive("garbage", "192.168.1.20")
         assert.is_same("192.168.1.255", MyTally.hubAddress())
     end)
+    it("leaves the LEDs alone while the hub tests the wiring over USB", function()
+        useSettings(nil)
+        local shown = 0
+        MyLed.static = function() shown = shown + 1 end
+        _G.testMode = true
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.20")
+        assert.is_same(0, shown)
+        assert.is_same("192.168.1.255", MyTally.hubAddress())
+        _G.testMode = nil
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.20")
+        assert.is_same(1, shown)
+    end)
     it("ignores other tallies' broadcasts without logging", function()
         useSettings(nil)
         local before = #logs

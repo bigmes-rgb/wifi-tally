@@ -40,7 +40,7 @@ wifi.eventmon.register(wifi.eventmon.STA_CONNECTED, function(T)
     isConnected = false
     MyLog.info("Connected to " .. T.SSID .. ". Waiting for IP.")
 
-    MyLed.waitForWifiIp()
+    if not _G.testMode then MyLed.waitForWifiIp() end
 end)
 
 wifi.eventmon.register(wifi.eventmon.STA_DISCONNECTED, function(T)
@@ -56,7 +56,7 @@ wifi.eventmon.register(wifi.eventmon.STA_DISCONNECTED, function(T)
 
     MyLog.error("Got disconnected from " ..T.SSID .. ". Reason " .. humanReadable)
 
-    MyLed.waitForWifiConnection()
+    if not _G.testMode then MyLed.waitForWifiConnection() end
     local delay = 2000
     if T.reason == wifi.eventmon.reason.AUTH_EXPIRE then delay = 200 end
     tmr.create():alarm(delay, tmr.ALARM_SINGLE, MyWifi.connect)

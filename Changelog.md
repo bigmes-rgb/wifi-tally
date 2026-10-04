@@ -3,6 +3,12 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] *Build a light*: one page takes a bare board to a tested light on the network. Say what is
+  soldered on (RGB LED with common + or −, NeoPixel strip, optional stage light) and get the exact pin
+  table for it; plug it in; **wiring test** — the hub lights each colour through the USB cable and asks
+  what you see, then tells you which wire to move, or corrects the common-pin and pixel-order settings
+  itself; name and Wi-Fi; then it waits until the light reports in. The tally software gained a test
+  mode for this (`_G.testMode`), so update the lights' software to use the wiring test.
 * [BUGFIX] Saving settings to a light over USB refused to run without a hub IP, although the IP has been
   optional since the lights learned to find the hub themselves. The wizard's *Save to the light* hit this.
 * [FEATURE] Setup wizard. A hub that has never been configured opens with it; afterwards it lives under

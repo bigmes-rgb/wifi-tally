@@ -59,6 +59,10 @@ _G.myHandleReceive = function(data, ip)
         -- another tally searching for the hub by broadcast. Not for us.
         return
     end
+    if _G.testMode then
+        -- the hub is driving the LEDs over USB to check the wiring; nothing may override them
+        return
+    end
     local opR, opG, opB, stR, stG, stB, pattern, duration = parseMessage(data)
     if not opR then
         MyLog.warning(string.format('invalid package: %s', data))
@@ -123,6 +127,7 @@ _G.MyTally = {
 }
 
 tmr.create():alarm(1000, tmr.ALARM_AUTO, function()
+    if _G.testMode then return end
     if MyWifi ~= nil and MyWifi.isConnected() then
         -- check if we seemed to have lost connection to the base station
         if not MyTally:isConnected() then

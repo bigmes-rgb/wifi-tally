@@ -25,6 +25,7 @@ import TestConfiguration from './mixer/test/TestConfiguration'
 import WebTallyDriver from './tally/WebTallyDriver'
 import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConfiguration'
 import NodeMcuConnector from './flasher/NodeMcuConnector'
+import FakeNodemcu from './flasher/FakeNodemcu'
 import { getHubInfo } from './lib/HubInfo'
 
 const argv = yargs.argv
@@ -58,7 +59,8 @@ const myWebTallyDriver = new WebTallyDriver(myConfiguration, myTallyContainer)
 
 const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
 
-const myNodeMcuConnector = new NodeMcuConnector()
+// with --with-test a pretend board is plugged in, so the light pages can be tried without hardware
+const myNodeMcuConnector = myConfiguration.isTest() ? new NodeMcuConnector(new FakeNodemcu()) : new NodeMcuConnector()
 
 // log stuff
 myEmitter.on('tally.logged', ({tally, log}) => {
@@ -336,6 +338,22 @@ io.on('connection', (socket: ServerSideSocket) => {
     myNodeMcuConnector.program(path, (state) => {
       socket.emit('flasher.program.progress', state)
     })
+  })
+
+  socket.on('flasher.wiring.start', (path, profile) => {
+    myNodeMcuConnector.startWiringTest(path, profile).then(state => socket.emit('flasher.wiring.state', state))
+  })
+  socket.on('flasher.wiring.show', (profile, operator, stage) => {
+    myNodeMcuConnector.wiringTestShow(profile, operator, stage).then(state => socket.emit('flasher.wiring.state', state))
+  })
+  socket.on('flasher.wiring.stop', () => {
+    myNodeMcuConnector.stopWiringTest().then(state => socket.emit('flasher.wiring.state', state))
+  })
+  socket.on('disconnect', () => {
+    // the person closed the page in the middle of a wiring test
+    if (myNodeMcuConnector.getWiringTestState().active) {
+      myNodeMcuConnector.stopWiringTest().catch(e => console.error(e))
+    }
   })
 })
 

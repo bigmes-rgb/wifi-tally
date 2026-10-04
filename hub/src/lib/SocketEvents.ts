@@ -12,7 +12,8 @@ import { TestConfigurationSaveType } from "../mixer/test/TestConfiguration";
 import { StateCommand } from "../tally/CommandCreator";
 import { TallyConfigurationObjectType } from "../tally/TallyConfiguration";
 import { TallyDeviceObjectType } from "../flasher/TallyDevice";
-import { TallyProgramProgressType, TallySettingsIniProgressType } from "../flasher/NodeMcuConnector";
+import { TallyProgramProgressType, TallySettingsIniProgressType, WiringTestState } from "../flasher/NodeMcuConnector";
+import { HardwareProfile, Rgb } from "../flasher/HardwareProfile";
 import { HubInfoType } from "./HubInfo";
 
 export type SetupStateType = { completed: boolean, needed: boolean }
@@ -43,6 +44,7 @@ export interface ServerSentEvents {
     'flasher.device': (tallyDevice: TallyDeviceObjectType) => void
     'flasher.settingsIni.progress': (state: TallySettingsIniProgressType) => void
     'flasher.program.progress': (state: TallyProgramProgressType) => void
+    'flasher.wiring.state': (state: WiringTestState) => void
 }
 
 // events the client sends to the server
@@ -83,6 +85,9 @@ export interface ClientSentEvents {
     'flasher.device.get': () => void
     'flasher.settingsIni': (path: string, settingsIniString: string) => void
     'flasher.program': (path: string) => void
+    'flasher.wiring.start': (path: string, profile: HardwareProfile) => void
+    'flasher.wiring.show': (profile: HardwareProfile, operator: Rgb, stage: Rgb) => void
+    'flasher.wiring.stop': () => void
 }
 
 export interface ServerSideSocket {

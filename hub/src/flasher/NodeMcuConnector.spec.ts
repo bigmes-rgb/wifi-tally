@@ -80,3 +80,68 @@ describe("writeTallySettingsIni()", () => {
     expect(states[states.length - 1].error).toBe(true)
   })
 })
+
+describe("wiring test session", () => {
+  const scriptedNodemcu = () => {
+    const executed: string[] = []
+    let connected = false
+    return {
+      executed,
+      onError: () => {},
+      isConnected: () => connected,
+      connect: async () => { connected = true },
+      disconnect: async () => { connected = false },
+      checkConnection: async () => {},
+      listDevices: async () => [],
+      execute: async (cmd: string) => { executed.push(cmd); return { response: "ok" } },
+    }
+  }
+  const profile = { operator: { kind: "rgb", polarity: "anode", pixels: 5, order: "grb" }, stage: { kind: "none", polarity: "anode", pixels: 0, order: "grb" } } as const
+
+  test("it keeps the connection open between colours and hands the LEDs back at the end", async () => {
+    const nodemcu = scriptedNodemcu()
+    const connector = new NodeMcuConnector(nodemcu)
+
+    const started = await connector.startWiringTest("/dev/fake", profile)
+    expect(started).toEqual({ active: true, path: "/dev/fake" })
+    expect(nodemcu.isConnected()).toBe(true)
+    expect(nodemcu.executed.join("\n")).toContain("_G.testMode=true")
+
+    const shown = await connector.wiringTestShow(profile, [255, 0, 0], [0, 0, 0])
+    expect(shown.active).toBe(true)
+    expect(nodemcu.executed[nodemcu.executed.length - 1]).toContain("MyLed.static(255,0,0,0,0,0)")
+    expect(nodemcu.isConnected()).toBe(true)
+
+    // a changed profile is sent before the next colour
+    const cathode = { ...profile, operator: { ...profile.operator, polarity: "cathode" } } as const
+    await connector.wiringTestShow(cathode, [0, 255, 0], [0, 0, 0])
+    expect(nodemcu.executed.slice(-4).join("\n")).toContain('"grb-"')
+
+    const stopped = await connector.stopWiringTest()
+    expect(stopped).toEqual({ active: false, path: undefined })
+    expect(nodemcu.executed[nodemcu.executed.length - 1]).toContain("_G.testMode=nil")
+    expect(nodemcu.isConnected()).toBe(false)
+  })
+
+  test("showing a colour without a session is refused instead of touching the board", async () => {
+    const nodemcu = scriptedNodemcu()
+    const connector = new NodeMcuConnector(nodemcu)
+    const state = await connector.wiringTestShow(profile, [255, 0, 0], [0, 0, 0])
+    expect(state.active).toBe(false)
+    expect(state.error).toContain("not running")
+    expect(nodemcu.executed).toEqual([])
+  })
+
+  test("a board that stops answering ends the session and frees the port", async () => {
+    const nodemcu = scriptedNodemcu()
+    const connector = new NodeMcuConnector(nodemcu)
+    await connector.startWiringTest("/dev/fake", profile)
+    nodemcu.execute = async () => { throw new Error("unplugged") }
+    const state = await connector.wiringTestShow(profile, [255, 0, 0], [0, 0, 0])
+    expect(state.active).toBe(false)
+    expect(state.error).toContain("Lost the light")
+    expect(nodemcu.isConnected()).toBe(false)
+    // and the port is free for the next thing
+    expect((await connector.getDevice()).errorMessage).toBeUndefined()
+  }, 20000)
+})
