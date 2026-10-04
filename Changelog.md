@@ -3,6 +3,8 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] Saving settings to a light over USB refused to run without a hub IP, although the IP has been
+  optional since the lights learned to find the hub themselves. The wizard's *Save to the light* hit this.
 * [FEATURE] Setup wizard. A hub that has never been configured opens with it; afterwards it lives under
   *Setup* in the menu. It walks through the video switcher, shows the hub's own network addresses, and
   sets up lights one after another: plug a board in via USB, install the tally software if needed, type a

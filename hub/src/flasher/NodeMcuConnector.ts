@@ -286,9 +286,6 @@ class NodeMcuConnector {
       if (!settingsIni.getStationSsid()) {
         throw new Error(`Exeptected ${fileName} to contain a station ssid, but it was empty.`)
       }
-      if (!settingsIni.getHubIp()) {
-        throw new Error(`Exeptected ${fileName} to contain a hub.ip name, but it was empty.`)
-      }
 
       await this.withMutex(async () => {
         progress.inititalizeDone = true
