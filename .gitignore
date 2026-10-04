@@ -2,3 +2,5 @@
 *~
 firmware/*.bin
 !.git*
+# the firmware binary that ships with each release is vendored on purpose
+!firmware/prebuilt/*.bin

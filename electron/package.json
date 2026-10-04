@@ -1,0 +1,24 @@
+{
+  "name": "vtally-electron",
+  "private": true,
+  "version": "0.0.0-dev",
+  "description": "Electron wrapper that ships the vTally hub as a desktop app",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish never",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "repository": "github:bigmes-rgb/wifi-tally",
+  "license": "MIT",
+  "dependencies": {
+    "electron-log": "^4.4.1",
+    "open": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^13.0.1",
+    "electron-builder": "^22.10.5",
+    "electron-rebuild": "^3.2.9"
+  }
+}

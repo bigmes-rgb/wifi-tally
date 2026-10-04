@@ -1,5 +1,14 @@
 # Upcoming
 
+This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
+[Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
+
+* [FEATURE] A single GitHub Actions workflow builds the hub, the Windows desktop app and the
+  tally firmware bundle, and attaches all three to a GitHub Release when a `v*` tag is pushed.
+  The Electron wrapper from `wifi-tally/electron-dist` now lives in `electron/`.
+* [FEATURE] The NodeMCU firmware binary shipped with v0.5.1 is checked in under `firmware/prebuilt/`,
+  so a release no longer needs the firmware toolchain unless the firmware itself changes.
+
 * [BUGFIX] Don't suggest vMix is connected until a hello message is received and tally subscription was acknowledged #85
 * [BUGFIX] The logs where written with the path segment `vally-electron`, missing a `t` that is essential to our name. It is now fixed an the files are now:
   * **on Linux**: ~/.config/vtally-electron/logs/main.log
