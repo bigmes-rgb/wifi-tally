@@ -65,6 +65,24 @@ describe("Settings parser", function()
         assert.is_same("Tally-Doe", MySettings.hostName())
     end)
 
+    it("is valid without a hub.ip, which means: find the hub by broadcast", function()
+        mockSettings("settings-no-hub.ini")
+        require "src.my-settings"
+        assert.is_true(MySettings.isValid())
+        assert.is_nil(MySettings.hubIp())
+    end)
+    it("treats hub.ip=auto like no hub.ip", function()
+        mockSettings("settings-no-hub.ini", {"hub.ip=Auto"})
+        require "src.my-settings"
+        assert.is_true(MySettings.isValid())
+        assert.is_nil(MySettings.hubIp())
+    end)
+    it("is invalid without a wifi name", function()
+        mockSettings("settings-tallyname.ini", {"hub.ip=10.10.1.1"})
+        _G.file.open = function() return { readline = function() return nil end, close = function() end } end
+        require "src.my-settings"
+        assert.is_false(MySettings.isValid())
+    end)
     it("should use defaults when optional values are", function()
         mockSettings("settings-partial.ini")
         require "src.my-settings"

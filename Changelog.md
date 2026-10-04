@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Tallies find the hub on their own. `hub.ip` in `tally-settings.ini` is now optional: without
+  it the tally announces itself to the whole network and remembers whichever hub answers. If the hub's
+  address changes, the tally notices within 10 seconds and searches again. Needs the tally software
+  (`.lc` files) from this release on the tally.
 * [FEATURE] A single GitHub Actions workflow builds the hub, the Windows desktop app and the
   tally firmware bundle, and attaches all three to a GitHub Release when a `v*` tag is pushed.
   The Electron wrapper from `wifi-tally/electron-dist` now lives in `electron/`.

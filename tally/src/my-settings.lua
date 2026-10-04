@@ -79,7 +79,7 @@ _G.MySettings = {
         return stageWs2812Type
     end,
     isValid = function()
-        return staSsid ~= nil and hubIp ~= nil
+        return staSsid ~= nil
     end,
 }
 
@@ -104,7 +104,8 @@ if file.exists(fileName) then
                     elseif k == "station.password" then
                         staPw = v
                     elseif k == "hub.ip" then
-                        hubIp = v
+                        -- empty or "auto": find the hub by broadcast instead
+                        if v:lower() ~= "auto" then hubIp = v end
                     elseif k == "hub.port" then
                         hubPort = tonumber(v)
                     elseif k == "tally.name" then
