@@ -217,7 +217,9 @@ jobs:
   #
   # ###
   electron-windows:
-    runs-on: windows-latest
+    # not windows-latest: it ships Visual Studio 2026, which the node-gyp that
+    # compiles the hub's midi/serialport modules does not recognise yet
+    runs-on: windows-2022
     needs:
       - setup
       - hub-package
