@@ -126,6 +126,10 @@ export class MixerDriver {
     getCurrentPreviews() {
         return this.communicator.getCurrentPreviews()
     }
+    getProblem(): string | null {
+        return this.communicator.getProblem()
+    }
+
     isConnected() {
         return this.currentMixerInstance !== undefined && this.currentMixerInstance.isConnected()
     }

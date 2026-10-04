@@ -3,6 +3,12 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] The Roland V-8HD connection tried once at start-up and gave up. If the switcher was off,
+  unplugged, or its MIDI port was held by the Roland remote software at that moment, the hub stayed
+  disconnected until restarted. It now keeps looking every few seconds, reconnects on its own, notices
+  when the switcher stops answering, and the Tallies page says *why* it is not connected.
+* [BUGFIX] Starting a second vTally while one is running showed a wall of stack trace. It now says
+  "vTally is already running" and what to do.
 * [FEATURE] The hub installs the NodeMCU firmware on a board straight from the box, over USB, from
   *Build a light*. No separate flashing tool any more. Uses Espressif's esptool-js with the same
   settings as NodeMCU PyFlasher (DIO, 40 MHz, size detected).

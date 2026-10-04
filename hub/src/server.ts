@@ -90,16 +90,18 @@ io.on('connection', (socket: ServerSideSocket) => {
         isConnected: true
       })
     }),
-    new SocketAwareEvent(myEmitter, 'mixer.disconnected', socket, (socket) => {
+    new SocketAwareEvent(myEmitter, 'mixer.disconnected', socket, (socket, problem) => {
       socket.emit('mixer.state', {
-        isConnected: false
+        isConnected: false,
+        problem,
       })
     }),
   ]
   socket.on('events.mixer.subscribe', () => {
     mixerEvents.forEach(pipe => pipe.register())
     socket.emit('mixer.state', {
-      isConnected: myMixerDriver.isConnected()
+      isConnected: myMixerDriver.isConnected(),
+      problem: myMixerDriver.getProblem(),
     })
   })
   socket.on('events.mixer.unsubscribe', () => {
@@ -401,6 +403,13 @@ if (myConfiguration.isDev()) {
 
 
 
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    // the Electron wrapper shows the message of an uncaught error in a dialog; make it a sentence
+    throw new Error(`vTally is already running: port ${myConfiguration.getHttpPort()} is in use. Quit the other copy from the tray icon (right-click, Exit) and start this one again.`)
+  }
+  throw err
+})
 server.listen(myConfiguration.getHttpPort(), () => {
   console.log(`Web Server available on http://localhost:${myConfiguration.getHttpPort()}`)
 })
