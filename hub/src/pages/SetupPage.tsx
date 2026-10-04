@@ -5,7 +5,8 @@ import { useHistory, useParams } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import MiniPage from '../components/layout/MiniPage'
 import MixerSelection from '../components/config/MixerSelection'
-import AddTallyStep from '../components/setup/AddTallyStep'
+import ConnectedLights from '../components/setup/ConnectedLights'
+import { Link as RouterLink } from 'react-router-dom'
 import { useMixerNameConfiguration, useSetupConfiguration } from '../hooks/useConfiguration'
 import useHubInfo from '../hooks/useHubInfo'
 import useMixerInfo from '../hooks/useMixerInfo'
@@ -118,7 +119,6 @@ const SetupPage = () => {
   const history = useHistory()
   const { step } = useParams<{ step?: string }>()
   const setupState = useSetupConfiguration()
-  const [ssid, setSsid] = React.useState<string>(undefined)
 
   const index = Math.max(0, setupSteps.findIndex(s => s.id === step))
   const current = setupSteps[index]
@@ -144,7 +144,14 @@ const SetupPage = () => {
 
       {current.id === "switcher" && <SwitcherStep />}
       {current.id === "network" && <NetworkStep />}
-      {current.id === "lights" && <AddTallyStep rememberedSsid={ssid} onSsidChange={setSsid} />}
+      {current.id === "lights" && <>
+        <Typography paragraph color="textSecondary">
+          Each light is built and checked on its own page: what is soldered on, a wiring test through the USB cable, then its name and the Wi-Fi.
+        </Typography>
+        <Button variant="contained" color="primary" component={RouterLink} to="/setup/light" className={classes.block} data-testid="setup-build-light">Build a light</Button>
+        <Typography variant="h4" paragraph>Lights on the network</Typography>
+        <ConnectedLights />
+      </>}
       {current.id === "done" && <DoneStep onFinish={finish} />}
 
       <div className={classes.nav}>

@@ -1,6 +1,7 @@
 import nodemcuLib from 'nodemcu-tool'
 import TallyDevice from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
+import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
 import tmp from 'tmp-promise'
 import { promises as fs } from 'fs'
 
@@ -38,8 +39,18 @@ export interface TallyProgramProgressType {
   error: boolean
 }
 
+export type WiringTestState = {
+  active: boolean
+  path?: string
+  error?: string
+}
+
+// a wiring test keeps the serial connection open between colours; this closes it after inactivity
+const wiringTestIdleMs = 3 * 60 * 1000
+
 class NodeMcuConnector {
   nodemcu: any
+  private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout } | null = null
 
   withMutex<T> (fn: () => T): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -321,6 +332,89 @@ class NodeMcuConnector {
     finally {
       if(this.nodemcu && this.nodemcu.isConnected()) { this.nodemcu.disconnect() }
     }
+  }
+
+  // ###
+  // Wiring test: drive the LEDs over USB while a person looks at them.
+  // Holds the mutex and the serial connection until stopWiringTest() or 3 minutes of silence.
+  // ###
+
+  getWiringTestState(): WiringTestState {
+    return { active: this.wiringTest !== null, path: this.wiringTest?.path }
+  }
+
+  private touchWiringTest() {
+    if (!this.wiringTest) { return }
+    if (this.wiringTest.idleTimer) { clearTimeout(this.wiringTest.idleTimer) }
+    this.wiringTest.idleTimer = setTimeout(() => {
+      console.warn("Wiring test ended after inactivity.")
+      this.stopWiringTest().catch(e => console.error(e))
+    }, wiringTestIdleMs)
+  }
+
+  async startWiringTest(path: string, profile: HardwareProfile): Promise<WiringTestState> {
+    if (this.wiringTest) {
+      await this.stopWiringTest()
+    }
+    // wait for whatever else is talking to the board (same rule as withMutex)
+    while (!tryToAquireMutex()) {
+      await this.sleep(100)
+    }
+    try {
+      if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+      await this.connect(path)
+      this.wiringTest = { path, profile }
+      await this.applyWiringProfile(profile)
+      this.touchWiringTest()
+      return this.getWiringTestState()
+    } catch (e) {
+      console.error(`Could not start the wiring test: ${e}`)
+      if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect().catch(() => {}) }
+      this.wiringTest = null
+      mutex = false
+      return { active: false, error: `Could not talk to the light: ${e?.message || e}` }
+    }
+  }
+
+  private async applyWiringProfile(profile: HardwareProfile) {
+    for (const cmd of profileToLuaCommands(profile)) {
+      await this.execute(cmd)
+    }
+    this.wiringTest.profile = profile
+  }
+
+  async wiringTestShow(profile: HardwareProfile, operator: Rgb, stage: Rgb): Promise<WiringTestState> {
+    if (!this.wiringTest) {
+      return { active: false, error: "The wiring test is not running. Start it again." }
+    }
+    try {
+      if (JSON.stringify(profile) !== JSON.stringify(this.wiringTest.profile)) {
+        await this.applyWiringProfile(profile)
+      }
+      await this.execute(showColorLua(operator, stage))
+      this.touchWiringTest()
+      return this.getWiringTestState()
+    } catch (e) {
+      console.error(`Wiring test failed: ${e}`)
+      await this.stopWiringTest()
+      return { active: false, error: `Lost the light: ${e?.message || e}. Unplug it, plug it back in and start the test again.` }
+    }
+  }
+
+  async stopWiringTest(): Promise<WiringTestState> {
+    const test = this.wiringTest
+    if (!test) { return this.getWiringTestState() }
+    if (test.idleTimer) { clearTimeout(test.idleTimer) }
+    this.wiringTest = null
+    try {
+      if (this.nodemcu.isConnected()) {
+        await this.execute(endTestLua).catch(() => {})
+        await this.nodemcu.disconnect()
+      }
+    } finally {
+      mutex = false
+    }
+    return this.getWiringTestState()
   }
 
   private async hardReset(path: string) {
