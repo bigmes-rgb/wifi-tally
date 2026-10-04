@@ -8,6 +8,7 @@ import RolandV60HDConfiguration from '../mixer/rolandV60HD/RolandV60HDConfigurat
 import MockConfiguration from '../mixer/mock/MockConfiguration';
 import AtemConfiguration from '../mixer/atem/AtemConfiguration';
 import { DefaultTallyConfiguration } from '../tally/TallyConfiguration';
+import { SetupStateType } from '../lib/SocketEvents';
 
 const configTracker = new ConfigTracker(socket)
 
@@ -176,4 +177,19 @@ export function useDefaultTallyConfiguration() {
   }, [])
 
   return configuration
+}
+
+export function useSetupConfiguration() {
+  const [setupState, setSetupState] = useState<SetupStateType|undefined>(configTracker.setupState)
+
+  useEffect(() => {
+    const onChange = (newState: SetupStateType) => setSetupState(newState)
+    configTracker.on("setup", onChange)
+    setSetupState(configTracker.setupState)
+    return () => {
+      configTracker.off("setup", onChange)
+    }
+  }, [])
+
+  return setupState
 }

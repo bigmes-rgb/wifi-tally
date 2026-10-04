@@ -3,6 +3,13 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Setup wizard. A hub that has never been configured opens with it; afterwards it lives under
+  *Setup* in the menu. It walks through the video switcher, shows the hub's own network addresses, and
+  sets up lights one after another: plug a board in via USB, install the tally software if needed, type a
+  name and the Wi-Fi, done. No addresses to type in. *Add a light* on the Tallies page jumps straight to
+  that step.
+* [BUGFIX] Asking for the USB-connected tally crashed the hub when it was started without the tally
+  software bundle next to it. It now reports that the bundle is missing instead.
 * [FEATURE] A single GitHub Actions workflow builds the hub, the Windows desktop app and the
   tally firmware bundle, and attaches all three to a GitHub Release when a `v*` tag is pushed.
   The Electron wrapper from `wifi-tally/electron-dist` now lives in `electron/`.

@@ -1,16 +1,16 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, makeStyles, Typography } from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import EditSettingsIni from '../components/EditSettingsIni';
 import Layout from '../components/layout/Layout'
 import MiniPage from '../components/layout/MiniPage';
 import Spinner from '../components/layout/Spinner';
 import TallySettingsIniProgress from '../components/flasher/TallySettingsProgress';
 import { TallyProgramProgressType, TallySettingsIniProgressType } from '../flasher/NodeMcuConnector';
-import TallyDevice, { TallyDeviceObjectType } from '../flasher/TallyDevice';
 import TallySettingsIni from '../flasher/TallySettingsIni';
 import RefreshIcon from '@material-ui/icons/Refresh';
 import { socket } from '../hooks/useSocket';
+import useTallyDevice from '../hooks/useTallyDevice';
 import Help from '../components/flasher/Help';
 import ProgramProgress from '../components/flasher/ProgramProgress';
 
@@ -30,25 +30,6 @@ const useStyles = makeStyles(theme => {
     },
   }
 })
-
-function useTallyDevice(i: number) {
-  const [tallyDevice, setTallyDevice] = useState<TallyDevice>(undefined)
-
-  useEffect(() => {
-    const onFlasherDevice = (device: TallyDeviceObjectType) => {
-      setTallyDevice(TallyDevice.fromJson(device))
-    }
-    socket.on('flasher.device', onFlasherDevice)
-
-    setTallyDevice(undefined)
-    socket.emit('flasher.device.get')
-    return () => {
-      socket.off('flasher.device', onFlasherDevice)
-    }
-  }, [i])
-
-  return tallyDevice
-}
 
 const FlasherPage = () => {
   // every increment will refresh tallyDevice

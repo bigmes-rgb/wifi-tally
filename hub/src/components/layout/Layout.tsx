@@ -29,6 +29,7 @@ const Layout = ({testId: cypressId, children}: LayoutProps) => {
         <Button component={RouterLink} to="/">Tallies</Button>
         <Button component={RouterLink} to="/config">Configuration</Button>
         <Button component={RouterLink} to="/flasher">Flash</Button>
+        <Button component={RouterLink} to="/setup">Setup</Button>
       </Toolbar>
     </AppBar>
     { children && (<Container maxWidth={false} className={classes.contentContainer} children={children} />) }

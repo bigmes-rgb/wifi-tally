@@ -27,6 +27,8 @@ export class AppConfiguration extends Configuration {
     tallies: Tally[]
     channels: Channel[]
     mixerSelection?: string
+    // the first-run wizard was finished (or dismissed) once
+    setupCompleted: boolean
     tallyPort: number
     tallyHighlightTime: number
     tallyKeepAlivesPerSecond: number
@@ -47,6 +49,7 @@ export class AppConfiguration extends Configuration {
         this.tallyConfiguration = new DefaultTallyConfiguration()
         this.tallies = []
         this.channels = MixerDriver.defaultChannels
+        this.setupCompleted = false
 
         this.tallyPort = 7411
         this.tallyHighlightTime = 1000 // ms
@@ -118,12 +121,16 @@ export class AppConfiguration extends Configuration {
             this.tallyConfiguration.fromJson(data.tallyDefaults)
         }
         this.loadString("mixer", this.setMixerSelection.bind(this), data)
+        if (typeof data.setupCompleted === "boolean") {
+            this.setSetupCompleted(data.setupCompleted)
+        }
         this.loadChannelArray("channels", this.setChannels.bind(this), data)
         this.loadTallyArray("tallies", this.setTallies.bind(this), data)
     }
     toJson(): object {
         return {
             mixer: this.mixerSelection,
+            setupCompleted: this.setupCompleted,
             atem: this.atemConfiguration.toJson(),
             mock: this.mockConfiguration.toJson(),
             "null": this.nullConfiguration.toJson(),
@@ -259,9 +266,26 @@ export class AppConfiguration extends Configuration {
         this.mixerSelection = mixerSelection
         this.emitter.emit("config.changed", this)
         this.emitter.emit("config.changed.mixer", mixerSelection)
+        this.emitter.emit("config.changed.setup", this.getSetupState())
     }
     getMixerSelection() {
         return this.mixerSelection
+    }
+
+    setSetupCompleted(completed: boolean) {
+        this.setupCompleted = completed
+        this.emitter.emit("config.changed", this)
+        this.emitter.emit("config.changed.setup", this.getSetupState())
+    }
+    isSetupCompleted() {
+        return this.setupCompleted
+    }
+    // the wizard is pushed on the user only while nothing has been configured
+    isSetupNeeded() {
+        return !this.setupCompleted && !this.mixerSelection
+    }
+    getSetupState() {
+        return { completed: this.isSetupCompleted(), needed: this.isSetupNeeded() }
     }
 
     isDev() {

@@ -71,12 +71,29 @@ class NodeMcuConnector {
     })
   }
 
-  private static async getLocalFiles() {
-    let dirName = __dirname + "/../../esp8266" // path in release package
-    const files = await fs.readdir(dirName).catch(e => {
-      dirName = __dirname + "/../../../tally/out" // path during development
-      return fs.readdir(dirName)
-    })
+  // where the tally's .lc/.lua files are looked for, first match wins
+  static localFileDirs = [
+    __dirname + "/../../esp8266", // path in release package
+    __dirname + "/../../../tally/out", // path during development
+  ]
+
+  // the tally software this hub can put on a NodeMCU; empty when it ships without one
+  static async getLocalFiles(dirs: string[] = NodeMcuConnector.localFileDirs) {
+    let dirName: string
+    let files: string[]
+    for (const candidate of dirs) {
+      try {
+        files = await fs.readdir(candidate)
+        dirName = candidate
+        break
+      } catch (e) {
+        // try the next one
+      }
+    }
+    if (files === undefined) {
+      console.warn(`No tally software found in ${dirs.join(" or ")}. Tallies can not be programmed from this hub.`)
+      return []
+    }
 
     console.debug(`Files from ${dirName} will be flashed.`)
 
