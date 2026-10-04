@@ -11,6 +11,9 @@ import WifiIcon from '@material-ui/icons/Wifi'
 import ServerIcon from '@material-ui/icons/Dns';
 import { Alert, AlertTitle } from '@material-ui/lab'
 import TallyCreate from '../components/TallyCreate'
+import { Link as RouterLink, Redirect } from 'react-router-dom'
+import AddIcon from '@material-ui/icons/Add'
+import { useSetupConfiguration } from '../hooks/useConfiguration'
 
 
 const useStyles = makeStyles(theme => {
@@ -57,7 +60,13 @@ const IndexPage = () => {
   const [showUnpatched, setShowUnpatched] = useState(true)
   const isMixerConnected = useMixerInfo()
   const isHubConnected = useSocketInfo()
+  const setupState = useSetupConfiguration()
   const classes = useStyles()
+
+  // a hub that has never been configured starts with the wizard
+  if (setupState?.needed) {
+    return <Redirect to="/setup" />
+  }
 
   const tallies = createTallyList(rawTallies, showDisconnected, showUnpatched)
 
@@ -86,6 +95,7 @@ const IndexPage = () => {
           <Tooltip title={nrConnectedTallies + " connected tallies"}>
             <Button data-testid="tallies-connected" className={classes.button} color="default" variant="outlined"><WifiIcon className={classes.buttonIcon} /> {nrConnectedTallies === null ? "?" : nrConnectedTallies}</Button>
           </Tooltip>
+          <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/lights"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
         </ButtonGroup>
       </div>
       { isHubConnected ? "" : (

@@ -1,5 +1,5 @@
 import {EventEmitter} from 'events'
-import { ClientSideSocket } from '../../lib/SocketEvents'
+import { ClientSideSocket, SetupStateType } from '../../lib/SocketEvents'
 import AtemConfiguration from '../../mixer/atem/AtemConfiguration'
 import MockConfiguration from '../../mixer/mock/MockConfiguration'
 import ObsConfiguration from '../../mixer/obs/ObsConfiguration'
@@ -20,6 +20,7 @@ class ConfigTracker extends EventEmitter{
     rolandV60HDConfiguration?: RolandV60HDConfiguration
     vmixConfiguration?: VmixConfiguration
     defaultTallyConfiguration?: DefaultTallyConfiguration
+    setupState?: SetupStateType
 
     constructor(socket: ClientSideSocket) {
         super()
@@ -64,6 +65,10 @@ class ConfigTracker extends EventEmitter{
             this.defaultTallyConfiguration = new DefaultTallyConfiguration()
             this.defaultTallyConfiguration.fromJson(conf)
             this.emit('tally', this.defaultTallyConfiguration)
+        })
+        socket.on('config.state.setup', (state) => {
+            this.setupState = state
+            this.emit('setup', this.setupState)
         })
         socket.emit('events.config.subscribe')
     }

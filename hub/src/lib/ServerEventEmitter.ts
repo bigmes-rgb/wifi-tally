@@ -13,6 +13,7 @@ import VmixConfiguration from "../mixer/vmix/VmixConfiguration";
 import { DefaultTallyConfiguration } from "../tally/TallyConfiguration";
 import { AppConfiguration } from "./AppConfiguration";
 import { ChannelList } from "./MixerCommunicator";
+import { SetupStateType } from "./SocketEvents";
 
 /* events that are send around on the server */
 
@@ -27,6 +28,7 @@ export interface EventHandlersDataMap {
     'config.changed.test': (testConfiguration: TestConfiguration) => void
     'config.changed.vmix': (vmixConfiguration: VmixConfiguration) => void
     'config.changed.tallyconfig': (tallyConfiguration: DefaultTallyConfiguration) => void
+    'config.changed.setup': (setupState: SetupStateType) => void
     'config.changed.channels': (channels: Channel[]) => void
     'config.changed.tallies': (tallies: Tally[]) => void
     'config.changed.mixer': (mixerName: string) => void

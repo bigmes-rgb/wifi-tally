@@ -11,6 +11,17 @@ import {UdpTally, WebTally} from '../domain/Tally'
 import { DefaultTallyConfiguration } from '../tally/TallyConfiguration'
 
 describe("toJson/fromJson", () => {
+    test('it persists whether the setup wizard was completed', () => {
+        const emitter = new EventEmitter()
+        const config = new AppConfiguration(emitter)
+        expect(config.isSetupCompleted()).toBe(false)
+        config.setSetupCompleted(true)
+
+        const otherConfig = new AppConfiguration(emitter)
+        otherConfig.fromJson(config.toJson())
+
+        expect(otherConfig.isSetupCompleted()).toBe(true)
+    })
     test('it can persist atem configuration', () => {
         const emitter = new EventEmitter()
         const config = new AppConfiguration(emitter)
@@ -151,5 +162,27 @@ describe("toJson/fromJson", () => {
         const otherTallyConfig = otherConfig.getTallyConfiguration()
         expect(otherTallyConfig.getOperatorLightBrightness()).toEqual(42)
         expect(otherTallyConfig.getStageLightBrightness()).toEqual(21)
+    })
+})
+
+describe("isSetupNeeded()", () => {
+    test('a fresh hub needs the wizard', () => {
+        const config = new AppConfiguration(new EventEmitter())
+        expect(config.isSetupNeeded()).toBe(true)
+    })
+    test('a hub that already has a mixer configured does not get the wizard pushed on it', () => {
+        const config = new AppConfiguration(new EventEmitter())
+        config.setMixerSelection("rolandV8HD")
+        expect(config.isSetupNeeded()).toBe(false)
+        expect(config.isSetupCompleted()).toBe(false)
+    })
+    test('finishing the wizard ends it for good', () => {
+        const emitter = new EventEmitter()
+        const config = new AppConfiguration(emitter)
+        const states = []
+        emitter.on("config.changed.setup", state => states.push(state))
+        config.setSetupCompleted(true)
+        expect(config.isSetupNeeded()).toBe(false)
+        expect(states).toEqual([{completed: true, needed: false}])
     })
 })

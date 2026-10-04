@@ -25,6 +25,7 @@ import TestConfiguration from './mixer/test/TestConfiguration'
 import WebTallyDriver from './tally/WebTallyDriver'
 import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConfiguration'
 import NodeMcuConnector from './flasher/NodeMcuConnector'
+import { getHubInfo } from './lib/HubInfo'
 
 const argv = yargs.argv
 if (argv.env !== undefined) {
@@ -140,6 +141,9 @@ io.on('connection', (socket: ServerSideSocket) => {
     new SocketAwareEvent(myEmitter, 'config.changed.mixer', socket, (socket, mixerName) => {
       socket.emit('config.state.mixer', {mixerName, allowedMixers: MixerDriver.getAllowedMixers(myConfiguration.isDev(), myConfiguration.isTest())})
     }),
+    new SocketAwareEvent(myEmitter, 'config.changed.setup', socket, (socket, setupState) => {
+      socket.emit('config.state.setup', setupState)
+    }),
   ]
   socket.on('events.config.subscribe', () => {
     configEvents.forEach(pipe => pipe.register())
@@ -152,6 +156,7 @@ io.on('connection', (socket: ServerSideSocket) => {
     socket.emit('config.state.rolandV60HD', myConfiguration.getRolandV60HDConfiguration().toJson())
     socket.emit('config.state.vmix', myConfiguration.getVmixConfiguration().toJson())
     socket.emit('config.state.tallyconfig', myConfiguration.getTallyConfiguration().toJson())
+    socket.emit('config.state.setup', myConfiguration.getSetupState())
   })
   socket.on('events.program.unsubscribe', () => {
     // @TODO: not used yet
@@ -306,6 +311,13 @@ io.on('connection', (socket: ServerSideSocket) => {
     const configuration = new DefaultTallyConfiguration()
     configuration.fromJson(conf)
     myConfiguration.setTallyConfiguration(configuration)
+  })
+
+  socket.on('config.change.setup', completed => {
+    myConfiguration.setSetupCompleted(completed === true)
+  })
+  socket.on('hub.info.get', () => {
+    socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort()))
   })
 
   socket.on('flasher.device.get', () => {
