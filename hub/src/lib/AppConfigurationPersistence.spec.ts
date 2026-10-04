@@ -43,7 +43,7 @@ describe('load()', () => {
         console.error = () => { errorsLogged++ }
         tmp.file((err, path, fd) => {
             if (err) { throw err }
-            fs.write(fd, "Hello World", (err) => { if (err) { throw err }})
+            fs.writeSync(fd, "Hello World")
             
             const emitter = new EventEmitter()
             const config = new AppConfiguration(emitter)
@@ -60,7 +60,7 @@ describe('load()', () => {
         console.error = () => { errorsLogged++ }
         tmp.file((err, path, fd) => {
             if (err) { throw err }
-            fs.write(fd, '{"invalid": "JSON"', (err) => { if (err) { throw err }})
+            fs.writeSync(fd, '{"invalid": "JSON"')
 
             const emitter = new EventEmitter()
             const conf = new AppConfiguration(emitter)

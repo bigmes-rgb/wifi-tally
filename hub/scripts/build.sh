@@ -12,25 +12,15 @@ else
   PACKAGE_PRIVATE="false"
 fi
 
-# try to keep npm metadata in sync with Github Repo
-if [ -z "${GITHUB_TOKEN:=""}" ]; then
-  # use default values
-  PACKAGE_LICENSE=""
-  PACKAGE_DESCRIPTION=""
-  PACKAGE_TOPICS="[]"
-  PACKAGE_HOMEPAGE=""
-  PACKAGE_ISSUES=""
-  PACKAGE_REPO=""
-else
-  # when running in CI: try to determine the correct values
-  PACKAGE_LICENSE=$(gh api "repos/${GITHUB_REPOSITORY}" | jq -c -r ".license.spdx_id")
-  PACKAGE_DESCRIPTION=$(gh api "repos/${GITHUB_REPOSITORY}" | jq -c -r ".description")
-  # @see https://github.community/t/how-to-get-the-keywords-of-a-repository-by-the-api/156445
-  PACKAGE_TOPICS=$(gh api -H "Accept: application/vnd.github.mercy-preview+json" "repos/${GITHUB_REPOSITORY}" | jq -c -r ".topics")
-  PACKAGE_HOMEPAGE=$(gh api "repos/${GITHUB_REPOSITORY}" | jq -c -r ".homepage")
-  PACKAGE_ISSUES=$(gh api "repos/${GITHUB_REPOSITORY}" | jq -c -r ".html_url")/issues
-  PACKAGE_REPO=github:$(gh api "repos/${GITHUB_REPOSITORY}" | jq -c -r ".full_name")
-fi
+# npm metadata. Upstream asked the GitHub API for these; the fork keeps them static
+# so that packaging works the same with or without a token.
+REPO_SLUG="${GITHUB_REPOSITORY:-bigmes-rgb/wifi-tally}"
+PACKAGE_LICENSE="MIT"
+PACKAGE_DESCRIPTION="An affordable and reliable Tally Light that works via WiFi based on NodeMCU / ESP8266."
+PACKAGE_TOPICS='["esp8266","nodemcu","roland","atem","obs-studio","tally","vmix","tally-light"]'
+PACKAGE_HOMEPAGE="https://github.com/${REPO_SLUG}"
+PACKAGE_ISSUES="https://github.com/${REPO_SLUG}/issues"
+PACKAGE_REPO="github:${REPO_SLUG}"
 
 # ###
 #
