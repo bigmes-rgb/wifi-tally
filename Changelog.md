@@ -3,6 +3,9 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] The hub installs the NodeMCU firmware on a board straight from the box, over USB, from
+  *Build a light*. No separate flashing tool any more. Uses Espressif's esptool-js with the same
+  settings as NodeMCU PyFlasher (DIO, 40 MHz, size detected).
 * [FEATURE] *Build a light*: one page takes a bare board to a tested light on the network. Say what is
   soldered on (RGB LED with common + or −, NeoPixel strip, optional stage light) and get the exact pin
   table for it; plug it in; **wiring test** — the hub lights each colour through the USB cable and asks

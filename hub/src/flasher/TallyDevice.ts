@@ -13,6 +13,8 @@ export interface TallyDeviceObjectType {
   tallySettings?: string
   errorMessage?: string
   update?: UpdateType
+  // this hub carries a NodeMCU firmware image it can put on a bare board
+  firmwareAvailable?: boolean
 }
 
 class TallyDevice{
@@ -26,6 +28,7 @@ class TallyDevice{
   update?: UpdateType
   tallySettings?: TallySettingsIni
   errorMessage?: string
+  firmwareAvailable?: boolean
 
   toJson(): TallyDeviceObjectType {
     return {
@@ -39,6 +42,7 @@ class TallyDevice{
       tallySettings: this.tallySettings ? this.tallySettings.toString() : undefined,
       errorMessage: this.errorMessage,
       update: this.update,
+      firmwareAvailable: this.firmwareAvailable,
     }
   }
 
@@ -54,6 +58,7 @@ class TallyDevice{
     device.tallySettings = data.tallySettings ? new TallySettingsIni(data.tallySettings) : undefined
     device.errorMessage = data.errorMessage
     device.update = data.update
+    device.firmwareAvailable = data.firmwareAvailable
 
     return device
   }

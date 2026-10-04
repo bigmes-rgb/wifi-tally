@@ -2,6 +2,7 @@ import nodemcuLib from 'nodemcu-tool'
 import TallyDevice from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
+import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
 import tmp from 'tmp-promise'
 import { promises as fs } from 'fs'
 
@@ -75,7 +76,7 @@ class NodeMcuConnector {
   }
 
   // injectable for easier testing
-  constructor(nodemcu: any = nodemcuLib) {
+  constructor(nodemcu: any = nodemcuLib, private flashFirmwareFn: FlashFirmwareFn = flashNodeMcuFirmware) {
     this.nodemcu = nodemcu
     this.nodemcu.onError((error:any) => {
       console.error(error)
@@ -117,6 +118,19 @@ class NodeMcuConnector {
         fileSize: stats.size,
       }
     }))
+  }
+
+  // the NodeMCU firmware image next to the tally software, if the hub ships one
+  static async getFirmwareFile(dirs: string[] = NodeMcuConnector.localFileDirs): Promise<string | null> {
+    for (const dir of dirs) {
+      try {
+        const bin = (await fs.readdir(dir)).find(f => f.endsWith(".bin"))
+        if (bin) { return `${dir}/${bin}` }
+      } catch (e) {
+        // try the next one
+      }
+    }
+    return null
   }
 
   private static async doFilesNeedUpdate(filesOnNodemcu: {name: string, size: number}[]) : Promise<boolean> {
@@ -181,6 +195,7 @@ class NodeMcuConnector {
     const tallyDevice = new TallyDevice()
     const localFiles = await NodeMcuConnector.getLocalFiles()
     const updatePossible = localFiles.length > 0
+    tallyDevice.firmwareAvailable = (await NodeMcuConnector.getFirmwareFile()) !== null
     if (!updatePossible) {
       tallyDevice.update = "not-available"
     }
@@ -332,6 +347,19 @@ class NodeMcuConnector {
     finally {
       if(this.nodemcu && this.nodemcu.isConnected()) { this.nodemcu.disconnect() }
     }
+  }
+
+  // Puts the NodeMCU firmware on a bare board. Holds the port like every other USB job.
+  async flashFirmware(path: string, onProgress: (progress: FirmwareProgressType) => void): Promise<boolean> {
+    const binPath = await NodeMcuConnector.getFirmwareFile()
+    if (!binPath) {
+      onProgress({ phase: "error", percent: 0, message: "This hub was started without a firmware image, so it cannot install one." })
+      return false
+    }
+    return this.withMutex(async () => {
+      if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+      return this.flashFirmwareFn({ path, binPath, onProgress })
+    })
   }
 
   // ###
