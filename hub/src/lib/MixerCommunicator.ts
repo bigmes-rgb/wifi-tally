@@ -20,6 +20,7 @@ export class MixerCommunicator {
     currentPrograms: ChannelList
     currentPreviews: ChannelList
     isConnected: boolean | null
+    problem: string | null = null
     
     constructor(configuration: AppConfiguration, emitter: ServerEventEmitter) {
         this.configuration = configuration
@@ -97,17 +98,25 @@ export class MixerCommunicator {
     }
 
     notifyMixerIsConnected() {
+        this.problem = null
         if (this.isConnected !== true) {
             this.isConnected = true
             this.emitter.emit('mixer.connected')
         }
     }
 
-    notifyMixerIsDisconnected() {
-        if (this.isConnected !== false) {
+    // problem: what keeps the mixer from being connected, in words a person can act on
+    notifyMixerIsDisconnected(problem?: string) {
+        const problemChanged = (problem || null) !== this.problem
+        this.problem = problem || null
+        if (this.isConnected !== false || problemChanged) {
             this.isConnected = false
-            this.emitter.emit('mixer.disconnected')
+            this.emitter.emit('mixer.disconnected', this.problem)
         }
+    }
+
+    getProblem(): string | null {
+        return this.problem
     }
 
     getCurrentPrograms() {

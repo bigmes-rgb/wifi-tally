@@ -33,7 +33,7 @@ export interface EventHandlersDataMap {
     'config.changed.tallies': (tallies: Tally[]) => void
     'config.changed.mixer': (mixerName: string) => void
     'mixer.connected': () => void
-    'mixer.disconnected': () => void
+    'mixer.disconnected': (problem: string | null) => void
     'program.changed': (data: {programs: ChannelList, previews: ChannelList}) => void
     'tally.created': (t: Tally) => void
     'tally.changed': (t: Tally|undefined) => void

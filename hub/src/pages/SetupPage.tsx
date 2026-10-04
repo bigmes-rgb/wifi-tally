@@ -9,7 +9,7 @@ import ConnectedLights from '../components/setup/ConnectedLights'
 import { Link as RouterLink } from 'react-router-dom'
 import { useMixerNameConfiguration, useSetupConfiguration } from '../hooks/useConfiguration'
 import useHubInfo from '../hooks/useHubInfo'
-import useMixerInfo from '../hooks/useMixerInfo'
+import useMixerInfo, { useMixerProblem } from '../hooks/useMixerInfo'
 import useTallies from '../hooks/useTallies'
 import { socket } from '../hooks/useSocket'
 import AtemSettings from '../mixer/atem/react/AtemSettings'
@@ -51,6 +51,7 @@ type StepId = typeof setupSteps[number]["id"]
 function SwitcherStep() {
   const mixerName = useMixerNameConfiguration()
   const isMixerConnected = useMixerInfo()
+  const mixerProblem = useMixerProblem()
   const classes = useStyles()
   const chosen = mixerName !== undefined && mixerName !== "" && mixerName !== "null"
 
@@ -70,7 +71,7 @@ function SwitcherStep() {
     </MixerSelection>
     {chosen && (isMixerConnected
       ? <Alert severity="success" className={classes.block} data-testid="setup-switcher-connected">The switcher is connected.</Alert>
-      : <Alert severity="warning" className={classes.block} data-testid="setup-switcher-disconnected">Saved, but the hub cannot reach the switcher yet. Check its cable or address; you can carry on and come back to this.</Alert>
+      : <Alert severity="warning" className={classes.block} data-testid="setup-switcher-disconnected">{mixerProblem || "Saved, but the hub cannot reach the switcher yet. Check its cable or address."} You can carry on; the hub keeps trying and this turns green on its own.</Alert>
     )}
   </>
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import useSocketInfo from '../hooks/useSocketInfo'
-import useMixerInfo from '../hooks/useMixerInfo'
+import useMixerInfo, { useMixerProblem } from '../hooks/useMixerInfo'
 import Layout from '../components/layout/Layout'
 import Tally from '../domain/Tally'
 import useTallies from '../hooks/useTallies'
@@ -59,6 +59,7 @@ const IndexPage = () => {
   const [showDisconnected, setShowDisconnected] = useState(true)
   const [showUnpatched, setShowUnpatched] = useState(true)
   const isMixerConnected = useMixerInfo()
+  const mixerProblem = useMixerProblem()
   const isHubConnected = useSocketInfo()
   const setupState = useSetupConfiguration()
   const classes = useStyles()
@@ -98,6 +99,12 @@ const IndexPage = () => {
           <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/light"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
         </ButtonGroup>
       </div>
+      { isHubConnected && !isMixerConnected && mixerProblem && (
+        <Alert severity="warning" className={classes.alert} data-testid="mixer-problem">
+          <AlertTitle>Switcher not connected</AlertTitle>
+          {mixerProblem} The hub keeps trying on its own.
+        </Alert>
+      )}
       { isHubConnected ? "" : (
         <Alert severity="error" className={classes.alert}>
           <AlertTitle>Hub disconnected</AlertTitle>
