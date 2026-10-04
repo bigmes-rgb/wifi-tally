@@ -25,7 +25,7 @@ import TestConfiguration from './mixer/test/TestConfiguration'
 import WebTallyDriver from './tally/WebTallyDriver'
 import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConfiguration'
 import NodeMcuConnector from './flasher/NodeMcuConnector'
-import FakeNodemcu from './flasher/FakeNodemcu'
+import FakeNodemcu, { fakeFlashFirmware } from './flasher/FakeNodemcu'
 import { getHubInfo } from './lib/HubInfo'
 
 const argv = yargs.argv
@@ -60,7 +60,11 @@ const myWebTallyDriver = new WebTallyDriver(myConfiguration, myTallyContainer)
 const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
 
 // with --with-test a pretend board is plugged in, so the light pages can be tried without hardware
-const myNodeMcuConnector = myConfiguration.isTest() ? new NodeMcuConnector(new FakeNodemcu()) : new NodeMcuConnector()
+const myNodeMcuConnector = (() => {
+  if (!myConfiguration.isTest()) { return new NodeMcuConnector() }
+  const fake = new FakeNodemcu()
+  return new NodeMcuConnector(fake, fakeFlashFirmware(fake))
+})()
 
 // log stuff
 myEmitter.on('tally.logged', ({tally, log}) => {
@@ -337,6 +341,12 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('flasher.program', (path) => {
     myNodeMcuConnector.program(path, (state) => {
       socket.emit('flasher.program.progress', state)
+    })
+  })
+
+  socket.on('flasher.firmware', (path) => {
+    myNodeMcuConnector.flashFirmware(path, (progress) => {
+      socket.emit('flasher.firmware.progress', progress)
     })
   })
 

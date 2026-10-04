@@ -145,3 +145,47 @@ describe("wiring test session", () => {
     expect((await connector.getDevice()).errorMessage).toBeUndefined()
   }, 20000)
 })
+
+describe("flashFirmware()", () => {
+  const quietNodemcu = () => ({ onError: () => {}, isConnected: () => false, disconnect: async () => {}, listDevices: async () => [] })
+
+  test("it hands the port and the bundled image to the flasher and reports its progress", async () => {
+    const dirs = NodeMcuConnector.localFileDirs
+    NodeMcuConnector.localFileDirs = [__dirname + "/../../../firmware/prebuilt"]
+    try {
+      const seen: any[] = []
+      const connector = new NodeMcuConnector(quietNodemcu(), async ({ path, binPath, onProgress }) => {
+        seen.push({ path, binPath })
+        onProgress({ phase: "done", percent: 100 })
+        return true
+      })
+      const progress = []
+      const ok = await connector.flashFirmware("COM9", p => progress.push(p))
+      expect(ok).toBe(true)
+      expect(seen[0].path).toBe("COM9")
+      expect(seen[0].binPath).toMatch(/nodemcu-.*\.bin$/)
+      expect(progress).toEqual([{ phase: "done", percent: 100 }])
+      // the port is free again afterwards
+      expect((await connector.getDevice()).firmwareAvailable).toBe(true)
+    } finally {
+      NodeMcuConnector.localFileDirs = dirs
+    }
+  })
+
+  test("a hub without a firmware image says so instead of trying", async () => {
+    const dirs = NodeMcuConnector.localFileDirs
+    NodeMcuConnector.localFileDirs = ["/does/not/exist"]
+    try {
+      let called = false
+      const connector = new NodeMcuConnector(quietNodemcu(), async () => { called = true; return true })
+      const progress = []
+      const ok = await connector.flashFirmware("COM9", p => progress.push(p))
+      expect(ok).toBe(false)
+      expect(called).toBe(false)
+      expect(progress[0].phase).toBe("error")
+      expect((await connector.getDevice()).firmwareAvailable).toBe(false)
+    } finally {
+      NodeMcuConnector.localFileDirs = dirs
+    }
+  })
+})
