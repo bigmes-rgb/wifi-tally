@@ -29,6 +29,9 @@ _G.MyWifi = {
     getMac = function()
         return wifi.sta.getmac()
     end,
+    getBroadcast = function()
+        return wifi.sta.getbroadcast()
+    end,
 }
 
 wifi.setmaxtxpower(82)

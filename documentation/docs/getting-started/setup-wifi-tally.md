@@ -133,7 +133,7 @@ to the NodeMCU board:
     | --- | --- |
     | `station.ssid` | The name of the WiFi that the Tally should connect to |
     | `station.password` | The password to connect to the WiFi. If the WiFi has no password, leave it empty. |
-    | `hub.ip` | The IP address the hub is running on |
+    | `hub.ip` | *(optional)* The IP address the hub is running on. Leave it out and the tally finds the hub on its own. |
     | `tally.name` | How you want _this_ tally to be labeled in the hub. This name needs to be unique amongst all tallies in your network. It must not be longer than `26` characters. Use of ASCII characters is recommended. |
 
     For a list for all configuration values see [tally-settings.ini Reference](../tally.md).
