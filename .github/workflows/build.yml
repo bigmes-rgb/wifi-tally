@@ -1,6 +1,6 @@
 # Builds and tests every push and pull request.
-# A tag that looks like v1.2.3 (or v1.2.3-rc1) additionally produces a GitHub
-# Release on this repository with:
+# A tag that looks like v1.2.3 (or v1.2.3-rc1), or "Run workflow" with a
+# version typed in, additionally produces a GitHub Release on this repository with:
 #   - vtally-<version>-win-x64-portable.exe   the hub as a Windows desktop app
 #   - vtally-<version>.tgz                     the hub as an npm package
 #   - vtally-<version>-esp8266.zip             firmware + code for the tally lights
@@ -15,6 +15,11 @@ on:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+*
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Cut a release with this version (e.g. 0.6.0). Leave empty for a plain build.'
+        required: false
+        default: ''
 
 env:
   NODEJS_VERSION: 16
@@ -52,6 +57,12 @@ jobs:
           IS_RELEASE="false"
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             BUILD_NAME="${GITHUB_REF#refs/tags/}"
+            IS_RELEASE="true"
+          elif [[ -n "${{ inputs.release_version }}" ]]; then
+            # "Run workflow" with a version: release from this commit; the
+            # release step creates the tag (no tag push needed)
+            BUILD_NAME="v${{ inputs.release_version }}"
+            BUILD_NAME="v${BUILD_NAME#v}"
             IS_RELEASE="true"
           fi
           echo "build_name=${BUILD_NAME}" >> "$GITHUB_OUTPUT"
@@ -278,6 +289,8 @@ jobs:
       - run: ls -l artifacts
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.setup.outputs.build_name }}
+          target_commitish: ${{ github.sha }}
           name: ${{ needs.setup.outputs.build_name }}
           draft: true
           prerelease: ${{ contains(needs.setup.outputs.version, '-') }}
