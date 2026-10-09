@@ -189,3 +189,40 @@ describe("flashFirmware()", () => {
     }
   })
 })
+
+describe("pickBoard()", () => {
+  test("it prefers a known NodeMCU chip over other USB serial devices", () => {
+    const board = NodeMcuConnector.pickBoard([
+      { path: "COM3", vendorId: "2341", productId: "0043", manufacturer: "Arduino" },
+      { path: "COM4", vendorId: "1a86", productId: "7523", manufacturer: "wch.cn" },
+    ])
+    expect(board?.path).toBe("COM4")
+  })
+  test("it falls back to any USB serial device, e.g. a board with an unexpected chip", () => {
+    const board = NodeMcuConnector.pickBoard([
+      { path: "COM1" },
+      { path: "COM7", vendorId: "303a", productId: "1001" },
+    ])
+    expect(board?.path).toBe("COM7")
+  })
+  test("it never picks a port without a vendor id, which is on-board or Bluetooth", () => {
+    expect(NodeMcuConnector.pickBoard([{ path: "COM1" }, { path: "COM2", manufacturer: "Microsoft" }])).toBeUndefined()
+    expect(NodeMcuConnector.pickBoard([])).toBeUndefined()
+  })
+})
+
+describe("getDevice() reports what the computer sees", () => {
+  test("with no board it still lists every serial port so the operator knows what was seen", async () => {
+    const nodemcu = { ...fakeNodemcu(), listDevices: async (showAll?: boolean) => showAll ? [{ path: "COM1", manufacturer: "Microsoft" }] : [] }
+    const device = await new NodeMcuConnector(nodemcu).getDevice()
+    expect(device.path).toBeUndefined()
+    expect(device.serialPorts).toEqual([{ path: "COM1", manufacturer: "Microsoft", vendorId: undefined, productId: undefined }])
+    expect(device.toJson().serialPorts).toHaveLength(1)
+  })
+  test("it asks for all ports, not only the vendors nodemcu-tool knows", async () => {
+    const asked: any[] = []
+    const nodemcu = { ...fakeNodemcu(), listDevices: async (showAll?: boolean) => { asked.push(showAll); return [] } }
+    await new NodeMcuConnector(nodemcu).getDevice()
+    expect(asked).toEqual([true])
+  })
+})

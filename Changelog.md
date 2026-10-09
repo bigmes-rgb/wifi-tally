@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] *Build a light* only looked for boards with a CH340 or CP2102 chip and said "Did not find
+  any connected device" for everything else. It now tries any USB serial port, preferring the known
+  chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
+  the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
 * [BUGFIX] The Roland V-8HD connection tried once at start-up and gave up. If the switcher was off,
   unplugged, or its MIDI port was held by the Roland remote software at that moment, the hub stayed
   disconnected until restarted. It now keeps looking every few seconds, reconnects on its own, notices
