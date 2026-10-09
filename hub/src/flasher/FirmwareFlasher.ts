@@ -20,11 +20,22 @@ export type FlashFirmwareOptions = {
   makeTransport?: (path: string) => any
 }
 
-// esptool-js ships as an ES module; this keeps the import out of the CommonJS compile
+// esptool-js ships as an ES module. Node's ES-module loader cannot read from inside Electron's
+// app.asar, so the packaged app failed with "Cannot find package 'esptool-js'". The build bundles
+// it to a plain CommonJS file next to this one (see scripts/build.sh); the dynamic import stays
+// as the fallback for running from source.
+export const ESPTOOL_BUNDLE = "esptool-js.bundle.js"
+
 const importEsptool = async () => {
   if (typeof (globalThis as any).atob !== "function") {
     // Node before 16 has no atob, esptool-js decodes its flasher stub with it
     (globalThis as any).atob = (s: string) => Buffer.from(s, "base64").toString("binary")
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require(`./${ESPTOOL_BUNDLE}`)
+  } catch (e) {
+    if (e.code !== "MODULE_NOT_FOUND") { throw e }
   }
   // eslint-disable-next-line no-new-func
   return new Function('return import("esptool-js")')()

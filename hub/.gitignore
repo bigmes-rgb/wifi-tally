@@ -3,6 +3,7 @@
 !.git*
 !.eslintrc.*
 /dist
+/src/flasher/esptool-js.bundle.js
 /node_modules
 
 # testing

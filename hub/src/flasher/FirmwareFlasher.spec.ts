@@ -1,6 +1,10 @@
+/**
+ * @jest-environment node
+ */
 import { promises as fs } from 'fs'
 import tmp from 'tmp'
 import { flashNodeMcuFirmware, FirmwareProgressType, NODEMCU_FLASH } from './FirmwareFlasher'
+import NodeSerialTransport from './NodeSerialTransport'
 
 tmp.setGracefulCleanup()
 
@@ -75,4 +79,22 @@ test("a missing firmware file is an error, not a crash", async () => {
   const ok = await flashNodeMcuFirmware({ path: "COM9", binPath: "/does/not/exist.bin", onProgress: p => progress.push(p), loadEsptool: fakeEsptool().load, makeTransport: fakeTransport })
   expect(ok).toBe(false)
   expect(progress[progress.length - 1].phase).toBe("error")
+})
+
+describe("the esptool-js bundle the build ships", () => {
+  test("it bundles to CommonJS, loads in Node without a browser, and has the loader the flasher uses", () => {
+    const esbuild = require('esbuild')
+    const os = require('os')
+    const nodePath = require('path')
+    const outfile = nodePath.join(os.tmpdir(), `esptool-js-${process.pid}.bundle.js`)
+    esbuild.buildSync({
+      entryPoints: [require.resolve('esptool-js')], bundle: true, platform: 'node', format: 'cjs', target: 'node14', outfile, logLevel: 'silent',
+    })
+    const esptool = require(outfile)
+    expect(typeof esptool.ESPLoader).toBe("function")
+    const transport = new NodeSerialTransport("/dev/fake")
+    const loader = new esptool.ESPLoader({ transport, baudrate: 115200, romBaudrate: 115200, terminal: { clean() {}, writeLine() {}, write() {} } })
+    expect(typeof loader.main).toBe("function")
+    expect(typeof loader.writeFlash).toBe("function")
+  })
 })
