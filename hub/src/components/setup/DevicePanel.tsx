@@ -110,6 +110,7 @@ function DevicePanel({ device, onReload }: Props) {
           <Alert severity="warning" className={classes.block} action={<Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>}>
             Found a board on {device.path}, but nothing answers on it. A board straight from the box needs the NodeMCU firmware first; this takes one to two minutes.
           </Alert>
+          {device.errorMessage && <Typography variant="caption" color="textSecondary" display="block" data-testid="device-error">The board said: {device.errorMessage}</Typography>}
           <Typography variant="caption" color="textSecondary">Already installed it and still here? Press the board's RST button and <Button size="small" onClick={onReload} disabled={busy}>check again</Button>.</Typography>
         </> :
         !hasLua ? <Help tallyDevice={device} onReload={onReload} /> : (

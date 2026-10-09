@@ -225,4 +225,10 @@ describe("getDevice() reports what the computer sees", () => {
     await new NodeMcuConnector(nodemcu).getDevice()
     expect(asked).toEqual([true])
   })
+  test("a failure while listing ports is reported in words, not as an empty object", async () => {
+    const nodemcu = { ...fakeNodemcu(), listDevices: async () => { throw new Error("bindings missing") } }
+    const device = await new NodeMcuConnector(nodemcu).getDevice()
+    expect(device.errorMessage).toBe("bindings missing")
+    expect(JSON.parse(JSON.stringify(device.toJson())).errorMessage).toBe("bindings missing")
+  })
 })

@@ -50,6 +50,10 @@ function Help({tallyDevice, onReload}: Props) {
           ? "This computer reports no serial port at all, so Windows is not seeing the board."
           : "None of the serial ports on this computer looks like a NodeMCU board."}
       </Alert>
+      {tallyDevice.errorMessage && <Alert variant="outlined" className={classes.warning} severity="error" data-testid="device-error">
+        <AlertTitle>Looking for ports failed</AlertTitle>
+        {tallyDevice.errorMessage}
+      </Alert>}
       {ports.length > 0 && <Alert variant="outlined" className={classes.info} severity="info">
         <AlertTitle>Serial ports this computer sees</AlertTitle>
         <ul data-testid="serial-ports">
@@ -83,6 +87,7 @@ function Help({tallyDevice, onReload}: Props) {
       >
         Device was found, but could not determine if LUA is running.
       </Alert>
+      {tallyDevice.errorMessage && <Alert variant="outlined" className={classes.warning} severity="error" data-testid="device-error">{tallyDevice.errorMessage}</Alert>}
       <Alert variant="outlined" className={classes.info} severity="info">
         <AlertTitle>Possible fixes</AlertTitle>
         <ul>
