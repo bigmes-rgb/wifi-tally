@@ -250,7 +250,8 @@ class NodeMcuConnector {
       })
     }
     catch (e) {
-      tallyDevice.errorMessage = e
+      // an Error object serialises to {} over the socket; keep the words
+      tallyDevice.errorMessage = e instanceof Error ? e.message : String(e)
       return tallyDevice
     }
     finally {

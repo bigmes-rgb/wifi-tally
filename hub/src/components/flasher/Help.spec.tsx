@@ -22,4 +22,9 @@ describe('<Help> when no board was found', () => {
     expect(screen.getByTestId('serial-ports').textContent).toContain('COM5 (FTDI, USB 0403:6001)')
     expect(screen.getByText(/CH340 driver/)).toHaveAttribute('href', expect.stringContaining('wch-ic.com'))
   })
+  test('it shows the error when listing the ports itself failed, instead of pretending there are none', () => {
+    const device = TallyDevice.fromJson({ serialPorts: [], errorMessage: 'The serial driver did not load' } as any)
+    render(<Help tallyDevice={device} onReload={() => {}} />)
+    expect(screen.getByTestId('device-error').textContent).toContain('The serial driver did not load')
+  })
 })
