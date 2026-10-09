@@ -1,5 +1,5 @@
 import nodemcuLib from 'nodemcu-tool'
-import TallyDevice from './TallyDevice'
+import TallyDevice, { SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
 import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
@@ -191,6 +191,19 @@ class NodeMcuConnector {
     
   }
 
+  // USB-to-serial chips seen on NodeMCU boards: CH340/CH341/CH9102 (QinHeng), CP2102 (Silicon Labs),
+  // FT232 (FTDI). Anything else that is a USB serial port is still tried, after these.
+  static readonly KNOWN_VENDOR_IDS = ["1A86", "10C4", "0403"]
+
+  // Picks the port most likely to be the board. nodemcu-tool only lists known vendors, which hides a
+  // board with an unexpected chip and leaves the operator with "no device" and no clue.
+  static pickBoard(ports: SerialPortInfo[]): SerialPortInfo | undefined {
+    const vendor = (port: SerialPortInfo) => (port.vendorId || "").toUpperCase()
+    return ports.find(port => NodeMcuConnector.KNOWN_VENDOR_IDS.includes(vendor(port)))
+      // any USB serial device; a port without a vendor id is on-board or Bluetooth and never a NodeMCU
+      || ports.find(port => vendor(port) !== "")
+  }
+
   async getDevice(): Promise<TallyDevice> {
     const tallyDevice = new TallyDevice()
     const localFiles = await NodeMcuConnector.getLocalFiles()
@@ -202,10 +215,13 @@ class NodeMcuConnector {
 
     try {
       return await this.withMutex(async () => {
-        const list = await this.nodemcu.listDevices()
-        const device = list[0]
+        const list: SerialPortInfo[] = await this.nodemcu.listDevices(true)
+        tallyDevice.serialPorts = list.map(port => ({
+          path: port.path, manufacturer: port.manufacturer, vendorId: port.vendorId, productId: port.productId
+        }))
+        const device = NodeMcuConnector.pickBoard(tallyDevice.serialPorts)
         if (device) {
-          
+
           tallyDevice.path = device.path
           tallyDevice.vendorId = device.vendorId
           tallyDevice.productId = device.productId

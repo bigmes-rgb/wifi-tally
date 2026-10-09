@@ -2,6 +2,14 @@ import TallySettingsIni from "./TallySettingsIni"
 
 export type UpdateType = "not-available" | "up-to-date" | "updateable"
 
+// one serial port the computer reports, whether or not it looks like a NodeMCU
+export interface SerialPortInfo {
+  path: string
+  manufacturer?: string
+  vendorId?: string
+  productId?: string
+}
+
 export interface TallyDeviceObjectType {
   vendorId: string
   productId: string
@@ -15,6 +23,8 @@ export interface TallyDeviceObjectType {
   update?: UpdateType
   // this hub carries a NodeMCU firmware image it can put on a bare board
   firmwareAvailable?: boolean
+  // every serial port the computer reported when it looked, so the UI can say what it saw
+  serialPorts?: SerialPortInfo[]
 }
 
 class TallyDevice{
@@ -29,6 +39,7 @@ class TallyDevice{
   tallySettings?: TallySettingsIni
   errorMessage?: string
   firmwareAvailable?: boolean
+  serialPorts: SerialPortInfo[] = []
 
   toJson(): TallyDeviceObjectType {
     return {
@@ -43,6 +54,7 @@ class TallyDevice{
       errorMessage: this.errorMessage,
       update: this.update,
       firmwareAvailable: this.firmwareAvailable,
+      serialPorts: this.serialPorts,
     }
   }
 
@@ -59,6 +71,7 @@ class TallyDevice{
     device.errorMessage = data.errorMessage
     device.update = data.update
     device.firmwareAvailable = data.firmwareAvailable
+    device.serialPorts = data.serialPorts || []
 
     return device
   }

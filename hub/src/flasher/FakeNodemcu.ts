@@ -17,7 +17,7 @@ class FakeNodemcu {
   async checkConnection() {
     if (!this.flashed) { throw new Error("No response detected - is NodeMCU online and the Lua interpreter ready ?") }
   }
-  async listDevices() { return [{ path: "FAKE0", vendorId: "10c4", productId: "ea60" }] }
+  async listDevices(_showAll?: boolean) { return [{ path: "FAKE0", vendorId: "10c4", productId: "ea60" }] }
   async deviceInfo() {
     return { chipID: "fake1234", flashID: "1640ef", version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }
   }

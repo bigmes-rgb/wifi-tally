@@ -1,6 +1,6 @@
 import React from 'react'
 import { Button, makeStyles } from '@material-ui/core'
-import TallyDevice from '../../flasher/TallyDevice'
+import TallyDevice, { SerialPortInfo } from '../../flasher/TallyDevice'
 import { Alert, AlertTitle } from '@material-ui/lab'
 import ExternalLink from '../ExternalLink'
 
@@ -32,6 +32,12 @@ function Help({tallyDevice, onReload}: Props) {
       return hostName === "127.0.0.1" || hostName === "localhost" || hostName === "[::1]"
     })
 
+    const ports = tallyDevice.serialPorts || []
+    const describe = (port: SerialPortInfo) => {
+      const details = [port.manufacturer, port.vendorId ? `USB ${port.vendorId}:${port.productId}` : "not USB"].filter(Boolean)
+      return `${port.path} (${details.join(", ")})`
+    }
+
     return <>
       <Alert 
         className={classes.warning} 
@@ -40,15 +46,29 @@ function Help({tallyDevice, onReload}: Props) {
           <Button color="inherit" size="small" onClick={() => onReload()}>Try again</Button>
         }
       >
-        Did not find any connected device.
+        {ports.length === 0
+          ? "This computer reports no serial port at all, so Windows is not seeing the board."
+          : "None of the serial ports on this computer looks like a NodeMCU board."}
       </Alert>
+      {ports.length > 0 && <Alert variant="outlined" className={classes.info} severity="info">
+        <AlertTitle>Serial ports this computer sees</AlertTitle>
+        <ul data-testid="serial-ports">
+          {ports.map(port => <li key={port.path}>{describe(port)}</li>)}
+        </ul>
+        A NodeMCU shows up as a USB port from QinHeng (CH340, id 1a86), Silicon Labs (CP2102, id 10c4) or FTDI (id 0403).
+        The ports above are something else, e.g. a Bluetooth or on-board port.
+      </Alert>}
       <Alert variant="outlined" className={classes.info} severity="info">
         <AlertTitle>Possible fixes</AlertTitle>
         <ul>
-          <li>Plug the Tally to the computer that runs the hub via USB.</li>
-          { !isLocalhost() && <li>The Tally has to be connected to the computer that <em>runs</em> the hub. It does not work on <em>remote machines</em>.</li> }
-          <li>Some USB cables can just be used for charging. Make sure you use an <em>USB data cable</em>.</li>
-          <li>If this has never worked from this computer ever, you might be missing the correct <ExternalLink href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers">USB drivers</ExternalLink>.</li>
+          <li>Plug the light into the computer that runs the hub via USB.</li>
+          { !isLocalhost() && <li>The light has to be connected to the computer that <em>runs</em> the hub. It does not work on <em>remote machines</em>.</li> }
+          <li>Some USB cables can only charge. Use a USB <em>data</em> cable, and try another USB socket on the computer.</li>
+          <li>Open Device Manager and watch "Ports (COM &amp; LPT)" while you plug the board in. A new line with a yellow triangle means the driver is missing:
+            {' '}<ExternalLink href="https://www.wch-ic.com/downloads/CH341SER_EXE.html">CH340 driver</ExternalLink> for most boards,
+            {' '}<ExternalLink href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers">CP210x driver</ExternalLink> for boards with a Silicon Labs chip.
+            Nothing new at all means the cable or the socket.</li>
+          <li>Close any other program that may hold the port open, e.g. the Arduino IDE or a serial monitor.</li>
         </ul>
       </Alert>
     </>
