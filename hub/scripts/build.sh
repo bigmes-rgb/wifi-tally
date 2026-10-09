@@ -39,6 +39,9 @@ mkdir "$RELEASE_DIR"
 
 mkdir "$RELEASE_DIR/src"
 npm run build:backend -- --outDir "$RELEASE_DIR/src"
+# esptool-js is an ES module and Node cannot import one from inside Electron's app.asar;
+# ship it as a CommonJS bundle next to the flasher instead (FirmwareFlasher.ts loads it)
+npm run build:esptool -- --outfile="$RELEASE_DIR/src/flasher/esptool-js.bundle.js"
 
 # ###
 # 

@@ -7,6 +7,9 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [BUGFIX] "Install firmware" in the Windows app failed at once with "Cannot find package
+  'esptool-js'". The flashing library is an ES module and Node cannot import one from inside the
+  packed app. The build now ships it as a plain bundle next to the flasher.
 * [BUGFIX] When looking for the board failed outright (e.g. the serial driver could not load), the
   error was lost on the way to the browser and the page looked like "no ports". The error is shown.
 * [BUGFIX] The Roland V-8HD connection tried once at start-up and gave up. If the switcher was off,
