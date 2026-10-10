@@ -33,6 +33,16 @@ describe("ini round trip", () => {
     expect(back.operator).toEqual({ kind: "ws2812", polarity: "anode", pixels: 3, order: "rgb" })
     expect(back.stage).toEqual({ kind: "rgb", polarity: "cathode", pixels: 4, order: "grb" })
   })
+  test("a light with no stage light reads back with no stage light, not a phantom RGB LED", () => {
+    const profile = defaultHardwareProfile()
+    profile.operator = { kind: "ws2812", polarity: "anode", pixels: 5, order: "grb" }
+    profile.stage = { kind: "none", polarity: "anode", pixels: 4, order: "grb" }
+    // also over a light that was saved with a stage RGB LED before
+    const ini = new TallySettingsIni("station.ssid=x\nstage.type=grb+\n")
+    writeProfileToIni(ini, profile)
+    expect(ini.toString()).not.toContain("stage.type")
+    expect(readProfileFromIni(new TallySettingsIni(ini.toString())).stage.kind).toEqual("none")
+  })
   test("an ini from before these settings existed reads as the default", () => {
     expect(readProfileFromIni(new TallySettingsIni("station.ssid=x\n"))).toEqual(defaultHardwareProfile())
     expect(readProfileFromIni(undefined)).toEqual(defaultHardwareProfile())

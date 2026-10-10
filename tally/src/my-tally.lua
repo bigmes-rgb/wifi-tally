@@ -130,7 +130,9 @@ _G.MyTally = {
             MyLog.error("Not sending packet, because UDP is not set up yet.")
             return
         end
-        listenSocket:send(MySettings:hubPort(), MyTally.hubAddress(), data .. "\n")
+        -- a send error must not restart the light; print, not MyLog, which sends through here
+        local ok, err = pcall(listenSocket.send, listenSocket, MySettings:hubPort(), MyTally.hubAddress(), data .. "\n")
+        if not ok then print("Could not send to the hub: " .. tostring(err)) end
     end,
     sendInfo = function(self)
         self:send(string.format('tally-ho "%s"', MySettings:name()))
