@@ -559,6 +559,31 @@ class NodeMcuConnector {
     })
   }
 
+  // Listens for the chip's own start-up message (74880 baud) while someone presses RST, and stops
+  // shortly after it arrives. Resolves with everything heard.
+  async readBootMessage(path: string, onText: (text: string) => void, maxMs = 30000): Promise<string> {
+    return await this.withMutex(async () => {
+      let settle: ReturnType<typeof setTimeout> | undefined
+      let heard = ""
+      const { done, stop } = this.stream({
+        path, ms: maxMs, baudRate: 74880,
+        onText: text => {
+          heard += text
+          onText(text)
+          // the load lines follow the boot line within a moment; then stop
+          if (!settle && /boot mode:\s*\(\d,\s*\d\)/.test(heard)) settle = setTimeout(() => stop(), 2500)
+        },
+      })
+      this.stopWatch = stop
+      try {
+        return await done
+      } finally {
+        if (settle) clearTimeout(settle)
+        this.stopWatch = null
+      }
+    })
+  }
+
   stopNetworkWatch() {
     if (this.stopWatch) this.stopWatch()
   }

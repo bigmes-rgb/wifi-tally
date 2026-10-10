@@ -214,3 +214,15 @@ describe("after the install the board has to restart", () => {
     expect(progress[progress.length - 1].message).toContain("RST")
   })
 })
+
+describe("the install is read back", () => {
+  test("the write is given an MD5 of exactly the bytes written", async () => {
+    const esptool = fakeEsptool()
+    await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: () => {}, loadEsptool: esptool.load, makeTransport: fakeTransport })
+    const md5 = esptool.calls.writeOptions.calculateMD5Hash(new Uint8Array([1, 2, 3]))
+    expect(md5).toBe("5289df737df57326fcdd22597afb1fac")
+  })
+  test("a mismatch says the write went wrong", () => {
+    expect(describeFlashError(new Error("MD5 of file does not match data in flash!"))).toContain("does not match the firmware file")
+  })
+})

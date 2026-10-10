@@ -341,6 +341,11 @@ io.on('connection', (socket: ServerSideSocket) => {
       .finally(() => socket.emit('flasher.watch.end'))
   })
   socket.on('flasher.watch.stop', () => myNodeMcuConnector.stopNetworkWatch())
+  socket.on('flasher.bootmessage.start', (path: string) => {
+    myNodeMcuConnector.readBootMessage(path, text => socket.emit('flasher.bootmessage.text', text))
+      .catch(e => console.error(`Reading the start-up message on ${path} failed:`, e))
+      .finally(() => socket.emit('flasher.bootmessage.end'))
+  })
 
   socket.on('flasher.settingsIni', (path, settingsIniString) => {
     myNodeMcuConnector.writeTallySettingsIni(path, settingsIniString, (state) => {

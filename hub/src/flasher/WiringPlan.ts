@@ -86,7 +86,7 @@ export function wiringPlan(profile: HardwareProfile): WiringPlan {
     const which = firstStrip === "operator" ? "operator" : "stage"
     wires.push(
       { role: firstStrip, pad: "DIN", from: rightPin(PINS.ws2812), color: WIRE_COLORS.data, pinText: PINS.ws2812, toText: `DIN pad of the ${which} strip (data in, the end the arrows point away from). Its first ${pixelWord(light.pixels)} are the ${which} light.` },
-      { role: firstStrip, pad: "+5V", from: STRIP_POWER.vin, color: WIRE_COLORS.v5, pinText: "VIN", toText: `+5V pad of the ${which} strip. VIN, not 3V3.` },
+      { role: firstStrip, pad: "+5V", from: STRIP_POWER.vin, color: WIRE_COLORS.v5, pinText: "VIN", toText: `+5V pad of the ${which} strip. On boards with a VU pin (LoLin) use VU instead: there VIN can be dead while the board runs from USB. Not 3V3.` },
       { role: firstStrip, pad: "GND", from: STRIP_POWER.gnd, color: WIRE_COLORS.gnd, pinText: "GND", toText: `GND pad of the ${which} strip` },
     )
   }

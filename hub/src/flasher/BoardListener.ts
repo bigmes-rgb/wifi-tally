@@ -95,13 +95,14 @@ export interface StreamOptions {
   onText: (text: string) => void // every printable chunk as it arrives
   stopWhen?: (allText: string) => boolean
   openPort?: OpenPort
+  baudRate?: number // 115200 for NodeMCU; 74880 for the chip's own start-up message
 }
 
 // Passes along what a board prints, live, until stopWhen says so, time runs out, or stop() is called.
-export function streamFromBoard({ path, ms, writeFirst, onText, stopWhen, openPort = defaultOpenPort }: StreamOptions) {
+export function streamFromBoard({ path, ms, writeFirst, onText, stopWhen, openPort = defaultOpenPort, baudRate = 115200 }: StreamOptions) {
   let stop: () => void = () => {}
   const done = new Promise<string>(resolve => {
-    const port = openPort(path, 115200)
+    const port = openPort(path, baudRate)
     let all = ""
     let finished = false
     let timer: ReturnType<typeof setTimeout> | undefined

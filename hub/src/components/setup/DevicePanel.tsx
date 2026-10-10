@@ -8,6 +8,7 @@ import { TallyProgramProgressType } from '../../flasher/NodeMcuConnector'
 import { FirmwareProgressType } from '../../flasher/FirmwareFlasher'
 import { socket } from '../../hooks/useSocket'
 import Help from '../flasher/Help'
+import BootMessageReader from './BootMessageReader'
 import ProgramProgress from '../flasher/ProgramProgress'
 import Spinner from '../layout/Spinner'
 
@@ -164,6 +165,8 @@ function DevicePanel({ device, onReload }: Props) {
               <pre className={classes.output}>{device.boardOutput}</pre>
             </details>}
             {device.errorMessage && <Typography variant="caption" color="textSecondary" display="block" data-testid="device-error">{device.errorMessage}</Typography>}
+            {/* the firmware is in but nothing answers: the chip's own start-up message says why */}
+            {(device.boardState === "silent" || device.boardState === "otherFirmware" || device.boardState === "crashing") && <BootMessageReader path={device.path} />}
             <Typography variant="caption" color="textSecondary">
               {advice?.wait
                 ? <>Still the same after two minutes? <Button size="small" onClick={installFirmware} disabled={busy}>Install the firmware again</Button>.</>

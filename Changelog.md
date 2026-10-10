@@ -7,6 +7,14 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [BUGFIX] The wiring table, notes and guide said to power a NeoPixel strip from VIN. On LoLin-style
+  boards VIN is dead while the board runs from USB; the strip then has no power, stays dark, and holds
+  D4 low so the board does not even start. They now say VU on boards that have it, and warn that an
+  unpowered strip stops the board starting. Found on a real board.
+* [FEATURE] *Read the start-up message* on the "nothing answers" screen listens at 74880 baud while you
+  press RST and translates the chip's own start-up line: starts normally, keeps restarting, started in
+  flashing mode (D3 low), D4 held low (unpowered strip), or D8 held high.
+* [FEATURE] Every firmware install is read back (MD5) and a bad write is reported as one.
 * [BUGFIX] On boards whose automatic reset does not work (the ones that need FLASH and RST to install),
   the board stayed in flashing mode after *Install firmware* and the page waited minutes before saying
   "not saying anything". The install now listens for the board to restart; when it stays silent the

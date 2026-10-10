@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { createHash } from 'crypto'
 import NodeSerialTransport from './NodeSerialTransport'
 
 export type FirmwarePhase = "connecting" | "writing" | "restarting" | "done" | "error"
@@ -74,6 +75,9 @@ export const describeFlashError = (e: any): string => {
   if (/Serial data stream stopped|No serial data received|Timed out waiting for packet/i.test(message)) {
     return "The board stopped answering during the install. Usually it was not in flashing mode."
   }
+  if (/MD5 of file does not match/i.test(message)) {
+    return "What arrived on the board does not match the firmware file: the write went wrong. Install it again; if it keeps failing, try another USB socket or cable."
+  }
   if (/Failed to connect/i.test(message)) {
     return "Could not get the board into flashing mode."
   }
@@ -127,6 +131,8 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       flashSize,
       eraseAll: false,
       compress: true,
+      // read back what landed on the chip and compare: a bad write is reported as one
+      calculateMD5Hash: (written: Uint8Array) => createHash("md5").update(Buffer.from(written)).digest("hex"),
       reportProgress: (_fileIndex: number, written: number, total: number) => {
         report("writing", 5 + Math.round((written / Math.max(total, 1)) * 90))
       },

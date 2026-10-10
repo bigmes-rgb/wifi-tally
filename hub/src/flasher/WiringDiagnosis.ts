@@ -79,7 +79,7 @@ export function checksFor(profile: HardwareProfile): WiringCheck[] {
 function stripDarkAdvice(name: string): string {
   return `No pixel of the ${name} lit, although the board follows the hub. Check in this order: ` +
     `1) the wire from ${PINS.ws2812} goes to the strip's DIN pad, at the end its arrows point away from; ` +
-    `2) the strip's GND goes to a GND pin on the board; 3) the strip's +5V goes to VIN. ` +
+    `2) the strip's GND goes to a GND pin on the board; 3) the strip's +5V goes to VU (on boards that have it) or VIN, and that pin has 5 V while USB is plugged in. ` +
     `4) Some strips ignore the board's 3.3 V signal while they run on 5 V. To test, move the strip's + wire from VIN to 3V3 and run the test again. ` +
     `If it lights then, put it back on VIN with a 1N4001 diode in that + wire (stripe towards the strip), or use a 74AHCT125 level shifter on the data wire.`
 }

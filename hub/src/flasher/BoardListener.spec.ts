@@ -79,3 +79,11 @@ test("stop() ends a stream early", async () => {
   await s.done
   expect(port.isOpen).toBe(false)
 })
+
+test("streaming opens the port at the baud rate asked for", async () => {
+  const opened: number[] = []
+  const port = fakePort(() => {})
+  const s = streamFromBoard({ path: "COM7", ms: 50, baudRate: 74880, onText: () => {}, openPort: (_p: string, baud: number) => { opened.push(baud); return port } })
+  await s.done
+  expect(opened).toEqual([74880])
+})
