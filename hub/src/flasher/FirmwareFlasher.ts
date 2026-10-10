@@ -41,6 +41,17 @@ const importEsptool = async () => {
   return new Function('return import("esptool-js")')()
 }
 
+// esptool-js 0.7.0 marks the ESP8266's missing MOSI/MISO length registers with 0 instead of null.
+// runSpiflashCommand tests "!= null", so for the ESP8266 it writes the read length into SPI_CMD
+// (base + 0) instead of SPI_USR1. The flash chip's ID then reads back as garbage and writeFlash
+// stops with "Could not auto-detect Flash size". esptool.py has None here. Put that back.
+export const fixEsp8266SpiRegisters = (chip: any) => {
+  if (chip && /ESP8266/i.test(chip.CHIP_NAME || "")) {
+    if (chip.SPI_MOSI_DLEN_OFFS === 0) { chip.SPI_MOSI_DLEN_OFFS = null }
+    if (chip.SPI_MISO_DLEN_OFFS === 0) { chip.SPI_MISO_DLEN_OFFS = null }
+  }
+}
+
 export type FlashFirmwareFn = (options: FlashFirmwareOptions) => Promise<boolean>
 
 // Puts the NodeMCU firmware on a bare ESP8266 board. Resolves true on success; every
@@ -59,10 +70,25 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
     }
     const loader = new esptool.ESPLoader({ transport, baudrate: 115200, romBaudrate: 115200, terminal })
 
+    // apply the register fix the moment the chip is known, before main() first reads the flash ID
+    const detectChip = loader.detectChip.bind(loader)
+    loader.detectChip = async (...args: any[]) => {
+      await detectChip(...args)
+      fixEsp8266SpiRegisters(loader.chip)
+    }
+
     report("connecting", 2, "Looking for the board. If nothing happens, hold FLASH and tap RST on the board.")
     const chip: string = await loader.main()
     if (!/ESP8266/i.test(chip)) {
       throw new Error(`This is not a NodeMCU/ESP8266 board but "${chip}".`)
+    }
+
+    // Ask the flash chip its size. If it cannot be read, keep the size written in the firmware
+    // image (1 MB, which every ESP8266 board has) instead of refusing to install.
+    let flashSize: string = NODEMCU_FLASH.flashSize
+    if (flashSize === "detect") {
+      flashSize = (await loader.detectFlashSize()) || "keep"
+      console.info(`[esptool ${path}] flash size ${flashSize === "keep" ? "not readable, keeping the image's own setting" : flashSize}`)
     }
 
     report("writing", 5, `Writing ${Math.round(image.length / 1024)} kB to the board`)
@@ -70,7 +96,7 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       fileArray: [{ data: image, address: NODEMCU_FLASH.address }],
       flashMode: NODEMCU_FLASH.flashMode,
       flashFreq: NODEMCU_FLASH.flashFreq,
-      flashSize: NODEMCU_FLASH.flashSize,
+      flashSize,
       eraseAll: false,
       compress: true,
       reportProgress: (_fileIndex: number, written: number, total: number) => {

@@ -15,6 +15,10 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   Replaces the four stock pictures, which showed a stage strip even when none was selected.
 * [BUGFIX] The power note said a light needs "well under 200 mA". True for plain LEDs, not for strips:
   it now works out the current from the pixel count and asks for a 1 A charger.
+* [BUGFIX] "Install firmware" stopped with "Could not auto-detect Flash size" on every ESP8266. The
+  flashing library (esptool-js 0.7.0) programs the wrong SPI register on the ESP8266 when it asks
+  the flash chip for its ID. The hub corrects that register map as soon as the chip is detected, and
+  if the size still cannot be read it keeps the firmware image's own 1 MB setting instead of giving up.
 * [BUGFIX] "Install firmware" in the Windows app failed at once with "Cannot find package
   'esptool-js'". The flashing library is an ES module and Node cannot import one from inside the
   packed app. The build now ships it as a plain bundle next to the flasher.
