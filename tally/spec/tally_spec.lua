@@ -166,6 +166,51 @@ insulate("hub discovery", function()
         myHandleReceive("O255/000/000 S000/000/000", "192.168.1.20")
         assert.is_same(1, shown)
     end)
+    it("stays with the first hub when a second hub also answers, and warns once", function()
+        useSettings(nil)
+        local shown = {}
+        MyLed.static = function(r) table.insert(shown, r) end
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.35")
+        local before = #logs
+        for _ = 1, 5 do
+            myHandleReceive("O000/255/000 S000/000/000", "192.168.1.6")
+            myHandleReceive("O255/000/000 S000/000/000", "192.168.1.35")
+        end
+        assert.is_same("192.168.1.35", MyTally.hubAddress())
+        -- only the first hub drives the LEDs
+        assert.is_same({255, 255, 255, 255, 255, 255}, shown)
+        -- one warning about the other hub, no "Found hub" flood
+        assert.is_same(1, #logs - before)
+        assert.truthy(logs[#logs]:find("Another hub at 192.168.1.6", 1, true))
+    end)
+    it("moves to the other hub once its own hub goes silent", function()
+        local clock = 0
+        local everySecond
+        _G.tmr = {
+            ALARM_AUTO = "auto",
+            create = function() return { alarm = function(_, _, _, func) everySecond = func end } end,
+            now = function() return clock end,
+        }
+        useSettings(nil)
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.35")
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.6")
+        assert.is_same("192.168.1.35", MyTally.hubAddress())
+        -- 192.168.1.35 says nothing for 11 seconds (its cable was pulled, say)
+        clock = 11000000
+        everySecond()
+        assert.is_same("192.168.1.255", MyTally.hubAddress())
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.6")
+        assert.is_same("192.168.1.6", MyTally.hubAddress())
+    end)
+    it("ignores a hub other than the configured hub.ip", function()
+        useSettings("10.10.1.1")
+        local shown = 0
+        MyLed.static = function() shown = shown + 1 end
+        myHandleReceive("O255/000/000 S000/000/000", "192.168.1.20")
+        assert.is_same(0, shown)
+        myHandleReceive("O255/000/000 S000/000/000", "10.10.1.1")
+        assert.is_same(1, shown)
+    end)
     it("ignores other tallies' broadcasts without logging", function()
         useSettings(nil)
         local before = #logs

@@ -3,10 +3,11 @@ import { Alert } from '@material-ui/lab'
 import RefreshIcon from '@material-ui/icons/Refresh'
 import React, { useEffect, useRef, useState } from 'react'
 import TallyDevice from '../../flasher/TallyDevice'
-import { BoardState } from '../../flasher/BoardListener'
+import { BoardState, hubAddressesIn } from '../../flasher/BoardListener'
 import { TallyProgramProgressType } from '../../flasher/NodeMcuConnector'
 import { FirmwareProgressType } from '../../flasher/FirmwareFlasher'
 import { socket } from '../../hooks/useSocket'
+import useHubInfo from '../../hooks/useHubInfo'
 import Help from '../flasher/Help'
 import BootMessageReader from './BootMessageReader'
 import ProgramProgress from '../flasher/ProgramProgress'
@@ -37,6 +38,22 @@ export const ADVICE: Record<BoardState, Advice> = {
   silent: { severity: "warning", wait: false, text: "The board is not saying anything. If you just installed the firmware, press the board's RST button once (do not hold FLASH), wait a minute, then check again. If it stays silent, install the firmware again." },
   crashing: { severity: "error", wait: false, text: "The board keeps crashing and restarting: the firmware did not install cleanly. Install it again." },
   otherFirmware: { severity: "warning", wait: false, text: "The board runs something other than the NodeMCU firmware, as boards straight from the box do. Install the firmware; it takes one to two minutes." },
+  tallyBusy: { severity: "info", wait: true, text: "The tally software is running on it (it is printing its log) but did not answer in time. Press Check again." },
+  twoHubs: { severity: "warning", wait: true, text: "The light is on the Wi-Fi but hears a vTally hub at two addresses, and switches between them so fast that it cannot answer." },
+}
+
+// What to do about a light that hears a hub at two addresses. The hub knows its own addresses, so
+// it can tell "this computer is on the network twice" from "another computer runs vTally".
+export function twoHubsText(heard: string[], own: string[]): string {
+  const others = heard.filter(a => !own.includes(a))
+  const after = "press RST on the board, wait a minute, then Check again."
+  if (own.length > 0 && others.length === 0) {
+    return `${heard.length === 2 ? "Both" : "All"}, ${heard.join(" and ")}, are this computer: it is on the network twice, by cable and by Wi-Fi. Unplug its network cable or turn its Wi-Fi off, ${after}`
+  }
+  if (own.length > 0) {
+    return `${others.join(" and ")} ${others.length === 1 ? "is another computer" : "are other computers"} running vTally. Close vTally there, ${after}`
+  }
+  return `The addresses are ${heard.join(" and ")}. Either another computer on this network runs vTally (close it there), or this computer is on the network twice, by cable and by Wi-Fi (unplug the cable or turn its Wi-Fi off). Then ${after}`
 }
 
 type Props = {
@@ -50,6 +67,7 @@ export const deviceIsReady = (device: TallyDevice | undefined) => device?.nodeMc
 // Finds the light on USB and puts the tally program on it if it is missing or old.
 function DevicePanel({ device, onReload }: Props) {
   const classes = useStyles()
+  const hub = useHubInfo()
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<TallyProgramProgressType>(undefined)
   const [firmware, setFirmware] = useState<FirmwareProgressType>(undefined)
@@ -154,11 +172,13 @@ function DevicePanel({ device, onReload }: Props) {
         : <Spinner />) : (
         needsFirmware && device.firmwareAvailable ? (() => {
           const advice = device.boardState ? ADVICE[device.boardState] : undefined
+          const hubs = device.boardState === "twoHubs" ? hubAddressesIn(device.boardOutput || "") : []
           const install = <Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>
           const check = <Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={() => onReload()} disabled={busy} data-testid="device-check">Check again</Button>
           return <>
             <Alert severity={advice?.severity || "warning"} className={classes.block} action={advice?.wait ? check : install} data-testid={`device-state-${device.boardState || "unknown"}`}>
               Found a board on {device.path}, but nothing answers on it. {advice ? advice.text : "A board straight from the box needs the NodeMCU firmware first; this takes one to two minutes."}
+              {hubs.length >= 2 && <> {twoHubsText(hubs, hub?.addresses || [])}</>}
             </Alert>
             {device.boardOutput && <details className={classes.block} data-testid="device-output">
               <summary><Typography variant="caption" color="textSecondary" component="span">What the board printed</Typography></summary>
