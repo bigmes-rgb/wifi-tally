@@ -7,6 +7,10 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [BUGFIX] "Install firmware" stopped with "Could not auto-detect Flash size" on every ESP8266. The
+  flashing library (esptool-js 0.7.0) programs the wrong SPI register on the ESP8266 when it asks
+  the flash chip for its ID. The hub corrects that register map as soon as the chip is detected, and
+  if the size still cannot be read it keeps the firmware image's own 1 MB setting instead of giving up.
 * [BUGFIX] "Install firmware" in the Windows app failed at once with "Cannot find package
   'esptool-js'". The flashing library is an ES module and Node cannot import one from inside the
   packed app. The build now ships it as a plain bundle next to the flasher.
