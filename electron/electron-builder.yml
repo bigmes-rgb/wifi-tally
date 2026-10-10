@@ -8,13 +8,13 @@ linux:
   category: AudioVideo
 win: 
   target: portable
+  icon: build/icons/icon.png
+  artifactName: vtally-${version}-${os}-${arch}-portable.${ext}
 # The portable exe unpacks itself to %TEMP%\<this name> on every start. A fixed name keeps the
 # path the same across versions, so Windows Firewall's "allow" for vTally (needed for the lights'
 # UDP packets) still applies after an update instead of asking again or silently blocking.
 portable:
   unpackDirName: vtally-hub
-  icon: build/icons/icon.png
-  artifactName: vtally-${version}-${os}-${arch}-portable.${ext}
 mac:
   target: dmg
   category: public.app-category.video
