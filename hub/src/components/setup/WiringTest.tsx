@@ -1,7 +1,7 @@
 import { Button, makeStyles, Typography } from '@material-ui/core'
 import { Alert, AlertTitle } from '@material-ui/lab'
 import React, { useEffect, useRef, useState } from 'react'
-import { HardwareProfile, Rgb } from '../../flasher/HardwareProfile'
+import { HardwareProfile, LightProfile, PINS, Rgb } from '../../flasher/HardwareProfile'
 import { WiringTestState } from '../../flasher/NodeMcuConnector'
 import WiringDiagram from './WiringDiagram'
 import { applyFixes, checksFor, diagnose, Finding, wiringPassed, WiringAnswer, WiringCheck } from '../../flasher/WiringDiagnosis'
@@ -49,6 +49,13 @@ type Props = {
 }
 
 // Lights each channel over USB and asks what the person sees. Pure logic lives in WiringDiagnosis.
+// "operator: NeoPixel strip, 5 pixels on D4" — what the test is about to drive
+function describeLight(light: LightProfile, role: "operator" | "stage"): string {
+  if (light.kind === "ws2812") return `${role}: NeoPixel strip, ${light.pixels} pixel${light.pixels === 1 ? "" : "s"} on ${PINS.ws2812}`
+  const pins = PINS[role]
+  return `${role}: RGB LED, common ${light.polarity === "anode" ? "+" : "−"}, on ${pins.R}/${pins.G}/${pins.B}`
+}
+
 function WiringTest({ path, profile, onProfileChange, onPassed }: Props) {
   const classes = useStyles()
   const [checks, setChecks] = useState<WiringCheck[]>([])
@@ -82,7 +89,7 @@ function WiringTest({ path, profile, onProfileChange, onPassed }: Props) {
 
   const show = (check: WiringCheck) => {
     setBusy(true)
-    socket.emit('flasher.wiring.show', profileRef.current, check.operator, check.stage)
+    socket.emit('flasher.wiring.show', profileRef.current, check.operator, check.stage, !!check.blink)
   }
 
   const start = () => {
@@ -140,6 +147,11 @@ function WiringTest({ path, profile, onProfileChange, onPassed }: Props) {
       <Typography paragraph color="textSecondary">
         The hub will light the LEDs one colour at a time through the USB cable and ask what you see. Nothing is written to the light yet.
       </Typography>
+      <Alert severity="info" className={classes.block} data-testid="wiring-testing">
+        Testing what step 1 says is on the board: <strong>{describeLight(profile.operator, "operator")}</strong>
+        {profile.stage.kind !== "none" && <>, <strong>{describeLight(profile.stage, "stage")}</strong></>}.
+        If that is not what is soldered on, go back to step 1 first: the test lights only those pins.
+      </Alert>
       {error && <Alert severity="error" className={classes.block}>{error}</Alert>}
       <Button variant="contained" color="primary" onClick={start} disabled={busy} data-testid="wiring-start">Start the wiring test</Button>
     </>

@@ -6,13 +6,13 @@ const answer = (pairs: Record<string, string>): WiringAnswer[] => Object.entries
 describe("checksFor()", () => {
   test("one RGB operator light: dark check plus the three colours", () => {
     const ids = checksFor(defaultHardwareProfile()).map(c => c.id)
-    expect(ids).toEqual(["operator-dark", "operator-R", "operator-G", "operator-B"])
+    expect(ids).toEqual(["board-led", "operator-dark", "operator-R", "operator-G", "operator-B"])
   })
   test("a stage strip adds its own checks including the pixel count", () => {
     const profile = defaultHardwareProfile()
     profile.stage = { kind: "ws2812", polarity: "anode", pixels: 4, order: "grb" }
     const ids = checksFor(profile).map(c => c.id)
-    expect(ids).toEqual(["operator-dark", "operator-R", "operator-G", "operator-B", "stage-dark", "stage-R", "stage-G", "stage-B", "stage-pixels"])
+    expect(ids).toEqual(["board-led", "operator-dark", "operator-R", "operator-G", "operator-B", "stage-dark", "stage-R", "stage-G", "stage-B", "stage-pixels"])
     const red = checksFor(profile).find(c => c.id === "stage-R")
     expect(red.operator).toEqual([0, 0, 0])
     expect(red.stage).toEqual([255, 0, 0])
@@ -105,5 +105,28 @@ describe("findings name the pins to check, for the diagram", () => {
     const answers = checks.map(c => ({ checkId: c.id, answer: c.id === "operator-R" ? "G" : c.id === "operator-G" ? "R" : c.id === "operator-B" ? "B" : "nothing" }))
     const swapped = diagnose(profile, checks, answers).find(f => /swapped/.test(f.text))
     expect(swapped?.pins?.sort()).toEqual(["D1", "D2"])
+  })
+})
+
+describe("the board-LED control check", () => {
+  const strip: HardwareProfile = { operator: { kind: "ws2812", polarity: "anode", pixels: 5, order: "grb" }, stage: { kind: "none", polarity: "anode", pixels: 4, order: "grb" } }
+  test("comes first and blinks", () => {
+    const first = checksFor(strip)[0]
+    expect(first).toMatchObject({ id: "board-led", kind: "board", blink: true })
+  })
+  test("a board that does not blink is the only finding: the software is not running", () => {
+    const checks = checksFor(strip)
+    const answers = checks.map(c => ({ checkId: c.id, answer: c.id === "board-led" ? "no" : c.kind === "pixels" ? "0" : "nothing" }))
+    const findings = diagnose(strip, checks, answers)
+    expect(findings).toHaveLength(1)
+    expect(findings[0].text).toContain("tally software is not running")
+    expect(wiringPassed(findings, strip)).toBe(false)
+  })
+  test("a board that blinks but a dark strip gets the electrical checks, in order", () => {
+    const checks = checksFor(strip)
+    const answers = checks.map(c => ({ checkId: c.id, answer: c.id === "board-led" ? "yes" : c.kind === "dark" ? "dark" : c.kind === "pixels" ? "0" : "nothing" }))
+    const text = diagnose(strip, checks, answers).map(f => f.text).join(" ")
+    expect(text).toContain("DIN")
+    expect(text).toContain("3V3")
   })
 })

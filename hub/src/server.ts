@@ -363,8 +363,8 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('flasher.wiring.start', (path, profile) => {
     myNodeMcuConnector.startWiringTest(path, profile).then(state => socket.emit('flasher.wiring.state', state))
   })
-  socket.on('flasher.wiring.show', (profile, operator, stage) => {
-    myNodeMcuConnector.wiringTestShow(profile, operator, stage).then(state => socket.emit('flasher.wiring.state', state))
+  socket.on('flasher.wiring.show', (profile, operator, stage, blink) => {
+    myNodeMcuConnector.wiringTestShow(profile, operator, stage, !!blink).then(state => socket.emit('flasher.wiring.state', state))
   })
   socket.on('flasher.wiring.stop', () => {
     myNodeMcuConnector.stopWiringTest().then(state => socket.emit('flasher.wiring.state', state))

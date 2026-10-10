@@ -7,6 +7,15 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [FEATURE] The wiring test starts with a control: it blinks the small LED next to the board's USB
+  socket and asks whether it blinks. No blink means the tally software is not running and the test
+  says so, instead of blaming the wiring. It also says up front which lights and pins it will drive,
+  so a step 1 left on the wrong light type is caught before testing.
+* [CHANGE] A strip that stays dark while the board follows the hub gets the checks in order: data wire
+  on the DIN end, shared GND, +5V on VIN, then the 3.3 V-signal test (power from 3V3 briefly) with the
+  usual remedies.
+* [CHANGE] The exact Lua the wiring test sends is pinned in tally/spec/fixtures and run through the
+  real tally code by the Lua tests, so the hub and the tally software cannot drift apart unnoticed.
 * [FEATURE] *On the network* (step 5 of Build a light) shows the light's own report while it is still
   on USB: settings read, Wi-Fi found, password accepted, address, hub found. When it stops it says
   why in words: network not seen (name or 5 GHz), password refused, another network than this

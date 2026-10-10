@@ -1,7 +1,7 @@
 import nodemcuLib from 'nodemcu-tool'
 import TallyDevice, { SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
-import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
+import { boardBlinkLua, boardBlinkStopLua, endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
 import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
 import { firmwareProblem, numberTypeFrom } from './FirmwareCheck'
 import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions, streamFromBoard, StreamOptions } from './BoardListener'
@@ -53,7 +53,7 @@ const wiringTestIdleMs = 3 * 60 * 1000
 
 class NodeMcuConnector {
   nodemcu: any
-  private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout } | null = null
+  private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout, blinking?: boolean } | null = null
 
   withMutex<T> (fn: () => T): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -485,13 +485,20 @@ class NodeMcuConnector {
     this.wiringTest.profile = profile
   }
 
-  async wiringTestShow(profile: HardwareProfile, operator: Rgb, stage: Rgb): Promise<WiringTestState> {
+  async wiringTestShow(profile: HardwareProfile, operator: Rgb, stage: Rgb, blink = false): Promise<WiringTestState> {
     if (!this.wiringTest) {
       return { active: false, error: "The wiring test is not running. Start it again." }
     }
     try {
       if (JSON.stringify(profile) !== JSON.stringify(this.wiringTest.profile)) {
         await this.applyWiringProfile(profile)
+      }
+      if (blink) {
+        await this.execute(boardBlinkLua)
+        this.wiringTest.blinking = true
+      } else if (this.wiringTest.blinking) {
+        await this.execute(boardBlinkStopLua)
+        this.wiringTest.blinking = false
       }
       await this.execute(showColorLua(operator, stage))
       this.touchWiringTest()

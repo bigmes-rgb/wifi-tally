@@ -1,0 +1,8 @@
+_G.testMode=true MySettings.operatorType=function()return"grb+"end MySettings.stageType=function()return"grb+"end
+MySettings.operatorNumberOfWs2812Lights=function()return 5 end MySettings.stageNumberOfWs2812Lights=function()return 0 end
+MySettings.operatorWs2812Type=function()return"grb"end MySettings.stageWs2812Type=function()return"grb"end
+if _G.wtBlink then _G.wtBlink:unregister() end _G.wtBlink=tmr.create() local on=false _G.wtBlink:alarm(250,tmr.ALARM_AUTO,function() on=not on gpio.write(0,on and gpio.LOW or gpio.HIGH) end)
+MyLed.static(0,0,0,0,0,0)
+if _G.wtBlink then _G.wtBlink:unregister() _G.wtBlink=nil end
+MyLed.static(255,0,0,0,0,0)
+if _G.wtBlink then _G.wtBlink:unregister() _G.wtBlink=nil end _G.testMode=nil MyLed.initial()
