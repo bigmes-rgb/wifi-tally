@@ -21,6 +21,9 @@ export class MixerCommunicator {
     currentPreviews: ChannelList
     isConnected: boolean | null
     problem: string | null = null
+    // how long a lost mixer may take to come back before the lights stop showing its last state
+    lostMixerGraceMs = 2000
+    private lostMixerTimer: ReturnType<typeof setTimeout> | null = null
     
     constructor(configuration: AppConfiguration, emitter: ServerEventEmitter) {
         this.configuration = configuration
@@ -99,6 +102,10 @@ export class MixerCommunicator {
 
     notifyMixerIsConnected() {
         this.problem = null
+        if (this.lostMixerTimer !== null) {
+            clearTimeout(this.lostMixerTimer)
+            this.lostMixerTimer = null
+        }
         if (this.isConnected !== true) {
             this.isConnected = true
             this.emitter.emit('mixer.connected')
@@ -112,6 +119,19 @@ export class MixerCommunicator {
         if (this.isConnected !== false || problemChanged) {
             this.isConnected = false
             this.emitter.emit('mixer.disconnected', this.problem)
+        }
+        // The lights must not keep showing the last program of a mixer that is gone: a camera would
+        // stay "on air" for the whole outage. After a short grace for blips, every patched light
+        // switches to "unknown" until the mixer is back and reports again.
+        if (this.lostMixerTimer === null && (this.currentPrograms !== null || this.currentPreviews !== null)) {
+            this.lostMixerTimer = setTimeout(() => {
+                this.lostMixerTimer = null
+                if (this.isConnected === false) {
+                    this.notifyProgramPreviewChanged(null, null)
+                }
+            }, this.lostMixerGraceMs)
+            // never keep the hub process alive just for this
+            ;(this.lostMixerTimer as any).unref?.()
         }
     }
 

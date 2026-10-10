@@ -3,6 +3,25 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] When the hub lost the switcher (switched off, unplugged, cable knocked, vMix closed), every
+  light kept showing the switcher's last state, so the camera that was live stayed red for the whole
+  outage. Now, 2 seconds after the switcher is lost, every patched light switches to the blue
+  "unknown" blink until the switcher is back. A shorter blip changes nothing.
+* [BUGFIX] Roland V-60HD and V-8HD settings were not sent back to the page after saving. Coming back
+  to the form showed the old values, and saving again silently undid the change, for example
+  returning the V-60HD to 127.0.0.1. They are now sent back like every other mixer's, and a test
+  fails if a settings event is ever left out again.
+* [BUGFIX] The Roland "Request Interval" accepted anything: 1 (meant as one second) sent the V-60HD 8
+  requests per millisecond, and long values made a working V-8HD look unplugged. It now says it is in
+  milliseconds and takes 100 to 2000 for the V-60HD and 50 to 1000 for the V-8HD.
+* [BUGFIX] V-60HD:
+  - It counted as "connected" the moment Save was pressed, and for any web page that answered, such
+    as a mistyped router address. It now connects only once the switcher answers like a V-60HD, and
+    otherwise says what is wrong.
+  - Requests had no time limit: an unreachable switcher took about 21 seconds to notice on Windows,
+    and requests piled up meanwhile. It now gives up after 2 seconds and asks one question per input
+    at a time.
+  - Replies arriving after switching to another mixer no longer bring back the V-60HD's old state.
 * [BUGFIX] The wiring test failed lights whose board has no LED on D0, which is many boards,
   including the LoLin board it was found on. It asked whether "the small LED next to the USB socket"
   blinked, and read "No" as "the tally software is not running", even after the strip had just shown

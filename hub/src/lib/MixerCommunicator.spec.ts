@@ -192,5 +192,54 @@ describe('MixerCommunicator', () => {
             expect(disconnectEventSeen).toEqual(1)
         })
     })
-    
+
+    describe('a mixer that is lost', () => {
+        const setup = () => {
+            const emitter = new EventEmitter()
+            const seen: any[] = []
+            emitter.on("program.changed", state => seen.push(state))
+            const communicator = new MixerCommunicator(new AppConfiguration(emitter), emitter)
+            communicator.notifyMixerIsConnected()
+            communicator.notifyProgramPreviewChanged(["1"], ["2"])
+            return { communicator, seen }
+        }
+        beforeEach(() => jest.useFakeTimers())
+        afterEach(() => jest.useRealTimers())
+
+        test('stops showing its last program after the grace period, so no light stays "on air"', () => {
+            const { communicator, seen } = setup()
+            communicator.notifyMixerIsDisconnected()
+            jest.advanceTimersByTime(communicator.lostMixerGraceMs - 1)
+            expect(communicator.getCurrentPrograms()).toEqual(["1"])
+            jest.advanceTimersByTime(1)
+            expect(communicator.getCurrentPrograms()).toBeNull()
+            expect(communicator.getCurrentPreviews()).toBeNull()
+            expect(seen[seen.length - 1]).toEqual({ programs: null, previews: null })
+        })
+        test('that comes back within the grace period keeps its state: a blip does not flash the lights', () => {
+            const { communicator, seen } = setup()
+            communicator.notifyMixerIsDisconnected()
+            jest.advanceTimersByTime(communicator.lostMixerGraceMs / 2)
+            communicator.notifyMixerIsConnected()
+            jest.advanceTimersByTime(communicator.lostMixerGraceMs * 5)
+            expect(communicator.getCurrentPrograms()).toEqual(["1"])
+            expect(seen).toHaveLength(1)
+        })
+        test('reporting a new problem while still lost does not restart the grace period', () => {
+            const { communicator } = setup()
+            communicator.notifyMixerIsDisconnected()
+            jest.advanceTimersByTime(communicator.lostMixerGraceMs - 10)
+            communicator.notifyMixerIsDisconnected("The V-8HD stopped answering.")
+            jest.advanceTimersByTime(10)
+            expect(communicator.getCurrentPrograms()).toBeNull()
+        })
+        test('shows its programs again as soon as it is back and reports', () => {
+            const { communicator } = setup()
+            communicator.notifyMixerIsDisconnected()
+            jest.advanceTimersByTime(communicator.lostMixerGraceMs)
+            communicator.notifyMixerIsConnected()
+            communicator.notifyProgramPreviewChanged(["1"], ["2"])
+            expect(communicator.getCurrentPrograms()).toEqual(["1"])
+        })
+    })
 })
