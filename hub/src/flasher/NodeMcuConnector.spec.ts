@@ -62,13 +62,16 @@ describe("writeTallySettingsIni()", () => {
 
   test("a light without hub.ip is written: it finds the hub on its own", async () => {
     const nodemcu = rememberingNodemcu()
-    const connector = new NodeMcuConnector(nodemcu)
+    const written: string[] = []
+    const connector = new NodeMcuConnector(nodemcu, undefined, { poke: async (d: string) => { written.push(d) }, purge: async () => {} })
     const states = []
     const ok = await connector.writeTallySettingsIni("/dev/fake", "station.ssid=Church\nstation.password=secret\ntally.name=Cam 1\n", s => states.push({ ...s }))
     expect(ok).toBe(true)
     expect(states[states.length - 1].allDone).toBe(true)
     expect(states[states.length - 1].error).toBe(false)
     expect(nodemcu.files["tally-settings.ini"]).toContain("tally.name=Cam 1")
+    // restarted by command, not through the reset line that some boards ignore
+    expect(written).toContain("node.restart()\r\n")
     expect(nodemcu.files["tally-settings.ini.swp"]).toBeUndefined()
   }, 20000)
 
@@ -249,7 +252,8 @@ const stickyBoard = (answering = false) => {
       if (board.stale) throw new Error("concurreny error - receive listener already in-queue")
       if (!board.answering) { board.stale = true; throw new Error("Timeout, no response detected - is NodeMCU online and the Lua interpreter ready ?") }
     },
-    deviceInfo: async () => ({ chipID: "c0ffee", flashID: "1640ef", version: "3.0.0", modules: "file,gpio" }),
+    deviceInfo: async () => ({ chipID: "c0ffee", flashID: "1640ef", version: "3.0.0", modules: "file,gpio,net,node,pwm2,tmr,wifi,ws2812" }),
+    execute: async (cmd: string) => ({ response: cmd === "print(1/2)" ? "0.5" : "ok" }),
     fsinfo: async () => ({ files: [] }),
     download: async () => Buffer.from(""),
   }
@@ -299,4 +303,51 @@ describe("getDevice() with a board that does not answer straight away", () => {
     expect(device.boardState).toBe("ready")
     expect(device.errorMessage).toBeUndefined()
   })
+})
+
+describe("the firmware is checked before the tally software goes on", () => {
+  const board = (info: any, half: string) => {
+    const { nodemcu, poke } = stickyBoard(true)
+    nodemcu.deviceInfo = async () => ({ chipID: "c0ffee", flashID: "1640ef", ...info })
+    nodemcu.execute = async (cmd: string) => ({ response: cmd === "print(1/2)" ? half : "ok" })
+    return { nodemcu, poke }
+  }
+  test("a light on the integer build is reported, in words", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "file,gpio,net,node,pwm2,tmr,wifi,ws2812" }, "0")
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).getDevice()
+    expect(device.firmwareProblem).toContain("integer")
+  })
+  test("a light without pwm2 is reported", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "file,gpio,net,node,tmr,wifi,ws2812" }, "0.5")
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).getDevice()
+    expect(device.firmwareProblem).toContain("pwm2")
+  })
+  test("a matching light has no problem", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "file,gpio,net,node,pwm2,tmr,wifi,ws2812,uart" }, "0.5")
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).getDevice()
+    expect(device.firmwareProblem).toBeUndefined()
+  })
+  test("program() refuses to upload to a light that could not run it", async () => {
+    const { nodemcu, poke } = board({ version: "2.2.1", modules: null }, "0.5")
+    const uploads: string[] = []
+    ;(nodemcu as any).upload = async (_l: string, remote: string) => { uploads.push(remote) }
+    const states: any[] = []
+    await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).program("COM5", s => states.push({ ...s }))
+    expect(uploads).toEqual([])
+    expect(states[states.length - 1].error).toBe(true)
+  })
+})
+
+test("watchNetwork restarts the light and stops once it found the hub", async () => {
+  const { nodemcu, poke } = stickyBoard(true)
+  let options: any
+  const stream = (o: any) => { options = o; o.onText("[INFO]  Found hub at 192.168.1.10\r\n"); return { done: Promise.resolve("[INFO]  Found hub at 192.168.1.10\r\n"), stop: () => {} } }
+  const seen: string[] = []
+  const all = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {}, stream }).watchNetwork("COM5", t => seen.push(t))
+  expect(options.path).toBe("COM5")
+  expect(options.writeFirst).toContain("node.restart()")
+  expect(options.stopWhen("[INFO]  Found hub at 192.168.1.10")).toBe(true)
+  expect(options.stopWhen("[INFO]  Got IP 192.168.1.50")).toBe(false)
+  expect(seen.join("")).toContain("Found hub")
+  expect(all).toContain("Found hub")
 })

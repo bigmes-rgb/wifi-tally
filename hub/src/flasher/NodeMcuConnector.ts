@@ -3,7 +3,8 @@ import TallyDevice, { SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
 import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
-import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions } from './BoardListener'
+import { firmwareProblem, numberTypeFrom } from './FirmwareCheck'
+import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions, streamFromBoard, StreamOptions } from './BoardListener'
 import tmp from 'tmp-promise'
 import { promises as fs } from 'fs'
 
@@ -78,18 +79,28 @@ class NodeMcuConnector {
 
   private listen: (options: ListenOptions) => Promise<HeardFromBoard>
   private poke: (data: string) => Promise<void>
+  private purge: () => Promise<void>
+  private stream: (options: StreamOptions) => { done: Promise<string>, stop: () => void }
+  private stopWatch: (() => void) | null = null
 
   // injectable for easier testing
   constructor(nodemcu: any = nodemcuLib, private flashFirmwareFn: FlashFirmwareFn = flashNodeMcuFirmware, extras: {
     listen?: (options: ListenOptions) => Promise<HeardFromBoard>
     poke?: (data: string) => Promise<void> // write raw text to the board through nodemcu-tool's open port
+    purge?: () => Promise<void> // drop lines nodemcu-tool has received but nobody asked for
+    stream?: (options: StreamOptions) => { done: Promise<string>, stop: () => void }
   } = {}) {
     this.nodemcu = nodemcu
     this.listen = extras.listen || listenToBoard
+    this.stream = extras.stream || streamFromBoard
     this.poke = extras.poke || (async (data: string) => {
       // the same module instance nodemcu-tool talks through
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       await require('nodemcu-tool/lib/transport/scriptable-serial-terminal').write(data)
+    })
+    this.purge = extras.purge || (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      await require('nodemcu-tool/lib/transport/scriptable-serial-terminal').purge()
     })
     this.nodemcu.onError((error:any) => {
       console.error(error)
@@ -173,6 +184,9 @@ class NodeMcuConnector {
         if (Date.now() >= deadline) throw e
         await this.poke("\r\n").catch(() => {})
         await this.sleep(300)
+        // lines that arrived meanwhile (boot messages, the prompt) would be read as the next
+        // answer and every check after would be one line behind
+        await this.purge().catch(() => {})
       }
     }
   }
@@ -267,6 +281,10 @@ class NodeMcuConnector {
           tallyDevice.flashId = deviceInfo.flashID
           tallyDevice.nodeMcuVersion = deviceInfo.version
           tallyDevice.nodeMcuModules = deviceInfo.modules
+          const numberAnswer = await this.nodemcu.execute("print(1/2)").catch(() => null)
+          tallyDevice.firmwareProblem = firmwareProblem({
+            version: deviceInfo.version, modules: deviceInfo.modules, numberType: numberTypeFrom(numberAnswer?.response),
+          }) || undefined
 
           const fsinfo = await this.nodemcu.fsinfo()
           if (updatePossible) {
@@ -312,6 +330,11 @@ class NodeMcuConnector {
         onProgress(progress)
 
         await this.connect(path)
+        // never upload bytecode the firmware cannot load: the light would stay dark
+        const deviceInfo = await this.nodemcu.deviceInfo()
+        const numberAnswer = await this.nodemcu.execute("print(1/2)").catch(() => null)
+        const problem = firmwareProblem({ version: deviceInfo.version, modules: deviceInfo.modules, numberType: numberTypeFrom(numberAnswer?.response) })
+        if (problem) { throw new Error(problem) }
 
         progress.connectionDone = true
         onProgress(progress)
@@ -322,7 +345,7 @@ class NodeMcuConnector {
           onProgress(progress)
         }
 
-        await this.hardReset(path)
+        await this.restartBoard(path)
 
         progress.rebootDone = true
         onProgress(progress)
@@ -378,7 +401,7 @@ class NodeMcuConnector {
         progress.uploadDone = true
         onProgress(progress)
         
-        await this.hardReset(path)
+        await this.restartBoard(path)
 
         progress.rebootDone = true
         onProgress(progress)
@@ -496,29 +519,40 @@ class NodeMcuConnector {
     return this.getWiringTestState()
   }
 
-  private async hardReset(path: string) {
-    await this.nodemcu.hardreset()
-    await this.nodemcu.disconnect()
-    await new Promise(resolve => { setTimeout(resolve, 1000) }) // sleep
-    await this.connect(path)
-
-    await new Promise(resolve => { setTimeout(resolve, 3000) }) // sleep
-
-    const failTimeout = setTimeout(() => {
-      throw new Error("Could not connect to NodeMCU after hardreset.")
-    }, 10000)
-
-    let rebootSuccess = false
-    while(!rebootSuccess) {
+  // Restarts the light and passes along what it prints while it joins the Wi-Fi and looks for the
+  // hub, until it finds the hub, maxMs passes, or stopNetworkWatch() is called. Resolves with all of it.
+  async watchNetwork(path: string, onText: (text: string) => void, maxMs = 90000): Promise<string> {
+    return await this.withMutex(async () => {
+      const { done, stop } = this.stream({
+        path, ms: maxMs, onText,
+        writeFirst: "\r\nnode.restart()\r\n",
+        stopWhen: all => /Found hub at \d+\.\d+\.\d+\.\d+/.test(all),
+      })
+      this.stopWatch = stop
       try {
-        await this.nodemcu.checkConnection()
-        rebootSuccess = true
-      } catch (e) {
-        rebootSuccess = false
+        return await done
+      } finally {
+        this.stopWatch = null
       }
-    }
-    clearTimeout(failTimeout)
+    })
   }
+
+  stopNetworkWatch() {
+    if (this.stopWatch) this.stopWatch()
+  }
+
+  // Restarts the board so it runs what was just uploaded, and waits until it answers again.
+  // node.restart() works on every board; the RTS reset line does not reset some boards (the same
+  // boards that need FLASH and RST pressed to install the firmware). The command is written
+  // without waiting for a reply: the board may restart before it sends one.
+  private async restartBoard(path: string) {
+    await this.poke("node.restart()\r\n")
+    await this.sleep(300)
+    await this.nodemcu.disconnect()
+    await this.sleep(1500)
+    await this.connect(path, 20000)
+  }
+
 
   /**
    * uploads content via nodemcu-tool

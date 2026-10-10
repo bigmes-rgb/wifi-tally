@@ -7,6 +7,23 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [FEATURE] *On the network* (step 5 of Build a light) shows the light's own report while it is still
+  on USB: settings read, Wi-Fi found, password accepted, address, hub found. When it stops it says
+  why in words: network not seen (name or 5 GHz), password refused, another network than this
+  computer's, or the hub not answering (Windows Firewall).
+* [FEATURE] Before installing the tally software the hub checks that the light's firmware can run it
+  (NodeMCU 3, float build, the modules it uses), so an existing light cannot be left dark. A light
+  keeps its name and Wi-Fi when its firmware is reinstalled, and when going back a step to fix the
+  password.
+* [BUGFIX] After uploading, the hub restarted the board through the reset line, which some boards
+  ignore, and could hang or crash if the board took more than 10 seconds to come back. It now
+  restarts the board by command and waits for it with a limit.
+* [BUGFIX] The Windows app unpacked to a new folder for every version, so Windows Firewall forgot its
+  permission after each update and could silently block the lights. It now unpacks to the same folder.
+* [CHANGE] Releases are published as soon as they are built; no draft to publish by hand.
+* [CHANGE] Every build walks *Build a light* end to end in a browser against the pretend board, which
+  now behaves like a real one (factory firmware, first start, Wi-Fi report). See
+  `hub/e2e/build-a-light.js` and `docs/building-a-light.md`.
 * [BUGFIX] After *Install firmware* reached 100 % the page said "nothing answers" and offered the install
   again. A freshly flashed board formats its storage on its first start and answers nothing for up to
   a couple of minutes. The page now says so and waits for it, then carries on by itself.

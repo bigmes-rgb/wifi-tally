@@ -5,6 +5,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import MiniPage from '../components/layout/MiniPage'
 import ConnectedLights from '../components/setup/ConnectedLights'
+import NetworkCheck from '../components/setup/NetworkCheck'
 import DevicePanel, { deviceIsReady } from '../components/setup/DevicePanel'
 import NameWifiForm from '../components/setup/NameWifiForm'
 import ProfileChooser from '../components/setup/ProfileChooser'
@@ -12,6 +13,7 @@ import WiringTest from '../components/setup/WiringTest'
 import { defaultHardwareProfile, HardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
 import useTallyDevice from '../hooks/useTallyDevice'
+import TallySettingsIni from '../flasher/TallySettingsIni'
 
 const useStyles = makeStyles(theme => ({
   stepper: {
@@ -49,7 +51,13 @@ const BuildLightPage = () => {
   const device = useTallyDevice(refresh, listenMs)
   const [wiringPassed, setWiringPassed] = useState(false)
   const [saved, setSaved] = useState<{ name: string, ssid: string } | null>(null)
+  const [saveCount, setSaveCount] = useState(0) // every save restarts the light's Wi-Fi report
   const tallies = useTallies()
+
+  // a light's settings: read from it, or saved to it at "Name and Wi-Fi". Kept while its firmware
+  // is reinstalled (that wipes its files) and when going back a step after a wrong password.
+  const [rememberedSettings, setRememberedSettings] = useState<TallySettingsIni | undefined>(undefined)
+  useEffect(() => { if (device?.tallySettings) setRememberedSettings(device.tallySettings) }, [device])
 
   // a light that was set up before brings its own hardware settings
   useEffect(() => {
@@ -112,7 +120,7 @@ const BuildLightPage = () => {
           <StepLabel>{steps[3]}</StepLabel>
           <StepContent>
             {device
-              ? <NameWifiForm device={device} profile={profile} rememberedSsid={saved?.ssid} onSaved={(name, ssid) => { setSaved({ name, ssid }); setActive(4) }} />
+              ? <NameWifiForm device={device} profile={profile} rememberedSsid={saved?.ssid} rememberedSettings={rememberedSettings} onSaved={(name, ssid, ini) => { setSaved({ name, ssid }); setRememberedSettings(ini); setSaveCount(c => c + 1); setActive(4) }} />
               : <Alert severity="warning" className={classes.block}>The light is not plugged in any more. Go back a step.</Alert>}
             {nav()}
           </StepContent>
@@ -122,10 +130,12 @@ const BuildLightPage = () => {
           <StepContent>
             {saved && (connected
               ? <Alert severity="success" className={classes.block} data-testid="build-connected"><strong>{saved.name}</strong> is on the Wi-Fi and talking to the hub. Unplug it and mount it on its camera; pick its switcher input below.</Alert>
-              : <Alert severity="info" className={classes.block} data-testid="build-waiting">Waiting for <strong>{saved.name}</strong> to join the Wi-Fi… It blinks blue while it searches. If it does not appear within a minute, the Wi-Fi name or password is probably wrong: go back a step and save again.</Alert>)}
+              : <Alert severity="info" className={classes.block} data-testid="build-waiting">Waiting for <strong>{saved.name}</strong> to show up at the hub. Its own report follows.</Alert>)}
+            {/* only while this step shows: hidden steps stay mounted, and the watch holds the USB port */}
+            {active === 4 && saved && !connected && <NetworkCheck key={saveCount} path={device?.path} />}
             <ConnectedLights highlight={saved?.name} />
             {nav(<>
-              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setWiringPassed(false); setWiringChecked(false); setProfileFromLight(false); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
+              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setWiringPassed(false); setWiringChecked(false); setProfileFromLight(false); setRememberedSettings(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
               <Button component={RouterLink} to="/">Done</Button>
             </>)}
           </StepContent>

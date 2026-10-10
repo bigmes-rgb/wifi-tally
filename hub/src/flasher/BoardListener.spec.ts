@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { EventEmitter } from 'events'
-import { classifyBoardOutput, hasPrompt, listenToBoard, printable } from './BoardListener'
+import { classifyBoardOutput, hasPrompt, listenToBoard, printable, streamFromBoard } from './BoardListener'
 
 // a serial port that prints what the test scripts, and records what the hub writes
 const fakePort = (script: (port: any) => void, failOpen = false) => {
@@ -59,4 +59,23 @@ describe("classifyBoardOutput()", () => {
   test("a '>' inside text is not a prompt", () => {
     expect(hasPrompt("a > b\r\n")).toBe(false)
   })
+})
+
+test("streaming sends the restart first, passes text along live, and stops when told what to look for", async () => {
+  const port = fakePort(p => { say(p, "[INFO]  Got IP 192.168.1.50\r\n", 10); say(p, "[INFO]  Found hub at 192.168.1.10\r\n", 30); say(p, "late line\r\n", 200) })
+  const chunks: string[] = []
+  const { done } = streamFromBoard({ path: "COM5", ms: 5000, writeFirst: "\r\nnode.restart()\r\n", onText: t => chunks.push(t), stopWhen: all => /Found hub/.test(all), openPort: () => port })
+  const all = await done
+  expect(port.written[0]).toBe("\r\nnode.restart()\r\n")
+  expect(chunks.join("")).toContain("Got IP")
+  expect(all).not.toContain("late line")
+  expect(port.isOpen).toBe(false)
+})
+
+test("stop() ends a stream early", async () => {
+  const port = fakePort(() => {})
+  const s = streamFromBoard({ path: "COM5", ms: 5000, onText: () => {}, openPort: () => port })
+  setTimeout(() => s.stop(), 20)
+  await s.done
+  expect(port.isOpen).toBe(false)
 })

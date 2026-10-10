@@ -44,7 +44,7 @@ type Props = {
   onReload: (options?: { afterFirmware?: boolean }) => void
 }
 
-export const deviceIsReady = (device: TallyDevice | undefined) => device?.nodeMcuVersion !== undefined && device?.update !== "updateable"
+export const deviceIsReady = (device: TallyDevice | undefined) => device?.nodeMcuVersion !== undefined && device?.update !== "updateable" && !device?.firmwareProblem
 
 // Finds the light on USB and puts the tally program on it if it is missing or old.
 function DevicePanel({ device, onReload }: Props) {
@@ -173,7 +173,11 @@ function DevicePanel({ device, onReload }: Props) {
         )
       )}
     </div>
-    {hasLua && <div className={classes.block}>
+    {hasLua && device.firmwareProblem && <Alert severity="error" className={classes.block} data-testid="device-firmware-problem"
+      action={device.firmwareAvailable && <Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>}>
+      {device.firmwareProblem} Install the NodeMCU firmware first; it takes one to two minutes. The light's name and Wi-Fi come back at "Name and Wi-Fi".
+    </Alert>}
+    {hasLua && !device.firmwareProblem && <div className={classes.block}>
       {needsSoftware && <Alert severity="warning" action={<Button color="inherit" size="small" onClick={installSoftware} disabled={busy} data-testid="device-install">Install now</Button>}>
         This light does not have the current tally software. Installing takes about a minute.
       </Alert>}

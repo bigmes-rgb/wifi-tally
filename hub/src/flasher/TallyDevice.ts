@@ -29,6 +29,8 @@ export interface TallyDeviceObjectType {
   // when the board did not answer: what it printed, and what that means
   boardOutput?: string
   boardState?: BoardState
+  // the firmware cannot run the tally software, in words; the firmware has to be installed first
+  firmwareProblem?: string
 }
 
 class TallyDevice{
@@ -46,6 +48,7 @@ class TallyDevice{
   serialPorts: SerialPortInfo[] = []
   boardOutput?: string
   boardState?: BoardState
+  firmwareProblem?: string
 
   toJson(): TallyDeviceObjectType {
     return {
@@ -63,6 +66,7 @@ class TallyDevice{
       serialPorts: this.serialPorts,
       boardOutput: this.boardOutput,
       boardState: this.boardState,
+      firmwareProblem: this.firmwareProblem,
     }
   }
 
@@ -82,6 +86,7 @@ class TallyDevice{
     device.serialPorts = data.serialPorts || []
     device.boardOutput = data.boardOutput
     device.boardState = data.boardState
+    device.firmwareProblem = data.firmwareProblem
 
     return device
   }

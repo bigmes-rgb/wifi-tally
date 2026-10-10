@@ -25,7 +25,7 @@ import TestConfiguration from './mixer/test/TestConfiguration'
 import WebTallyDriver from './tally/WebTallyDriver'
 import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConfiguration'
 import NodeMcuConnector from './flasher/NodeMcuConnector'
-import FakeNodemcu, { fakeFlashFirmware, fakeListen } from './flasher/FakeNodemcu'
+import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
 import { getHubInfo } from './lib/HubInfo'
 
 const argv = yargs.argv
@@ -63,7 +63,7 @@ const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
 const myNodeMcuConnector = (() => {
   if (!myConfiguration.isTest()) { return new NodeMcuConnector() }
   const fake = new FakeNodemcu()
-  return new NodeMcuConnector(fake, fakeFlashFirmware(fake), { listen: fakeListen(fake), poke: async () => {} })
+  return new NodeMcuConnector(fake, fakeFlashFirmware(fake), { listen: fakeListen(fake), poke: async () => {}, purge: async () => {}, stream: fakeStream(fake) })
 })()
 
 // log stuff
@@ -335,6 +335,13 @@ io.on('connection', (socket: ServerSideSocket) => {
     })
   })
 
+  socket.on('flasher.watch.start', (path: string) => {
+    myNodeMcuConnector.watchNetwork(path, text => socket.emit('flasher.watch.text', text))
+      .catch(e => console.error(`Watching ${path} failed:`, e))
+      .finally(() => socket.emit('flasher.watch.end'))
+  })
+  socket.on('flasher.watch.stop', () => myNodeMcuConnector.stopNetworkWatch())
+
   socket.on('flasher.settingsIni', (path, settingsIniString) => {
     myNodeMcuConnector.writeTallySettingsIni(path, settingsIniString, (state) => {
       socket.emit('flasher.settingsIni.progress', state)
@@ -367,6 +374,8 @@ io.on('connection', (socket: ServerSideSocket) => {
     if (myNodeMcuConnector.getWiringTestState().active) {
       myNodeMcuConnector.stopWiringTest().catch(e => console.error(e))
     }
+    // or while watching a light join the Wi-Fi
+    myNodeMcuConnector.stopNetworkWatch()
   })
 })
 

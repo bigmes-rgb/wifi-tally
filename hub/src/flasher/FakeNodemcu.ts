@@ -1,5 +1,5 @@
 import { FirmwarePhase, FlashFirmwareFn } from './FirmwareFlasher'
-import { HeardFromBoard, ListenOptions } from './BoardListener'
+import { HeardFromBoard, ListenOptions, StreamOptions } from './BoardListener'
 
 // A pretend NodeMCU on a pretend USB port, used when the hub runs with --with-test
 // so the "Build a light" pages can be walked through without hardware.
@@ -35,6 +35,7 @@ class FakeNodemcu {
   }
   async execute(cmd: string) {
     this.executed.push(cmd)
+    if (cmd === "print(1/2)") return { response: "0.5" } // the float build, like the one the hub installs
     const rename = cmd.match(/file\.rename\("([^"]+)", "([^"]+)"\)/)
     if (rename) { this.files[rename[2]] = this.files[rename[1]]; delete this.files[rename[1]] }
     const remove = cmd.match(/file\.remove\("([^"]+)"\)/)
@@ -79,4 +80,40 @@ export const fakeListen = (fake: FakeNodemcu) => async ({ ms }: ListenOptions): 
   await sleep(wait)
   const text = formatting + "NodeMCU 3.0.0.0 built with Docker\r\n> "
   return { text, sawPrompt: true, bytes: text.length }
+}
+
+// What the pretend light prints after a restart while it joins the Wi-Fi: it follows the saved
+// settings, so a Wi-Fi called "wrong-password" or "no-such-network" shows those failures.
+export const fakeStream = (fake: FakeNodemcu) => ({ ms, onText, stopWhen }: StreamOptions) => {
+  let stopped = false
+  let all = ""
+  const ini = (fake.files["tally-settings.ini"] || Buffer.from("")).toString()
+  const ssid = (ini.match(/station\.ssid\s*=\s*(.*)/) || [])[1]?.trim()
+  const lines: [number, string][] = [[300, "[INFO]  booted because of SOFTWARE_RESTART"]]
+  if (!ssid) {
+    lines.push([200, "[WARN]  Configuration file tally-settings.ini does not exist. Using defaults."])
+  } else if (ssid === "no-such-network") {
+    for (let i = 0; i < 3; i++) lines.push([300, `[INFO]  Connect to WiFi ${ssid}`], [1500, `[ERROR] Got disconnected from ${ssid}. Reason NO_AP_FOUND`])
+  } else if (ssid === "wrong-password") {
+    for (let i = 0; i < 3; i++) lines.push([300, `[INFO]  Connect to WiFi ${ssid}`], [1500, `[ERROR] Got disconnected from ${ssid}. Reason AUTH_FAIL`])
+  } else {
+    lines.push([300, `[INFO]  Connect to WiFi ${ssid}`], [800, `[INFO]  Connected to ${ssid}. Waiting for IP.`],
+      [600, "[INFO]  Got IP 192.168.1.50"], [100, "[INFO]  Searching for hub by broadcast on port 7411"], [700, "[INFO]  Found hub at 192.168.1.10"])
+  }
+  let finish: () => void = () => {}
+  const done = new Promise<string>(resolve => {
+    const deadline = setTimeout(() => finish(), ms)
+    // like the real stream: stopping releases the port at once
+    finish = () => { if (!stopped) { stopped = true; clearTimeout(deadline); resolve(all) } }
+    ;(async () => {
+      for (const [wait, line] of lines) {
+        await new Promise(r => setTimeout(r, wait))
+        if (stopped) return
+        all += line + "\r\n"
+        onText(line + "\r\n")
+        if (stopWhen && stopWhen(all)) { finish(); return }
+      }
+    })()
+  })
+  return { done, stop: () => finish() }
 }
