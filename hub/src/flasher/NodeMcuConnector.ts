@@ -3,6 +3,7 @@ import TallyDevice, { SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
 import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
+import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions } from './BoardListener'
 import tmp from 'tmp-promise'
 import { promises as fs } from 'fs'
 
@@ -75,9 +76,21 @@ class NodeMcuConnector {
     })
   }
 
+  private listen: (options: ListenOptions) => Promise<HeardFromBoard>
+  private poke: (data: string) => Promise<void>
+
   // injectable for easier testing
-  constructor(nodemcu: any = nodemcuLib, private flashFirmwareFn: FlashFirmwareFn = flashNodeMcuFirmware) {
+  constructor(nodemcu: any = nodemcuLib, private flashFirmwareFn: FlashFirmwareFn = flashNodeMcuFirmware, extras: {
+    listen?: (options: ListenOptions) => Promise<HeardFromBoard>
+    poke?: (data: string) => Promise<void> // write raw text to the board through nodemcu-tool's open port
+  } = {}) {
     this.nodemcu = nodemcu
+    this.listen = extras.listen || listenToBoard
+    this.poke = extras.poke || (async (data: string) => {
+      // the same module instance nodemcu-tool talks through
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      await require('nodemcu-tool/lib/transport/scriptable-serial-terminal').write(data)
+    })
     this.nodemcu.onError((error:any) => {
       console.error(error)
     })
@@ -146,23 +159,31 @@ class NodeMcuConnector {
     })
   }
 
-  // gracefull connection that retries a few times
-  private async connect(path: string) {
+  // Connects and waits up to patienceMs for the Lua prompt. nodemcu-tool's check gives up after
+  // 1.5 s but leaves its reply listener queued, so a plain retry fails with "concurreny error"
+  // until the board prints another line. A bare newline makes a running Lua print its prompt,
+  // which releases the listener; then the check is tried again.
+  private async connect(path: string, patienceMs = 4000) {
     await this.nodemcu.connect(path, baudRate, false)
-
-    // check connection does not always work the first time, so we try it multiple times if necessary
-    let retries = 3
+    const deadline = Date.now() + patienceMs
     while (true) {
       try {
         return await this.nodemcu.checkConnection()
-      } catch (e){
-        if (retries === 0) {
-          throw e
-        }
-        await this.sleep(100)
+      } catch (e) {
+        if (Date.now() >= deadline) throw e
+        await this.poke("\r\n").catch(() => {})
+        await this.sleep(300)
       }
-      retries--
     }
+  }
+
+  // nodemcu-tool's wording is about its own internals; say what it means for the board
+  static describeError(e: any): string {
+    const message = e instanceof Error ? e.message : String(e)
+    if (/concurreny error|Timeout, no response detected|No response detected/i.test(message)) {
+      return "The board did not answer the hub's Lua commands."
+    }
+    return message
   }
 
   private async execute(idempotentCommand: string) {
@@ -204,7 +225,9 @@ class NodeMcuConnector {
       || ports.find(port => vendor(port) !== "")
   }
 
-  async getDevice(): Promise<TallyDevice> {
+  // listenMs: how long to listen to a board that does not answer, before saying what it printed.
+  // Right after installing the firmware the board formats its storage first, which takes a while.
+  async getDevice(listenMs = 6000): Promise<TallyDevice> {
     const tallyDevice = new TallyDevice()
     const localFiles = await NodeMcuConnector.getLocalFiles()
     const updatePossible = localFiles.length > 0
@@ -226,7 +249,18 @@ class NodeMcuConnector {
           tallyDevice.vendorId = device.vendorId
           tallyDevice.productId = device.productId
 
-          await this.connect(device.path)
+          try {
+            await this.connect(device.path)
+          } catch (e) {
+            // nothing answered: hear what the board prints instead, and wait for it if it is starting up
+            if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+            const heard = await this.listen({ path: device.path, ms: listenMs, untilPrompt: true })
+            tallyDevice.boardOutput = heard.text.slice(-1500)
+            tallyDevice.boardState = classifyBoardOutput(heard)
+            if (tallyDevice.boardState !== "ready") throw e
+            await this.connect(device.path, 10000)
+          }
+          tallyDevice.boardState = "ready"
           const deviceInfo = await this.nodemcu.deviceInfo()
 
           tallyDevice.chipId = deviceInfo.chipID
@@ -251,7 +285,7 @@ class NodeMcuConnector {
     }
     catch (e) {
       // an Error object serialises to {} over the socket; keep the words
-      tallyDevice.errorMessage = e instanceof Error ? e.message : String(e)
+      tallyDevice.errorMessage = NodeMcuConnector.describeError(e)
       return tallyDevice
     }
     finally {

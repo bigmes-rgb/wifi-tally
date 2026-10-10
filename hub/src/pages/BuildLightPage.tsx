@@ -44,7 +44,9 @@ const BuildLightPage = () => {
   const [profileFromLight, setProfileFromLight] = useState(false)
   const [wiringChecked, setWiringChecked] = useState(false)
   const [refresh, setRefresh] = useState(1)
-  const device = useTallyDevice(refresh)
+  // right after a firmware install the hub listens longer: the board formats its storage on first start
+  const [listenMs, setListenMs] = useState<number | undefined>(undefined)
+  const device = useTallyDevice(refresh, listenMs)
   const [wiringPassed, setWiringPassed] = useState(false)
   const [saved, setSaved] = useState<{ name: string, ssid: string } | null>(null)
   const tallies = useTallies()
@@ -57,7 +59,10 @@ const BuildLightPage = () => {
     }
   }, [device, profileFromLight])
 
-  const reload = () => setRefresh(r => r + 1)
+  const reload = (options?: { afterFirmware?: boolean }) => {
+    setListenMs(options?.afterFirmware ? 150000 : undefined)
+    setRefresh(r => r + 1)
+  }
   const connected = saved && (tallies || []).find(t => t.name === saved.name && t.isConnected())
 
   const canContinue = [

@@ -1,8 +1,9 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, makeStyles, Typography } from '@material-ui/core'
 import { Alert } from '@material-ui/lab'
 import RefreshIcon from '@material-ui/icons/Refresh'
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import TallyDevice from '../../flasher/TallyDevice'
+import { BoardState } from '../../flasher/BoardListener'
 import { TallyProgramProgressType } from '../../flasher/NodeMcuConnector'
 import { FirmwareProgressType } from '../../flasher/FirmwareFlasher'
 import { socket } from '../../hooks/useSocket'
@@ -14,11 +15,33 @@ const useStyles = makeStyles(theme => ({
   block: {
     marginBottom: theme.spacing(2),
   },
+  output: {
+    maxHeight: 220,
+    overflow: "auto",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-all",
+    fontSize: "0.8em",
+    background: theme.palette.background.default,
+    padding: theme.spacing(1),
+    borderRadius: 4,
+  },
 }))
+
+// What to tell someone holding a board that does not answer, from what it printed.
+type Advice = { severity: "info" | "warning" | "error", text: string, wait: boolean }
+export const ADVICE: Record<BoardState, Advice> = {
+  ready: { severity: "info", text: "The board answers.", wait: true },
+  formatting: { severity: "info", wait: true, text: "The firmware is installed. The board is setting up its storage for the first time and answers nothing until it is done. Leave it plugged in, wait a minute, then check again." },
+  busy: { severity: "info", wait: true, text: "The NodeMCU firmware is running but has not answered yet. Wait a few seconds and check again." },
+  silent: { severity: "warning", wait: false, text: "The board is not saying anything. If you just installed the firmware, press the board's RST button once (do not hold FLASH), wait a minute, then check again. If it stays silent, install the firmware again." },
+  crashing: { severity: "error", wait: false, text: "The board keeps crashing and restarting: the firmware did not install cleanly. Install it again." },
+  otherFirmware: { severity: "warning", wait: false, text: "The board runs something other than the NodeMCU firmware, as boards straight from the box do. Install the firmware; it takes one to two minutes." },
+}
 
 type Props = {
   device: TallyDevice | undefined
-  onReload: () => void
+  // afterFirmware: the board was just flashed; give it time for its first start
+  onReload: (options?: { afterFirmware?: boolean }) => void
 }
 
 export const deviceIsReady = (device: TallyDevice | undefined) => device?.nodeMcuVersion !== undefined && device?.update !== "updateable"
@@ -29,6 +52,14 @@ function DevicePanel({ device, onReload }: Props) {
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<TallyProgramProgressType>(undefined)
   const [firmware, setFirmware] = useState<FirmwareProgressType>(undefined)
+  const [programming, setProgramming] = useState(false)
+  // the board was just flashed and is on its first start; cleared when the hub reports back
+  const [firstStart, setFirstStart] = useState(false)
+  useEffect(() => { if (device !== undefined) setFirstStart(false) }, [device])
+  // the dialog fades out after it is closed; keep showing what it said until then
+  const lastFirmware = useRef<FirmwareProgressType>(undefined)
+  if (firmware) lastFirmware.current = firmware
+  const shownFirmware = firmware || lastFirmware.current
 
   const isLoading = device === undefined
   const hasLua = device?.nodeMcuVersion !== undefined
@@ -44,7 +75,7 @@ function DevicePanel({ device, onReload }: Props) {
       if (p.phase === "done" || p.phase === "error") {
         socket.off('flasher.firmware.progress', onProgress)
         setBusy(false)
-        if (p.phase === "done") { setFirmware(undefined); onReload() }
+        if (p.phase === "done") { setFirmware(undefined); setFirstStart(true); onReload({ afterFirmware: true }) }
       }
     }
     socket.on('flasher.firmware.progress', onProgress)
@@ -54,11 +85,13 @@ function DevicePanel({ device, onReload }: Props) {
   const installSoftware = () => {
     setProgress(undefined)
     setBusy(true)
+    setProgramming(true)
     const onProgress = (p: TallyProgramProgressType) => {
       setProgress({ ...p })
       if (p.allDone || p.error) {
         socket.off('flasher.program.progress', onProgress)
         setBusy(false)
+        setProgramming(false)
         if (!p.error) { setProgress(undefined); onReload() }
       }
     }
@@ -67,7 +100,7 @@ function DevicePanel({ device, onReload }: Props) {
   }
 
   return <div data-testid="device-panel">
-    <Dialog open={busy || !!progress?.error}>
+    <Dialog open={programming || !!progress?.error}>
       <DialogTitle>Installing the tally software</DialogTitle>
       <DialogContent>
         {progress && <ProgramProgress progress={progress} />}
@@ -81,17 +114,18 @@ function DevicePanel({ device, onReload }: Props) {
     <Dialog open={!!firmware}>
       <DialogTitle>Installing the NodeMCU firmware</DialogTitle>
       <DialogContent>
-        {firmware && <>
-          <LinearProgress variant="determinate" value={firmware.percent} className={classes.block} />
+        {shownFirmware && <>
+          <LinearProgress variant="determinate" value={shownFirmware.percent} className={classes.block} />
           <Typography paragraph data-testid="firmware-phase">
-            {firmware.phase === "connecting" && "Connecting to the board…"}
-            {firmware.phase === "writing" && `Writing… ${firmware.percent}%`}
-            {firmware.phase === "restarting" && "Restarting the board…"}
-            {firmware.phase === "error" && "Installing the firmware failed."}
+            {shownFirmware.phase === "connecting" && "Connecting to the board…"}
+            {shownFirmware.phase === "writing" && `Writing… ${shownFirmware.percent}%`}
+            {shownFirmware.phase === "restarting" && "Restarting the board…"}
+            {shownFirmware.phase === "done" && "Firmware installed."}
+            {shownFirmware.phase === "error" && "Installing the firmware failed."}
           </Typography>
-          {firmware.message && firmware.phase !== "error" && <Typography color="textSecondary">{firmware.message}</Typography>}
-          {firmware.phase === "error" && <Alert severity="error" className={classes.block}>
-            {firmware.message}<br />
+          {shownFirmware.message && shownFirmware.phase !== "error" && <Typography color="textSecondary">{shownFirmware.message}</Typography>}
+          {shownFirmware.phase === "error" && <Alert severity="error" className={classes.block}>
+            {shownFirmware.message}<br />
             Unplug the board, plug it back in and try again. Some boards need help: hold the <strong>FLASH</strong> button, tap <strong>RST</strong>, release FLASH, then start the install.
           </Alert>}
         </>}
@@ -105,16 +139,35 @@ function DevicePanel({ device, onReload }: Props) {
       Use a USB <em>data</em> cable into the computer the hub runs on. A brand-new board straight from the box is fine.
     </Typography>
     <div className={classes.block}>
-      {isLoading ? <Spinner /> : (
-        needsFirmware && device.firmwareAvailable ? <>
-          <Alert severity="warning" className={classes.block} action={<Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>}>
-            Found a board on {device.path}, but nothing answers on it. A board straight from the box needs the NodeMCU firmware first; this takes one to two minutes.
+      {isLoading ? (firstStart
+        ? <Alert severity="info" className={classes.block} data-testid="device-first-start">
+            Firmware installed. The board is now starting for the first time and setting up its storage, which can take up
+            to two minutes. Leave it plugged in; this page carries on by itself.
+            <LinearProgress color="secondary" style={{ marginTop: 8 }} />
           </Alert>
-          {device.errorMessage && <Typography variant="caption" color="textSecondary" display="block" data-testid="device-error">The board said: {device.errorMessage}</Typography>}
-          <Typography variant="caption" color="textSecondary">Already installed it and still here? Press the board's RST button and <Button size="small" onClick={onReload} disabled={busy}>check again</Button>.</Typography>
-        </> :
-        !hasLua ? <Help tallyDevice={device} onReload={onReload} /> : (
-          <Alert severity="success" action={<Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={onReload} disabled={busy}>Check again</Button>}>
+        : <Spinner />) : (
+        needsFirmware && device.firmwareAvailable ? (() => {
+          const advice = device.boardState ? ADVICE[device.boardState] : undefined
+          const install = <Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>
+          const check = <Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={() => onReload()} disabled={busy} data-testid="device-check">Check again</Button>
+          return <>
+            <Alert severity={advice?.severity || "warning"} className={classes.block} action={advice?.wait ? check : install} data-testid={`device-state-${device.boardState || "unknown"}`}>
+              Found a board on {device.path}, but nothing answers on it. {advice ? advice.text : "A board straight from the box needs the NodeMCU firmware first; this takes one to two minutes."}
+            </Alert>
+            {device.boardOutput && <details className={classes.block} data-testid="device-output">
+              <summary><Typography variant="caption" color="textSecondary" component="span">What the board printed</Typography></summary>
+              <pre className={classes.output}>{device.boardOutput}</pre>
+            </details>}
+            {device.errorMessage && <Typography variant="caption" color="textSecondary" display="block" data-testid="device-error">{device.errorMessage}</Typography>}
+            <Typography variant="caption" color="textSecondary">
+              {advice?.wait
+                ? <>Still the same after two minutes? <Button size="small" onClick={installFirmware} disabled={busy}>Install the firmware again</Button>.</>
+                : <>Already installed it? Press the board's RST button, wait a minute and <Button size="small" onClick={() => onReload()} disabled={busy}>check again</Button>.</>}
+            </Typography>
+          </>
+        })() :
+        !hasLua ? <Help tallyDevice={device} onReload={() => onReload()} /> : (
+          <Alert severity="success" action={<Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={() => onReload()} disabled={busy}>Check again</Button>}>
             Found a light on {device.path}{device.tallySettings?.getTallyName() ? <>, currently named <strong>{device.tallySettings.getTallyName()}</strong></> : ", not set up yet"}.
           </Alert>
         )

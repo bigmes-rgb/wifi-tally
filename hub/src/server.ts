@@ -25,7 +25,7 @@ import TestConfiguration from './mixer/test/TestConfiguration'
 import WebTallyDriver from './tally/WebTallyDriver'
 import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConfiguration'
 import NodeMcuConnector from './flasher/NodeMcuConnector'
-import FakeNodemcu, { fakeFlashFirmware } from './flasher/FakeNodemcu'
+import FakeNodemcu, { fakeFlashFirmware, fakeListen } from './flasher/FakeNodemcu'
 import { getHubInfo } from './lib/HubInfo'
 
 const argv = yargs.argv
@@ -63,7 +63,7 @@ const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
 const myNodeMcuConnector = (() => {
   if (!myConfiguration.isTest()) { return new NodeMcuConnector() }
   const fake = new FakeNodemcu()
-  return new NodeMcuConnector(fake, fakeFlashFirmware(fake))
+  return new NodeMcuConnector(fake, fakeFlashFirmware(fake), { listen: fakeListen(fake), poke: async () => {} })
 })()
 
 // log stuff
@@ -328,8 +328,9 @@ io.on('connection', (socket: ServerSideSocket) => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort()))
   })
 
-  socket.on('flasher.device.get', () => {
-    myNodeMcuConnector.getDevice().then(device => {
+  socket.on('flasher.device.get', (options?: { listenMs?: number }) => {
+    const listenMs = Math.max(1000, Math.min(180000, Number(options?.listenMs) || 6000))
+    myNodeMcuConnector.getDevice(listenMs).then(device => {
       socket.emit('flasher.device', device.toJson())
     })
   })

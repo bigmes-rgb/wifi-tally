@@ -3,7 +3,7 @@
  */
 import { promises as fs } from 'fs'
 import tmp from 'tmp'
-import { fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, NODEMCU_FLASH } from './FirmwareFlasher'
+import { describeFlashError, fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, NODEMCU_FLASH } from './FirmwareFlasher'
 import NodeSerialTransport from './NodeSerialTransport'
 
 tmp.setGracefulCleanup()
@@ -79,7 +79,7 @@ test("a failure while writing is reported and the port is released", async () =>
   const ok = await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: esptool.load, makeTransport: () => transport })
   expect(ok).toBe(false)
   expect(progress[progress.length - 1].phase).toBe("error")
-  expect(progress[progress.length - 1].message).toContain("Timed out")
+  expect(progress[progress.length - 1].message).toBe("The board stopped answering during the install. Usually it was not in flashing mode.")
   expect(transport.disconnected).toBe(1)
 })
 
@@ -168,5 +168,14 @@ describe("fixEsp8266SpiRegisters() against the real esptool-js code", () => {
     const chip = { CHIP_NAME: "ESP32", SPI_MOSI_DLEN_OFFS: 0x28, SPI_MISO_DLEN_OFFS: 0x2c }
     fixEsp8266SpiRegisters(chip)
     expect(chip.SPI_MOSI_DLEN_OFFS).toBe(0x28)
+  })
+})
+
+describe("describeFlashError()", () => {
+  test("esptool-js's 'serial noise' means the board stopped answering", () => {
+    expect(describeFlashError(new Error("Serial data stream stopped: Possible serial noise or corruption."))).toBe("The board stopped answering during the install. Usually it was not in flashing mode.")
+  })
+  test("other messages pass through", () => {
+    expect(describeFlashError(new Error("This is not a NodeMCU/ESP8266 board but \"ESP32\"."))).toContain("ESP32")
   })
 })

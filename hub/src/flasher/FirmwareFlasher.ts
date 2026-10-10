@@ -52,6 +52,18 @@ export const fixEsp8266SpiRegisters = (chip: any) => {
   }
 }
 
+// esptool-js's wording blames "serial noise" when the board simply stopped answering
+export const describeFlashError = (e: any): string => {
+  const message = `${e?.message || e}`
+  if (/Serial data stream stopped|No serial data received|Timed out waiting for packet/i.test(message)) {
+    return "The board stopped answering during the install. Usually it was not in flashing mode."
+  }
+  if (/Failed to connect/i.test(message)) {
+    return "Could not get the board into flashing mode."
+  }
+  return message
+}
+
 export type FlashFirmwareFn = (options: FlashFirmwareOptions) => Promise<boolean>
 
 // Puts the NodeMCU firmware on a bare ESP8266 board. Resolves true on success; every
@@ -112,7 +124,7 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
   } catch (e) {
     console.error(`Flashing the firmware on ${path} failed:`, e)
     await transport.disconnect().catch(() => {})
-    report("error", 0, `${e?.message || e}`)
+    report("error", 0, describeFlashError(e))
     return false
   }
 }

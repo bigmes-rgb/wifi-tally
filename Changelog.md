@@ -7,6 +7,17 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [BUGFIX] After *Install firmware* reached 100 % the page said "nothing answers" and offered the install
+  again. A freshly flashed board formats its storage on its first start and answers nothing for up to
+  a couple of minutes. The page now says so and waits for it, then carries on by itself.
+* [FEATURE] When a board does not answer, the hub listens to what it prints and says what that means:
+  still setting up, keeps crashing (install again), running other firmware (install), or silent (press
+  RST). What it printed is shown too.
+* [BUGFIX] "Check again" could never recover once one check had timed out: nodemcu-tool leaves its reply
+  listener queued and every later check failed with "concurreny error - receive listener already
+  in-queue". The hub now nudges the board with a newline, which releases it.
+* [BUGFIX] A failed firmware install blamed "serial noise or corruption" when the board had simply
+  stopped answering; it now says that, and the tally-software dialog no longer opens during it.
 * [FEATURE] *Build a light* draws the wiring for exactly what is selected: only the lights chosen, a
   strip with the number of pixels entered and where to cut it, an RGB LED with its common leg, and
   every wire from its board pin to its pad in the colour the pin table uses. The pin table is built

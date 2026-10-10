@@ -232,3 +232,71 @@ describe("getDevice() reports what the computer sees", () => {
     expect(JSON.parse(JSON.stringify(device.toJson())).errorMessage).toBe("bindings missing")
   })
 })
+
+// A board modelled on nodemcu-tool's real behaviour: a check that times out leaves its reply
+// listener queued, and every later check fails with "concurreny error" until the board prints
+// another line, which it does when it gets a newline while Lua is running.
+const stickyBoard = (answering = false) => {
+  const board = { answering, stale: false, pokes: 0 }
+  let connected = false
+  const nodemcu = {
+    onError: () => {},
+    isConnected: () => connected,
+    connect: async () => { connected = true },
+    disconnect: async () => { connected = false },
+    listDevices: async () => [{ path: "COM5", vendorId: "1a86", productId: "7523", manufacturer: "wch.cn" }],
+    checkConnection: async () => {
+      if (board.stale) throw new Error("concurreny error - receive listener already in-queue")
+      if (!board.answering) { board.stale = true; throw new Error("Timeout, no response detected - is NodeMCU online and the Lua interpreter ready ?") }
+    },
+    deviceInfo: async () => ({ chipID: "c0ffee", flashID: "1640ef", version: "3.0.0", modules: "file,gpio" }),
+    fsinfo: async () => ({ files: [] }),
+    download: async () => Buffer.from(""),
+  }
+  const poke = async () => { board.pokes++; if (board.answering) board.stale = false }
+  return { board, nodemcu, poke }
+}
+const heard = (text: string, sawPrompt = false) => async () => ({ text, sawPrompt, bytes: text.length })
+
+describe("getDevice() with a board that does not answer straight away", () => {
+  jest.setTimeout(20000)
+
+  test("without the newline nudge a timed-out check stays stuck (the nodemcu-tool behaviour)", async () => {
+    const { board, nodemcu } = stickyBoard(false)
+    setTimeout(() => { board.answering = true }, 200)
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke: async () => {}, listen: heard("") }).getDevice(100)
+    expect(device.nodeMcuVersion).toBeUndefined()
+    expect(device.errorMessage).toBe("The board did not answer the hub's Lua commands.")
+  })
+
+  test("with the newline nudge it connects once the board starts answering", async () => {
+    const { board, nodemcu, poke } = stickyBoard(false)
+    setTimeout(() => { board.answering = true }, 200)
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, listen: heard("") }).getDevice(100)
+    expect(board.pokes).toBeGreaterThan(0)
+    expect(device.nodeMcuVersion).toBe("3.0.0")
+    expect(device.boardState).toBe("ready")
+  })
+
+  test("a board that never answers reports what it printed, in words", async () => {
+    const { nodemcu, poke } = stickyBoard(false)
+    const listened: any[] = []
+    const listen = async (options: any) => { listened.push(options); return { text: "Formatting file system. Please wait...\r\n", sawPrompt: false, bytes: 40 } }
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, listen }).getDevice(150000)
+    expect(listened[0]).toMatchObject({ path: "COM5", ms: 150000, untilPrompt: true })
+    expect(device.path).toBe("COM5")
+    expect(device.boardState).toBe("formatting")
+    expect(device.boardOutput).toContain("Formatting file system")
+    expect(device.errorMessage).toBe("The board did not answer the hub's Lua commands.")
+    expect(nodemcu.isConnected()).toBe(false)
+  })
+
+  test("when the prompt shows up while listening, the board is read after all", async () => {
+    const { board, nodemcu, poke } = stickyBoard(false)
+    const listen = async () => { board.answering = true; return { text: "NodeMCU 3.0.0.0\r\n> ", sawPrompt: true, bytes: 20 } }
+    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, listen }).getDevice()
+    expect(device.nodeMcuVersion).toBe("3.0.0")
+    expect(device.boardState).toBe("ready")
+    expect(device.errorMessage).toBeUndefined()
+  })
+})

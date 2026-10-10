@@ -13,7 +13,7 @@ export interface SerialPortLike extends EventEmitter {
 
 export type OpenPort = (path: string, baudRate: number) => SerialPortLike
 
-const defaultOpenPort: OpenPort = (path, baudRate) => {
+export const defaultOpenPort: OpenPort = (path, baudRate) => {
   const SerialPort = require('serialport')
   return new SerialPort(path, { baudRate, autoOpen: false })
 }

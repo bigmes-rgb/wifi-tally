@@ -3,7 +3,8 @@ import TallyDevice, { TallyDeviceObjectType } from '../flasher/TallyDevice'
 import { socket } from './useSocket'
 
 // the tally plugged into the hub's USB port. Every change of `refresh` asks the hub again.
-function useTallyDevice(refresh: number) {
+// listenMs: how long the hub listens to a board that does not answer before reporting.
+function useTallyDevice(refresh: number, listenMs?: number) {
   const [tallyDevice, setTallyDevice] = useState<TallyDevice>(undefined)
 
   useEffect(() => {
@@ -13,11 +14,11 @@ function useTallyDevice(refresh: number) {
     socket.on('flasher.device', onFlasherDevice)
 
     setTallyDevice(undefined)
-    socket.emit('flasher.device.get')
+    socket.emit('flasher.device.get', listenMs ? { listenMs } : undefined)
     return () => {
       socket.off('flasher.device', onFlasherDevice)
     }
-  }, [refresh])
+  }, [refresh]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return tallyDevice
 }
