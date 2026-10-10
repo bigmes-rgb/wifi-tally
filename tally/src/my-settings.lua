@@ -26,6 +26,16 @@ local stageType = LightTypes.COMMON_ANODE
 local stageWs2812Type = Ws2812Types.GRB
 local stageWs2812Lights = 0
 
+-- "192.168.1.20": four numbers from 0 to 255
+local isIpAddress = function(s)
+    local parts = { s:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$") }
+    if #parts ~= 4 then return false end
+    for _, part in ipairs(parts) do
+        if tonumber(part) > 255 then return false end
+    end
+    return true
+end
+
 local trim = function(s)
     return s:match("^%s*(.-)%s*$")
 end
@@ -95,8 +105,10 @@ if file.exists(fileName) then
         while true do
             local line = f:readline()
             if line then
-                local k, v = line:match("^%s*([^=]+)%s*=%s*([^=]+)%s*$")
-                if k ~= nil and v ~= nil and line:sub(1,1) ~= ";" then
+                -- split at the first "=": a Wi-Fi password may contain "=" itself. readline keeps the
+                -- line ending; trim() removes it with the spaces.
+                local k, v = line:match("^%s*([^=]-)%s*=(.*)$")
+                if k ~= nil and k ~= "" and line:sub(1,1) ~= ";" then
                     k = trim(k) -- trim
                     v = trim(v) -- trim
                     if k == "station.ssid" then
@@ -104,10 +116,23 @@ if file.exists(fileName) then
                     elseif k == "station.password" then
                         staPw = v
                     elseif k == "hub.ip" then
-                        -- empty or "auto": find the hub by broadcast instead
-                        if v:lower() ~= "auto" then hubIp = v end
+                        -- empty or "auto": find the hub by broadcast instead. Anything else has to be
+                        -- an address: sending to a malformed one raises, and the light restarted
+                        -- every time it got onto the Wi-Fi.
+                        if v ~= "" and v:lower() ~= "auto" then
+                            if isIpAddress(v) then
+                                hubIp = v
+                            else
+                                MyLog.warning("hub.ip \"" .. v .. "\" is not an IP address. Finding the hub by broadcast instead.")
+                            end
+                        end
                     elseif k == "hub.port" then
-                        hubPort = tonumber(v)
+                        local port = tonumber(v)
+                        if port ~= nil and port >= 1 and port <= 65535 and port == math.floor(port) then
+                            hubPort = port
+                        else
+                            MyLog.warning("hub.port \"" .. v .. "\" is not a port number. Using " .. hubPort .. ".")
+                        end
                     elseif k == "tally.name" then
                         name = v:sub(0, 26)
                     elseif k == "operator.type" then

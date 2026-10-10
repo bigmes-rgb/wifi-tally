@@ -100,3 +100,23 @@ test("it reads, writes and removes the LED hardware settings", () => {
   expect(back.getOperatorType()).toBeNull()
   expect(back.getTallyName()).toEqual("Doe")
 })
+
+describe("clearing the hub address or port", () => {
+  // an empty hub.ip made lights before 0.9.12 restart in a loop; empty means "find the hub"
+  test("an emptied Hub IP leaves the line out instead of writing hub.ip=", () => {
+    const ini = new TallySettingsIni("station.ssid=Church\nhub.ip=10.0.0.5\n")
+    ini.setHubIp("")
+    expect(ini.toString()).not.toContain("hub.ip")
+    ini.setHubIp("   ")
+    expect(ini.toString()).not.toContain("hub.ip")
+    ini.setHubIp(" 10.0.0.6 ")
+    expect(ini.getHubIp()).toEqual("10.0.0.6")
+  })
+  test("an emptied Hub Port (0) leaves the line out", () => {
+    const ini = new TallySettingsIni("hub.port=7411\n")
+    ini.setHubPort(0)
+    expect(ini.toString()).not.toContain("hub.port")
+    ini.setHubPort(7412)
+    expect(ini.getHubPort()).toEqual(7412)
+  })
+})

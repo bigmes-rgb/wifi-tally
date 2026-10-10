@@ -159,7 +159,7 @@ export function layoutDiagram(plan: WiringPlan): Layout {
   })
 
   // wires from the board: each gets its own vertical lane between the board and the lights.
-  // Pins on the left header (VIN, GND) leave to the left and go round the board, over the top or
+  // Pins on the left header (VU, GND) leave to the left and go round the board, over the top or
   // under the bottom, whichever crosses fewer wires.
   const boardWires = plan.wires.filter(w => isBoardPin(w.from))
   const leftWires = boardWires.filter(w => (w.from as BoardPin).side === "left")

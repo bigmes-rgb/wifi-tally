@@ -64,8 +64,14 @@ class TallySettingsIni {
   getHubIp(): string {
     return this.readSetting("hub.ip")
   }
+  // empty means "find the hub by broadcast": leave the line out. Lights before 0.9.12 read an
+  // empty hub.ip as an address and restarted in a loop.
   setHubIp(ip: string) {
-    this.writeSetting("hub.ip", ip)
+    if (ip === null || ip === undefined || ip.trim() === "") {
+      this.removeSetting("hub.ip")
+    } else {
+      this.writeSetting("hub.ip", ip.trim())
+    }
   }
   getHubPort(): number {
     const port = this.readSetting("hub.port")
@@ -75,8 +81,13 @@ class TallySettingsIni {
       return null
     }
   }
+  // no port (an emptied field gives 0) means the default: leave the line out
   setHubPort(port: number) {
-    this.writeSetting("hub.port", port.toString())
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      this.removeSetting("hub.port")
+    } else {
+      this.writeSetting("hub.port", port.toString())
+    }
   }
   getTallyName(): string {
     return this.readSetting("tally.name")

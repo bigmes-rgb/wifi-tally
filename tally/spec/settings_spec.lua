@@ -18,9 +18,10 @@ describe("Settings parser", function()
                 local idx = 0
 
                 return {
+                    -- NodeMCU's readline returns the line WITH its line ending
                     readline = function(_)
                         idx = idx + 1
-                        return lines[idx]
+                        return lines[idx] and (lines[idx] .. "\n")
                     end,
                     close = function() end,
                 }
@@ -76,6 +77,29 @@ describe("Settings parser", function()
         require "src.my-settings"
         assert.is_true(MySettings.isValid())
         assert.is_nil(MySettings.hubIp())
+    end)
+    it("keeps an '=' inside the Wi-Fi password and name", function()
+        mockSettings("settings-no-hub.ini", {"station.password=ab=cd==", "tally.name=Cam=1"})
+        require "src.my-settings"
+        assert.is_same("ab=cd==", MySettings.staPw())
+        assert.is_same("Cam=1", MySettings.name())
+    end)
+    it("treats an empty hub.ip (what clearing the field writes) like no hub.ip", function()
+        mockSettings("settings-no-hub.ini", {"hub.ip="})
+        require "src.my-settings"
+        assert.is_nil(MySettings.hubIp())
+    end)
+    it("ignores a hub.ip that is not an IP address, with a warning, instead of sending to it", function()
+        mockSettings("settings-no-hub.ini", {"hub.ip=my-laptop"})
+        require "src.my-settings"
+        assert.is_nil(MySettings.hubIp())
+        assert.truthy(MyLog.getWarnings()[1]:find("not an IP address", 1, true))
+    end)
+    it("keeps the default port for hub.port=0 or garbage", function()
+        mockSettings("settings-no-hub.ini", {"hub.port=0"})
+        require "src.my-settings"
+        assert.is_same(7411, MySettings.hubPort())
+        assert.truthy(MyLog.getWarnings()[1]:find("not a port number", 1, true))
     end)
     it("is invalid without a wifi name", function()
         mockSettings("settings-tallyname.ini", {"hub.ip=10.10.1.1"})

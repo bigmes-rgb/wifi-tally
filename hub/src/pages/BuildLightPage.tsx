@@ -13,7 +13,7 @@ import WiringTest from '../components/setup/WiringTest'
 import { defaultHardwareProfile, HardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
 import useTallyDevice from '../hooks/useTallyDevice'
-import TallySettingsIni from '../flasher/TallySettingsIni'
+import { rememberFromDevice, RememberedLight, shouldReadProfile } from '../components/setup/rememberedLight'
 
 const useStyles = makeStyles(theme => ({
   stepper: {
@@ -43,7 +43,8 @@ const BuildLightPage = () => {
   const classes = useStyles()
   const [active, setActive] = useState(0)
   const [profile, setProfile] = useState<HardwareProfile>(defaultHardwareProfile())
-  const [profileFromLight, setProfileFromLight] = useState(false)
+  // the chip id of the board whose stored profile was applied, or that was just finished
+  const [profileReadFor, setProfileReadFor] = useState<string | null | undefined>(undefined)
   const [wiringChecked, setWiringChecked] = useState(false)
   const [refresh, setRefresh] = useState(1)
   // right after a firmware install the hub listens longer: the board formats its storage on first start
@@ -54,18 +55,18 @@ const BuildLightPage = () => {
   const [saveCount, setSaveCount] = useState(0) // every save restarts the light's Wi-Fi report
   const tallies = useTallies()
 
-  // a light's settings: read from it, or saved to it at "Name and Wi-Fi". Kept while its firmware
-  // is reinstalled (that wipes its files) and when going back a step after a wrong password.
-  const [rememberedSettings, setRememberedSettings] = useState<TallySettingsIni | undefined>(undefined)
-  useEffect(() => { if (device?.tallySettings) setRememberedSettings(device.tallySettings) }, [device])
+  // a light's settings: read from it, or saved to it at "Name and Wi-Fi"; see rememberedLight.ts
+  const [remembered, setRemembered] = useState<RememberedLight | undefined>(undefined)
+  useEffect(() => { setRemembered(r => rememberFromDevice(r, device)) }, [device])
+  const rememberedSettings = remembered?.settings
 
   // a light that was set up before brings its own hardware settings
   useEffect(() => {
-    if (device?.tallySettings && !profileFromLight) {
+    if (device && shouldReadProfile(device, profileReadFor)) {
       setProfile(readProfileFromIni(device.tallySettings))
-      setProfileFromLight(true)
+      setProfileReadFor(device.chipId)
     }
-  }, [device, profileFromLight])
+  }, [device, profileReadFor])
 
   const reload = (options?: { afterFirmware?: boolean }) => {
     setListenMs(options?.afterFirmware ? 150000 : undefined)
@@ -120,7 +121,7 @@ const BuildLightPage = () => {
           <StepLabel>{steps[3]}</StepLabel>
           <StepContent>
             {device
-              ? <NameWifiForm device={device} profile={profile} rememberedSsid={saved?.ssid} rememberedSettings={rememberedSettings} onSaved={(name, ssid, ini) => { setSaved({ name, ssid }); setRememberedSettings(ini); setSaveCount(c => c + 1); setActive(4) }} />
+              ? <NameWifiForm device={device} profile={profile} rememberedSsid={saved?.ssid} rememberedSettings={rememberedSettings} onSaved={(name, ssid, ini) => { setSaved({ name, ssid }); setRemembered({ chipId: device.chipId, settings: ini }); setSaveCount(c => c + 1); setActive(4) }} />
               : <Alert severity="warning" className={classes.block}>The light is not plugged in any more. Go back a step.</Alert>}
             {nav()}
           </StepContent>
@@ -135,7 +136,7 @@ const BuildLightPage = () => {
             {active === 4 && saved && !connected && <NetworkCheck key={saveCount} path={device?.path} />}
             <ConnectedLights highlight={saved?.name} />
             {nav(<>
-              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setWiringPassed(false); setWiringChecked(false); setProfileFromLight(false); setRememberedSettings(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
+              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
               <Button component={RouterLink} to="/">Done</Button>
             </>)}
           </StepContent>

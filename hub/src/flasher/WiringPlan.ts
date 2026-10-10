@@ -1,10 +1,10 @@
 import { HardwareProfile, LightProfile, PINS, Role } from './HardwareProfile'
 
-// The NodeMCU's two pin headers as printed on the board, top view, antenna at the top and USB at
-// the bottom. Amica (v2) and Lolin (v3) boards agree on every pin a light uses; they differ only on
-// the two reserved pins (Lolin prints them G and VU).
+// The NodeMCU's two pin headers as printed on a LoLin (v3) board, top view, antenna at the top and
+// USB at the bottom. Amica (v2) boards agree on every other pin; where LoLin prints G and VU they
+// have two reserved pins (RSV). VU carries the 5 V from USB; VIN does not on LoLin boards.
 export const BOARD_PINS = {
-  left: ["A0", "RSV", "RSV", "SD3", "SD2", "SD1", "CMD", "SD0", "CLK", "GND", "3V3", "EN", "RST", "GND", "VIN"],
+  left: ["A0", "G", "VU", "SD3", "SD2", "SD1", "CMD", "SD0", "CLK", "GND", "3V3", "EN", "RST", "GND", "VIN"],
   right: ["D0", "D1", "D2", "D3", "D4", "3V3", "GND", "D5", "D6", "D7", "D8", "RX", "TX", "GND", "3V3"],
 } as const
 
@@ -19,7 +19,9 @@ const COMMON_PIN: Record<Role, Record<"anode" | "cathode", BoardPin>> = {
   operator: { anode: pin("right", 5), cathode: pin("right", 6) },
   stage: { anode: pin("right", 14), cathode: pin("right", 13) },
 }
-const STRIP_POWER = { vin: pin("left", 14), gnd: pin("left", 13) }
+// +5V from VU: on LoLin boards VIN is dead while the board runs from USB, and the strip, without
+// power, then holds D4 low so the board does not even start. GND from the G right next to it.
+const STRIP_POWER = { vu: pin("left", 2), gnd: pin("left", 1) }
 
 export const WIRE_COLORS = {
   red: "#e53935",
@@ -86,8 +88,8 @@ export function wiringPlan(profile: HardwareProfile): WiringPlan {
     const which = firstStrip === "operator" ? "operator" : "stage"
     wires.push(
       { role: firstStrip, pad: "DIN", from: rightPin(PINS.ws2812), color: WIRE_COLORS.data, pinText: PINS.ws2812, toText: `DIN pad of the ${which} strip (data in, the end the arrows point away from). Its first ${pixelWord(light.pixels)} are the ${which} light.` },
-      { role: firstStrip, pad: "+5V", from: STRIP_POWER.vin, color: WIRE_COLORS.v5, pinText: "VIN", toText: `+5V pad of the ${which} strip. On boards with a VU pin (LoLin) use VU instead: there VIN can be dead while the board runs from USB. Not 3V3.` },
-      { role: firstStrip, pad: "GND", from: STRIP_POWER.gnd, color: WIRE_COLORS.gnd, pinText: "GND", toText: `GND pad of the ${which} strip` },
+      { role: firstStrip, pad: "+5V", from: STRIP_POWER.vu, color: WIRE_COLORS.v5, pinText: "VU", toText: `+5V pad of the ${which} strip. Not 3V3. A board without VU and G there (Amica: RSV) uses VIN and a GND pin instead.` },
+      { role: firstStrip, pad: "GND", from: STRIP_POWER.gnd, color: WIRE_COLORS.gnd, pinText: "G", toText: `GND pad of the ${which} strip (G is a GND pin)` },
     )
   }
   if (stage.kind === "rgb") wires.push(...rgbWires("stage", stage))

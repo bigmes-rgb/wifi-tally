@@ -3,6 +3,24 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] "Build another light" carried the last light's name, Wi-Fi and password over to the
+  next board, with that name exempt from the "already used" check. Step 5 could then show success
+  because the other light was the one online. What the wizard remembers is now tied to the board's
+  chip id. The previous board's stored hardware no longer replaces the next light's choice either.
+* [BUGFIX] A light built with no stage light read back with a stage RGB LED, so testing it again
+  could never pass. The hub no longer writes a stage type when there is no stage light. A light
+  saved before this keeps the old line until it is saved again. If the wiring test then announces
+  a stage RGB LED you do not have, go back to step 1 and choose none.
+* [BUGFIX] A Wi-Fi password, network name or light name containing "=" was silently ignored by the
+  light, which then never joined the network. The light now splits each setting at its first "=".
+  Lights need "Install now" once to get this.
+* [BUGFIX] An empty hub.ip (what clearing "Hub IP" on the Flash page wrote), hub.port=0, or a hub.ip
+  that is not an address made the light restart every time it joined the Wi-Fi. The light now
+  treats an empty value as "find the hub", ignores bad values with a warning, and never restarts
+  over a failed send. The Flash page leaves the line out when the field is emptied.
+* [BUGFIX] The wiring diagram and pin table sent the strip's +5V to VIN, which is dead on LoLin
+  boards while they run from USB. They now draw +5V to VU and GND to the G next to it, with a note
+  for boards that have VIN only. The "strip stays dark" advice says VU too.
 * [BUGFIX] In the Windows app, any unexpected error opened a box that froze the whole hub until
   someone clicked OK: the lights stopped getting updates, and the switcher and the page stopped too.
   Errors are now written to the log and the hub carries on. Only "vTally is already running" is

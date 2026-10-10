@@ -12,7 +12,9 @@ test("a 5-pixel operator strip and no stage light: 5 pixels, 3 wires, no stage p
   expect(within(diagram).getAllByTestId("pixel-operator")).toHaveLength(5)
   expect(within(diagram).queryByTestId("strip-stage")).toBeNull()
   expect(within(diagram).queryByTestId(/^led-/)).toBeNull()
-  expect(["D4", "VIN", "GND"].every(p => within(diagram).queryByTestId(`pin-used-${p}`))).toBe(true)
+  expect(["D4", "VU", "G"].every(p => within(diagram).queryByTestId(`pin-used-${p}`))).toBe(true)
+  // VIN is dead on LoLin boards while they run from USB: the strip must not be drawn to it
+  expect(within(diagram).queryByTestId("pin-used-VIN")).toBeNull()
   expect(within(diagram).queryByTestId("pin-used-D1")).toBeNull()
   expect(screen.getByTestId("wiring-table").querySelectorAll("tbody tr")).toHaveLength(3)
   expect(document.querySelector("img")).toBeNull()

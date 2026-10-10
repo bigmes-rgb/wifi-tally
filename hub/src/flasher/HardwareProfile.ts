@@ -52,7 +52,12 @@ export function writeProfileToIni(ini: TallySettingsIni, profile: HardwareProfil
   const v = profileToIniValues(profile)
   ini.setOperatorType(v.operatorType)
   ini.setOperatorWs2812(v.operatorWs2812)
-  ini.setStageType(v.stageType)
+  // no stage light: no stage.type line, or the light reads back with a stage RGB LED it does not have
+  if (profile.stage.kind === "none") {
+    ini.removeSetting("stage.type")
+  } else {
+    ini.setStageType(v.stageType)
+  }
   ini.setStageWs2812(v.stageWs2812)
 }
 
