@@ -46,6 +46,9 @@ export interface ServerSentEvents {
     // what a light prints over USB while it joins the Wi-Fi (step 5 of Build a light)
     'flasher.watch.text': (text: string) => void
     'flasher.watch.end': () => void
+    // the chip's own start-up message while someone presses RST (74880 baud)
+    'flasher.bootmessage.text': (text: string) => void
+    'flasher.bootmessage.end': () => void
     'flasher.settingsIni.progress': (state: TallySettingsIniProgressType) => void
     'flasher.program.progress': (state: TallyProgramProgressType) => void
     'flasher.wiring.state': (state: WiringTestState) => void
@@ -91,11 +94,12 @@ export interface ClientSentEvents {
     'flasher.device.get': (options?: { listenMs?: number }) => void
     'flasher.watch.start': (path: string) => void
     'flasher.watch.stop': () => void
+    'flasher.bootmessage.start': (path: string) => void
     'flasher.settingsIni': (path: string, settingsIniString: string) => void
     'flasher.program': (path: string) => void
     'flasher.firmware': (path: string) => void
     'flasher.wiring.start': (path: string, profile: HardwareProfile) => void
-    'flasher.wiring.show': (profile: HardwareProfile, operator: Rgb, stage: Rgb) => void
+    'flasher.wiring.show': (profile: HardwareProfile, operator: Rgb, stage: Rgb, blink?: boolean) => void
     'flasher.wiring.stop': () => void
 }
 

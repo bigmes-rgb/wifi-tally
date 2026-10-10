@@ -133,7 +133,7 @@ function ProfileChooser({ profile, onChange, checked, onChecked }: Props) {
     </Button>
     <Alert severity="warning" style={{ marginBottom: 16 }} data-testid="wiring-notes">
       {plainLeds > 0 && <>Plain RGB LEDs: no more than 5 LEDs per board in total, they draw their current through the board. A 220 Ω resistor in each colour wire protects the board and the LED. </>}
-      {hasStrip && <>NeoPixel strips: solder to the end the printed arrows point away from (DIN). {plan.stageChained && <>The stage strip takes its data from the operator strip's far end (DO), not from the board. </>}Up to {MAX_PIXELS} pixels per light. </>}
+      {hasStrip && <>NeoPixel strips: solder to the end the printed arrows point away from (DIN). {plan.stageChained && <>The stage strip takes its data from the operator strip's far end (DO), not from the board. </>}Up to {MAX_PIXELS} pixels per light. <strong>The strip must have power whenever the board does:</strong> an unpowered strip holds D4 low and the board will not start. </>}
       {hasStrip
         ? <>Power the board from a phone charger of at least 1 A: {plan.totalPixels} pixel{plan.totalPixels === 1 ? "" : "s"} at full red draw about {stripMa} mA. A camera's or laptop's USB port may not be enough.</>
         : <>Power the board from USB; a phone charger or a camera's USB port is fine.</>}

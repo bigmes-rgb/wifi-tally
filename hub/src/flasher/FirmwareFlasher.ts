@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { createHash } from 'crypto'
 import NodeSerialTransport from './NodeSerialTransport'
 
 export type FirmwarePhase = "connecting" | "writing" | "restarting" | "done" | "error"
@@ -6,6 +7,21 @@ export type FirmwareProgressType = {
   phase: FirmwarePhase
   percent: number // 0..100 over the whole job
   message?: string
+  // the board did not restart by itself after the install: someone has to press its RST button
+  pressReset?: boolean
+}
+
+// After the install the board is restarted through the RTS line. Boards whose auto-reset does not
+// work (the ones that need FLASH and RST to install) stay in the flasher, silent. A board that did
+// restart always sends something: the ROM's boot line, then NodeMCU. So: wait for any byte.
+export const RESTART_GRACE_MS = 3000
+export const RESET_BUTTON_WAIT_MS = 120000
+const waitForBytes = async (transport: any, ms: number, sleep: (ms: number) => Promise<void>): Promise<boolean> => {
+  for (let waited = 0; waited < ms; waited += 100) {
+    if (transport.inWaiting() > 0) return true
+    await sleep(100)
+  }
+  return transport.inWaiting() > 0
 }
 
 // how the NodeMCU image is written: what nodemcu-pyflasher and the NodeMCU docs use for ESP-12 boards
@@ -18,6 +34,7 @@ export type FlashFirmwareOptions = {
   // injectable for tests: esptool-js is an ES module loaded at runtime
   loadEsptool?: () => Promise<any>
   makeTransport?: (path: string) => any
+  sleep?: (ms: number) => Promise<void> // injectable for tests
 }
 
 // esptool-js ships as an ES module. Node's ES-module loader cannot read from inside Electron's
@@ -58,6 +75,9 @@ export const describeFlashError = (e: any): string => {
   if (/Serial data stream stopped|No serial data received|Timed out waiting for packet/i.test(message)) {
     return "The board stopped answering during the install. Usually it was not in flashing mode."
   }
+  if (/MD5 of file does not match/i.test(message)) {
+    return "What arrived on the board does not match the firmware file: the write went wrong. Install it again; if it keeps failing, try another USB socket or cable."
+  }
   if (/Failed to connect/i.test(message)) {
     return "Could not get the board into flashing mode."
   }
@@ -68,8 +88,8 @@ export type FlashFirmwareFn = (options: FlashFirmwareOptions) => Promise<boolean
 
 // Puts the NodeMCU firmware on a bare ESP8266 board. Resolves true on success; every
 // outcome is also reported through onProgress.
-export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onProgress, loadEsptool = importEsptool, makeTransport = p => new NodeSerialTransport(p) }) => {
-  const report = (phase: FirmwarePhase, percent: number, message?: string) => onProgress({ phase, percent, message })
+export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onProgress, loadEsptool = importEsptool, makeTransport = p => new NodeSerialTransport(p), sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms)) }) => {
+  const report = (phase: FirmwarePhase, percent: number, message?: string, pressReset?: boolean) => onProgress({ phase, percent, message, ...(pressReset ? { pressReset } : {}) })
   const transport = makeTransport(path)
   try {
     report("connecting", 0, "Reading the firmware file")
@@ -111,13 +131,24 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       flashSize,
       eraseAll: false,
       compress: true,
+      // read back what landed on the chip and compare: a bad write is reported as one
+      calculateMD5Hash: (written: Uint8Array) => createHash("md5").update(Buffer.from(written)).digest("hex"),
       reportProgress: (_fileIndex: number, written: number, total: number) => {
         report("writing", 5 + Math.round((written / Math.max(total, 1)) * 90))
       },
     })
 
     report("restarting", 96, "Restarting the board")
+    const canListen = typeof transport.inWaiting === "function" && typeof transport.flushInput === "function"
+    if (canListen) transport.flushInput()
     await loader.after("hard_reset")
+    if (canListen && !(await waitForBytes(transport, RESTART_GRACE_MS, sleep))) {
+      report("restarting", 97, "The board did not restart by itself. Press the RST button on the board once (do not hold FLASH).", true)
+      if (!(await waitForBytes(transport, RESET_BUTTON_WAIT_MS, sleep))) {
+        throw new Error("The board did not restart. Press its RST button once, wait a minute, then check again.")
+      }
+      report("restarting", 98, "Restarting the board")
+    }
     await transport.disconnect()
     report("done", 100, "Firmware installed")
     return true

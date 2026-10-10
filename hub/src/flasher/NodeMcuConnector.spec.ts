@@ -351,3 +351,20 @@ test("watchNetwork restarts the light and stops once it found the hub", async ()
   expect(seen.join("")).toContain("Found hub")
   expect(all).toContain("Found hub")
 })
+
+test("readBootMessage listens at 74880 baud and stops shortly after the start-up line", async () => {
+  const { nodemcu, poke } = stickyBoard(true)
+  let options: any
+  let stopped = false
+  const stream = (o: any) => {
+    options = o
+    let resolveDone: (s: string) => void = () => {}
+    const done = new Promise<string>(r => { resolveDone = r })
+    setTimeout(() => o.onText(" ets Jan  8 2013,rst cause:2, boot mode:(2,6)\r\n"), 10)
+    return { done, stop: () => { stopped = true; resolveDone(" ets Jan  8 2013,rst cause:2, boot mode:(2,6)\r\n") } }
+  }
+  const all = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {}, stream }).readBootMessage("COM7", () => {})
+  expect(options.baudRate).toBe(74880)
+  expect(stopped).toBe(true)
+  expect(all).toContain("boot mode:(2,6)")
+})

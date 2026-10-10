@@ -4,8 +4,9 @@ import { Channel, HardwareProfile, LightProfile, Off, PINS, Rgb, Role } from './
 export type WiringCheck = {
   id: string
   role: Role
-  kind: "dark" | "colour" | "pixels"
+  kind: "board" | "dark" | "colour" | "pixels"
   channel?: Channel // for "colour"
+  blink?: boolean // blink the board's own LED while asking
   operator: Rgb
   stage: Rgb
   question: string
@@ -40,7 +41,12 @@ const colourAnswers = [
 
 // the checks to run for one light, in order
 export function checksFor(profile: HardwareProfile): WiringCheck[] {
-  const checks: WiringCheck[] = []
+  // first a control: proves the hub's commands reach a running tally program at all
+  const checks: WiringCheck[] = [{
+    id: "board-led", role: "operator", kind: "board", blink: true, operator: Off, stage: Off,
+    question: "Look at the small LED next to the USB socket on the board. Is it blinking?",
+    answers: [{ id: "yes", label: "Yes, it blinks" }, { id: "no", label: "No" }],
+  }]
   const roles: Role[] = ["operator", "stage"]
   for (const role of roles) {
     const light: LightProfile = profile[role]
@@ -69,6 +75,15 @@ export function checksFor(profile: HardwareProfile): WiringCheck[] {
   return checks
 }
 
+// A strip that stays dark while the board follows the hub: the checks, most likely first.
+function stripDarkAdvice(name: string): string {
+  return `No pixel of the ${name} lit, although the board follows the hub. Check in this order: ` +
+    `1) the wire from ${PINS.ws2812} goes to the strip's DIN pad, at the end its arrows point away from; ` +
+    `2) the strip's GND goes to a GND pin on the board; 3) the strip's +5V goes to VU (on boards that have it) or VIN, and that pin has 5 V while USB is plugged in. ` +
+    `4) Some strips ignore the board's 3.3 V signal while they run on 5 V. To test, move the strip's + wire from VIN to 3V3 and run the test again. ` +
+    `If it lights then, put it back on VIN with a 1N4001 diode in that + wire (stripe towards the strip), or use a 74AHCT125 level shifter on the data wire.`
+}
+
 function pinFor(role: Role, channel: Channel): string {
   return PINS[role][channel]
 }
@@ -79,11 +94,19 @@ export function diagnose(profile: HardwareProfile, checks: WiringCheck[], answer
   const answerFor = (id: string) => answers.find(a => a.checkId === id)?.answer
   const roles: Role[] = ["operator", "stage"]
 
+  if (answerFor("board-led") === "no") {
+    // nothing else means anything: the lights cannot follow commands that do not arrive
+    return [{
+      severity: "fix", role: "operator",
+      text: "The board did not blink its own LED when the hub told it to, so the tally software is not running on it and no light can come on, however it is wired. Go back to \"Plug it in\" and install the tally software (or the firmware, if it asks for that), then run the test again.",
+    }]
+  }
+
   for (const role of roles) {
     const light = profile[role]
     if (light.kind === "none") continue
     const name = roleName(role)
-    const roleChecks = checks.filter(c => c.role === role)
+    const roleChecks = checks.filter(c => c.role === role && c.kind !== "board")
     if (!roleChecks.every(c => answerFor(c.id) !== undefined)) {
       continue // not finished yet
     }
@@ -108,7 +131,7 @@ export function diagnose(profile: HardwareProfile, checks: WiringCheck[], answer
       findings.push({
         severity: "fix", role,
         text: light.kind === "ws2812"
-          ? `The ${name} never lit. Check that the strip's data wire is on ${PINS.ws2812}, its + on VIN (5 V) and its − on GND, and that the first pixel's arrow points away from the board.`
+          ? stripDarkAdvice(name)
           : `The ${name} never lit. Check its common pin (${light.polarity === "anode" ? "to 3V3" : "to GND"}) and that the LED is not in backwards.`,
       })
       continue
@@ -158,7 +181,10 @@ export function diagnose(profile: HardwareProfile, checks: WiringCheck[], answer
       const lit = parseInt(answerFor(`${role}-pixels`) || "", 10)
       if (!isNaN(lit) && lit !== light.pixels) {
         if (lit === 0) {
-          findings.push({ severity: "fix", role, pins: [PINS.ws2812, "VIN", "GND"], text: `No pixel lit for the ${name}. Check the data wire on ${PINS.ws2812} and the strip's power.` })
+          findings.push({
+            severity: "fix", role, pins: [PINS.ws2812, "VIN", "GND"],
+            text: stripDarkAdvice(name),
+          })
         } else {
           findings.push({ severity: "fix", role, fixPixels: lit, text: `${lit} pixel${lit === 1 ? "" : "s"} lit, ${light.pixels} expected. The hub will use ${lit} from now on.` })
         }

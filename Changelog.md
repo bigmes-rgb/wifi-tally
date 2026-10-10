@@ -7,6 +7,30 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [BUGFIX] The wiring table, notes and guide said to power a NeoPixel strip from VIN. On LoLin-style
+  boards VIN is dead while the board runs from USB; the strip then has no power, stays dark, and holds
+  D4 low so the board does not even start. They now say VU on boards that have it, and warn that an
+  unpowered strip stops the board starting. Found on a real board.
+* [FEATURE] *Read the start-up message* on the "nothing answers" screen listens at 74880 baud while you
+  press RST and translates the chip's own start-up line: starts normally, keeps restarting, started in
+  flashing mode (D3 low), D4 held low (unpowered strip), or D8 held high.
+* [FEATURE] Every firmware install is read back (MD5) and a bad write is reported as one.
+* [BUGFIX] On boards whose automatic reset does not work (the ones that need FLASH and RST to install),
+  the board stayed in flashing mode after *Install firmware* and the page waited minutes before saying
+  "not saying anything". The install now listens for the board to restart; when it stays silent the
+  install window says "Press the RST button on the board once" and carries on as soon as it does.
+* [BUGFIX] Reading a board's info, running a command, listing files, uploading and downloading had no
+  time limit (nodemcu-tool waits forever), so a board that stopped mid-reply could hold the USB port and
+  freeze every later step. Each now gives up after a few seconds with a message.
+* [FEATURE] The wiring test starts with a control: it blinks the small LED next to the board's USB
+  socket and asks whether it blinks. No blink means the tally software is not running and the test
+  says so, instead of blaming the wiring. It also says up front which lights and pins it will drive,
+  so a step 1 left on the wrong light type is caught before testing.
+* [CHANGE] A strip that stays dark while the board follows the hub gets the checks in order: data wire
+  on the DIN end, shared GND, +5V on VIN, then the 3.3 V-signal test (power from 3V3 briefly) with the
+  usual remedies.
+* [CHANGE] The exact Lua the wiring test sends is pinned in tally/spec/fixtures and run through the
+  real tally code by the Lua tests, so the hub and the tally software cannot drift apart unnoticed.
 * [FEATURE] *On the network* (step 5 of Build a light) shows the light's own report while it is still
   on USB: settings read, Wi-Fi found, password accepted, address, hub found. When it stops it says
   why in words: network not seen (name or 5 GHz), password refused, another network than this

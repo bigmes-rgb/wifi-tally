@@ -15,6 +15,11 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 - **Windows Firewall:** the first time a new vTally starts, Windows asks whether to allow it on
   networks. Allow it, including on Private networks. Without that the lights cannot reach the hub.
 
+- **Strip power:** a NeoPixel strip's +5V goes to **VU** on boards that have that pin (LoLin),
+  otherwise to **VIN**. On LoLin boards VIN can be dead while the board runs from USB. A strip
+  without power holds D4 low, and then the board does not start at all: it prints one garbled
+  line and stops. Unplug the D4 wire and press RST to check.
+
 ## The five steps
 
 1. **What is on the board.** Pick what is soldered on: an RGB LED, with common + or common −, or

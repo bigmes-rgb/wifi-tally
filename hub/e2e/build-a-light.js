@@ -43,9 +43,11 @@ async function run() {
     await shot('2-installed')
     await page.click('[data-testid=build-next]')
 
-    // 3 Wiring test: everything lights as it should
+    // 3 Wiring test: it says what it tests, starts with the board's own LED, then everything lights as it should
+    const testing = await page.$eval('[data-testid=wiring-testing]', e => e.textContent)
+    if (!/NeoPixel strip, 5 pixels on D4/.test(testing)) throw new Error(`wiring test announces the wrong hardware: ${testing}`)
     await page.click('[data-testid=wiring-start]')
-    for (const answer of ['dark', 'R', 'G', 'B', '5']) {
+    for (const answer of ['yes', 'dark', 'R', 'G', 'B', '5']) {
       await page.waitForSelector(`[data-testid=wiring-answer-${answer}]`, { timeout: 20000 })
       await page.click(`[data-testid=wiring-answer-${answer}]`)
     }

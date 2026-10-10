@@ -1,4 +1,4 @@
-import { defaultHardwareProfile, endTestLua, profileToIniValues, profileToLuaCommands, readProfileFromIni, showColorLua, writeProfileToIni } from './HardwareProfile'
+import { boardBlinkLua, boardBlinkStopLua, defaultHardwareProfile, endTestLua, HardwareProfile, Off, profileToIniValues, profileToLuaCommands, readProfileFromIni, showColorLua, writeProfileToIni } from './HardwareProfile'
 import TallySettingsIni from './TallySettingsIni'
 
 describe("profileToIniValues()", () => {
@@ -59,5 +59,20 @@ describe("Lua for the wiring test", () => {
   })
   test("colours are clamped to what the LEDs accept", () => {
     expect(showColorLua([300, -5, 12.6], [0, 0, 0])).toEqual("MyLed.static(255,0,13,0,0,0)")
+  })
+})
+
+describe("the Lua the wiring test sends", () => {
+  // tally/spec/wiring_test_spec.lua runs this same file through the real tally code
+  test("matches the fixture the tally's own tests run", () => {
+    const fs = require('fs')
+    const strip: HardwareProfile = { operator: { kind: "ws2812", polarity: "anode", pixels: 5, order: "grb" }, stage: { kind: "none", polarity: "anode", pixels: 4, order: "grb" } }
+    const lines = [...profileToLuaCommands(strip), boardBlinkLua, showColorLua(Off, Off), boardBlinkStopLua, showColorLua([255, 0, 0], Off), endTestLua]
+    const fixture = fs.readFileSync(__dirname + "/../../../tally/spec/fixtures/wiring-test-strip.txt", "utf8").trim().split("\n")
+    expect(lines).toEqual(fixture)
+  })
+  test("every command fits the NodeMCU's 256-character line with the hub's ok-marker", () => {
+    const lines = [...profileToLuaCommands(defaultHardwareProfile()), boardBlinkLua, boardBlinkStopLua, endTestLua, showColorLua([255, 255, 255], [255, 255, 255])]
+    lines.forEach(l => expect((l + '; print("ok")').length).toBeLessThan(256))
   })
 })

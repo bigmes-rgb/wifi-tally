@@ -106,5 +106,11 @@ export function showColorLua(operator: Rgb, stage: Rgb): string {
   return `MyLed.static(${o[0]},${o[1]},${o[2]},${s[0]},${s[1]},${s[2]})`
 }
 
+// Blinks the small LED next to the USB socket (D0, the tally program's "running" light). If the
+// person sees it blink, the hub's commands reach a running tally program; if not, nothing else the
+// wiring test shows can light, whatever the wiring.
+export const boardBlinkLua = `if _G.wtBlink then _G.wtBlink:unregister() end _G.wtBlink=tmr.create() local on=false _G.wtBlink:alarm(250,tmr.ALARM_AUTO,function() on=not on gpio.write(0,on and gpio.LOW or gpio.HIGH) end)`
+export const boardBlinkStopLua = `if _G.wtBlink then _G.wtBlink:unregister() _G.wtBlink=nil end`
+
 // hands the LEDs back to the tally program
-export const endTestLua = `_G.testMode=nil MyLed.initial()`
+export const endTestLua = `${boardBlinkStopLua} _G.testMode=nil MyLed.initial()`

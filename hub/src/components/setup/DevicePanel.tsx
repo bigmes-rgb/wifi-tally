@@ -8,6 +8,7 @@ import { TallyProgramProgressType } from '../../flasher/NodeMcuConnector'
 import { FirmwareProgressType } from '../../flasher/FirmwareFlasher'
 import { socket } from '../../hooks/useSocket'
 import Help from '../flasher/Help'
+import BootMessageReader from './BootMessageReader'
 import ProgramProgress from '../flasher/ProgramProgress'
 import Spinner from '../layout/Spinner'
 
@@ -123,7 +124,12 @@ function DevicePanel({ device, onReload }: Props) {
             {shownFirmware.phase === "done" && "Firmware installed."}
             {shownFirmware.phase === "error" && "Installing the firmware failed."}
           </Typography>
-          {shownFirmware.message && shownFirmware.phase !== "error" && <Typography color="textSecondary">{shownFirmware.message}</Typography>}
+          {shownFirmware.pressReset && shownFirmware.phase === "restarting"
+            ? <Alert severity="warning" className={classes.block} data-testid="firmware-press-reset">
+                <strong>Press the RST button on the board once</strong>: the small button next to the USB socket. Do not hold FLASH.
+                The firmware is installed, but this board did not restart by itself. The install carries on as soon as it does.
+              </Alert>
+            : shownFirmware.message && shownFirmware.phase !== "error" && <Typography color="textSecondary">{shownFirmware.message}</Typography>}
           {shownFirmware.phase === "error" && <Alert severity="error" className={classes.block}>
             {shownFirmware.message}<br />
             Unplug the board, plug it back in and try again. Some boards need help: hold the <strong>FLASH</strong> button, tap <strong>RST</strong>, release FLASH, then start the install.
@@ -159,6 +165,8 @@ function DevicePanel({ device, onReload }: Props) {
               <pre className={classes.output}>{device.boardOutput}</pre>
             </details>}
             {device.errorMessage && <Typography variant="caption" color="textSecondary" display="block" data-testid="device-error">{device.errorMessage}</Typography>}
+            {/* the firmware is in but nothing answers: the chip's own start-up message says why */}
+            {(device.boardState === "silent" || device.boardState === "otherFirmware" || device.boardState === "crashing") && <BootMessageReader path={device.path} />}
             <Typography variant="caption" color="textSecondary">
               {advice?.wait
                 ? <>Still the same after two minutes? <Button size="small" onClick={installFirmware} disabled={busy}>Install the firmware again</Button>.</>

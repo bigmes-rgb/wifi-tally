@@ -341,6 +341,11 @@ io.on('connection', (socket: ServerSideSocket) => {
       .finally(() => socket.emit('flasher.watch.end'))
   })
   socket.on('flasher.watch.stop', () => myNodeMcuConnector.stopNetworkWatch())
+  socket.on('flasher.bootmessage.start', (path: string) => {
+    myNodeMcuConnector.readBootMessage(path, text => socket.emit('flasher.bootmessage.text', text))
+      .catch(e => console.error(`Reading the start-up message on ${path} failed:`, e))
+      .finally(() => socket.emit('flasher.bootmessage.end'))
+  })
 
   socket.on('flasher.settingsIni', (path, settingsIniString) => {
     myNodeMcuConnector.writeTallySettingsIni(path, settingsIniString, (state) => {
@@ -363,8 +368,8 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('flasher.wiring.start', (path, profile) => {
     myNodeMcuConnector.startWiringTest(path, profile).then(state => socket.emit('flasher.wiring.state', state))
   })
-  socket.on('flasher.wiring.show', (profile, operator, stage) => {
-    myNodeMcuConnector.wiringTestShow(profile, operator, stage).then(state => socket.emit('flasher.wiring.state', state))
+  socket.on('flasher.wiring.show', (profile, operator, stage, blink) => {
+    myNodeMcuConnector.wiringTestShow(profile, operator, stage, !!blink).then(state => socket.emit('flasher.wiring.state', state))
   })
   socket.on('flasher.wiring.stop', () => {
     myNodeMcuConnector.stopWiringTest().then(state => socket.emit('flasher.wiring.state', state))
