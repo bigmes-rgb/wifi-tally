@@ -123,7 +123,12 @@ function DevicePanel({ device, onReload }: Props) {
             {shownFirmware.phase === "done" && "Firmware installed."}
             {shownFirmware.phase === "error" && "Installing the firmware failed."}
           </Typography>
-          {shownFirmware.message && shownFirmware.phase !== "error" && <Typography color="textSecondary">{shownFirmware.message}</Typography>}
+          {shownFirmware.pressReset && shownFirmware.phase === "restarting"
+            ? <Alert severity="warning" className={classes.block} data-testid="firmware-press-reset">
+                <strong>Press the RST button on the board once</strong>: the small button next to the USB socket. Do not hold FLASH.
+                The firmware is installed, but this board did not restart by itself. The install carries on as soon as it does.
+              </Alert>
+            : shownFirmware.message && shownFirmware.phase !== "error" && <Typography color="textSecondary">{shownFirmware.message}</Typography>}
           {shownFirmware.phase === "error" && <Alert severity="error" className={classes.block}>
             {shownFirmware.message}<br />
             Unplug the board, plug it back in and try again. Some boards need help: hold the <strong>FLASH</strong> button, tap <strong>RST</strong>, release FLASH, then start the install.

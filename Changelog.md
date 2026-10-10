@@ -7,6 +7,13 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [BUGFIX] On boards whose automatic reset does not work (the ones that need FLASH and RST to install),
+  the board stayed in flashing mode after *Install firmware* and the page waited minutes before saying
+  "not saying anything". The install now listens for the board to restart; when it stays silent the
+  install window says "Press the RST button on the board once" and carries on as soon as it does.
+* [BUGFIX] Reading a board's info, running a command, listing files, uploading and downloading had no
+  time limit (nodemcu-tool waits forever), so a board that stopped mid-reply could hold the USB port and
+  freeze every later step. Each now gives up after a few seconds with a message.
 * [FEATURE] The wiring test starts with a control: it blinks the small LED next to the board's USB
   socket and asks whether it blinks. No blink means the tally software is not running and the test
   says so, instead of blaming the wiring. It also says up front which lights and pins it will drive,

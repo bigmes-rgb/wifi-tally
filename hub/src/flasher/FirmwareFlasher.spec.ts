@@ -179,3 +179,38 @@ describe("describeFlashError()", () => {
     expect(describeFlashError(new Error("This is not a NodeMCU/ESP8266 board but \"ESP32\"."))).toContain("ESP32")
   })
 })
+
+describe("after the install the board has to restart", () => {
+  // a transport whose board sends bytes once it has restarted
+  const listeningTransport = (restartsAfterChecks: number | null) => {
+    let checks = 0
+    return {
+      disconnected: 0,
+      disconnect: async function () { this.disconnected++ },
+      flushInput: () => { checks = 0 },
+      inWaiting: () => { checks++; return restartsAfterChecks !== null && checks > restartsAfterChecks ? 42 : 0 },
+    }
+  }
+  const run = async (transport: any) => {
+    const progress: FirmwareProgressType[] = []
+    const ok = await flashNodeMcuFirmware({ path: "COM7", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: fakeEsptool().load, makeTransport: () => transport, sleep: async () => {} })
+    return { ok, progress }
+  }
+  test("a board that restarts by itself is not asked about", async () => {
+    const { ok, progress } = await run(listeningTransport(2))
+    expect(ok).toBe(true)
+    expect(progress.some(p => p.pressReset)).toBe(false)
+  })
+  test("a silent board gets 'press RST', and the install finishes once it restarts", async () => {
+    const { ok, progress } = await run(listeningTransport(100))
+    expect(ok).toBe(true)
+    const ask = progress.find(p => p.pressReset)
+    expect(ask?.message).toContain("RST")
+    expect(progress[progress.length - 1].phase).toBe("done")
+  })
+  test("a board that never restarts ends in an error that says what to do", async () => {
+    const { ok, progress } = await run(listeningTransport(null))
+    expect(ok).toBe(false)
+    expect(progress[progress.length - 1].message).toContain("RST")
+  })
+})

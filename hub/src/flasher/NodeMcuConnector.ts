@@ -191,6 +191,21 @@ class NodeMcuConnector {
     }
   }
 
+  // nodemcu-tool waits for the board's reply without a time limit everywhere except its connection
+  // check. A board that stops mid-reply would hold the port, and every later operation, forever.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async within(ms: number, doing: string, work: () => any): Promise<any> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`The board stopped answering while ${doing}.`)), ms)
+    })
+    try {
+      return await Promise.race([work(), timeout])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   // nodemcu-tool's wording is about its own internals; say what it means for the board
   static describeError(e: any): string {
     const message = e instanceof Error ? e.message : String(e)
@@ -204,7 +219,7 @@ class NodeMcuConnector {
     let retries = 3
     while (true) {
       try {
-        const foo = await this.nodemcu.execute(`${idempotentCommand}; print("ok")`)
+        const foo = await this.within(5000, "running a command", () => this.nodemcu.execute(`${idempotentCommand}; print("ok")`))
         if (foo === null || !foo.response) {
           throw new Error("Did not get a response for executing the command.")
         }
@@ -275,18 +290,18 @@ class NodeMcuConnector {
             await this.connect(device.path, 10000)
           }
           tallyDevice.boardState = "ready"
-          const deviceInfo = await this.nodemcu.deviceInfo()
+          const deviceInfo = await this.within(5000, "reporting its firmware", () => this.nodemcu.deviceInfo())
 
           tallyDevice.chipId = deviceInfo.chipID
           tallyDevice.flashId = deviceInfo.flashID
           tallyDevice.nodeMcuVersion = deviceInfo.version
           tallyDevice.nodeMcuModules = deviceInfo.modules
-          const numberAnswer = await this.nodemcu.execute("print(1/2)").catch(() => null)
+          const numberAnswer = await this.within(5000, "answering a question", () => this.nodemcu.execute("print(1/2)")).catch(() => null)
           tallyDevice.firmwareProblem = firmwareProblem({
             version: deviceInfo.version, modules: deviceInfo.modules, numberType: numberTypeFrom(numberAnswer?.response),
           }) || undefined
 
-          const fsinfo = await this.nodemcu.fsinfo()
+          const fsinfo = await this.within(8000, "listing its files", () => this.nodemcu.fsinfo())
           if (updatePossible) {
             tallyDevice.update = await NodeMcuConnector.doFilesNeedUpdate(fsinfo.files) ? "updateable" : "up-to-date"
           }
@@ -294,7 +309,7 @@ class NodeMcuConnector {
           const settingsFileExists = fsinfo.files.some(file => file.name === fileName)
 
           if (settingsFileExists) {
-            const res = await this.nodemcu.download(fileName)
+            const res = await this.within(10000, "sending its settings", () => this.nodemcu.download(fileName))
             tallyDevice.tallySettings = new TallySettingsIni(res.toString())
           }
         }
@@ -331,8 +346,8 @@ class NodeMcuConnector {
 
         await this.connect(path)
         // never upload bytecode the firmware cannot load: the light would stay dark
-        const deviceInfo = await this.nodemcu.deviceInfo()
-        const numberAnswer = await this.nodemcu.execute("print(1/2)").catch(() => null)
+        const deviceInfo = await this.within(5000, "reporting its firmware", () => this.nodemcu.deviceInfo())
+        const numberAnswer = await this.within(5000, "answering a question", () => this.nodemcu.execute("print(1/2)")).catch(() => null)
         const problem = firmwareProblem({ version: deviceInfo.version, modules: deviceInfo.modules, numberType: numberTypeFrom(numberAnswer?.response) })
         if (problem) { throw new Error(problem) }
 
@@ -592,9 +607,9 @@ class NodeMcuConnector {
     const copyFileName = remoteFilePath + ".swp"
 
     try {
-      await this.nodemcu.upload(localFilePath, copyFileName, {}, () => {})
+      await this.within(60000, `receiving ${remoteFilePath}`, () => this.nodemcu.upload(localFilePath, copyFileName, {}, () => {}))
       await this.sleep(1000)
-      const gotContent = await this.nodemcu.download(copyFileName)
+      const gotContent = await this.within(30000, `sending back ${remoteFilePath}`, () => this.nodemcu.download(copyFileName))
       const localContent = await fs.readFile(localFilePath).then(buffer => buffer.toString())
 
       if (gotContent.toString() !== localContent) {
