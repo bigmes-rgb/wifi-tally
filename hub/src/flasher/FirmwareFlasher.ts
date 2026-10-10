@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import { createHash } from 'crypto'
-import NodeSerialTransport from './NodeSerialTransport'
+import NodeSerialTransport, { UNPLUGGED } from './NodeSerialTransport'
 
 export type FirmwarePhase = "connecting" | "writing" | "restarting" | "done" | "error"
 export type FirmwareProgressType = {
@@ -72,6 +72,9 @@ export const fixEsp8266SpiRegisters = (chip: any) => {
 // esptool-js's wording blames "serial noise" when the board simply stopped answering
 export const describeFlashError = (e: any): string => {
   const message = `${e?.message || e}`
+  if (message.includes(UNPLUGGED) || /Cannot call write after a stream was destroyed|Port is not open/i.test(message)) {
+    return "The board was unplugged during the install. Plug it back in, press Check again, then install the firmware again."
+  }
   if (/Serial data stream stopped|No serial data received|Timed out waiting for packet/i.test(message)) {
     return "The board stopped answering during the install. Usually it was not in flashing mode."
   }

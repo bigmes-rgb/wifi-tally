@@ -3,9 +3,10 @@ import { MixerCommunicator } from '../../lib/MixerCommunicator'
 import { Connector } from '../interfaces'
 import RolandV8HDConfiguration from './RolandV8HDConfiguration'
 
-// What a Roland V-8HD answers when nothing has been heard from it for this long: gone.
-// It is polled every requestInterval (100 ms by default), so 3 s is many missed rounds.
-const DEFAULT_SILENCE_TIMEOUT_MS = 3000
+// A Roland V-8HD that has not answered for this long is gone: at least 1.5 s, and never less than
+// three rounds of questions. The sooner it counts as gone, the sooner the lights stop showing its
+// last state (MixerCommunicator then waits its own 2 s before they blink "unknown").
+const MIN_SILENCE_TIMEOUT_MS = 1500
 // how often to look for the switcher while it is not connected
 const DEFAULT_RETRY_INTERVAL_MS = 3000
 
@@ -43,7 +44,7 @@ class RolandV8HDConnector implements Connector {
         this.communicator = communicator
         this.midi = midiLib
         this.retryIntervalMs = options.retryIntervalMs ?? DEFAULT_RETRY_INTERVAL_MS
-        this.silenceTimeoutMs = options.silenceTimeoutMs ?? DEFAULT_SILENCE_TIMEOUT_MS
+        this.silenceTimeoutMs = options.silenceTimeoutMs ?? Math.max(MIN_SILENCE_TIMEOUT_MS, 3 * configuration.getRequestInterval())
     }
 
     connect() {
@@ -53,14 +54,22 @@ class RolandV8HDConnector implements Connector {
         this.retryTimer = setInterval(() => this.watch(), this.retryIntervalMs)
     }
 
-    // runs every retryIntervalMs: reconnect when not connected, notice silence when connected
+    // runs every retryIntervalMs: look for the switcher while its port is not open
     private watch() {
         if (this.stopped) { return }
-        if (!this.connected) {
+        if (!this.midi_input) {
             this.tryToOpen()
-        } else if (Date.now() - this.lastHeardAt > this.silenceTimeoutMs) {
-            this.dropConnection("The V-8HD stopped answering. Is it switched on and its USB cable plugged in?")
+        } else {
+            this.checkSilence()
         }
+    }
+
+    // runs before every round of questions, so a pulled cable is noticed within silenceTimeoutMs
+    private checkSilence() {
+        if (Date.now() - this.lastHeardAt <= this.silenceTimeoutMs) { return }
+        this.dropConnection(this.connected
+            ? "The V-8HD stopped answering. Is it switched on and its USB cable plugged in?"
+            : "Found the V-8HD on USB, but it does not answer the hub's questions. Switch the V-8HD off and on again; the hub keeps trying.")
     }
 
     private findPort(device: any): number {
@@ -84,6 +93,8 @@ class RolandV8HDConnector implements Connector {
                 this.closeQuietly(input); this.closeQuietly(output)
                 return
             }
+            // node-midi does not throw when Windows refuses the port (another program has it):
+            // the port just stays closed
             input.openPort(inputIdx)
             output.openPort(outputIdx)
             if (!input.isPortOpen() || !output.isPortOpen()) {
@@ -97,11 +108,11 @@ class RolandV8HDConnector implements Connector {
             this.midi_output = output
             this.input_status = [0, 0, 0, 0, 0, 0, 0, 0]
             this.lastHeardAt = Date.now()
-            this.connected = true
-            this.lastProblem = null
+            // "connected" once the switcher answers (onMessage), not when its port opens
+            this.connected = false
             console.log(`Opened Midi Port ${inputIdx}: ${input.getPortName(inputIdx)}`)
             this.pollTimer = setInterval(() => this.requestStatus(), this.configuration.getRequestInterval())
-            this.communicator.notifyMixerIsConnected()
+            this.requestStatus()
         } catch (e) {
             this.closeQuietly(input); this.closeQuietly(output)
             this.report(`Found the V-8HD but could not open its MIDI port (${e?.message || e}). Another program, e.g. the Roland remote software, may be using it. Close it; the hub keeps trying.`)
@@ -117,8 +128,9 @@ class RolandV8HDConnector implements Connector {
         this.communicator.notifyMixerIsDisconnected(problem)
     }
 
+    // also for ports that failed to open: node-midi has set one up anyway, and only closePort frees it
     private closeQuietly(device: any) {
-        try { if (device && device.isPortOpen && device.isPortOpen()) { device.closePort() } } catch (e) { /* already gone */ }
+        try { if (device) { device.closePort() } } catch (e) { /* already gone */ }
     }
 
     private dropConnection(problem: string) {
@@ -133,6 +145,11 @@ class RolandV8HDConnector implements Connector {
 
     private onMessage(message: number[]) {
         this.lastHeardAt = Date.now()
+        if (!this.connected) {
+            this.connected = true
+            this.lastProblem = null
+            this.communicator.notifyMixerIsConnected()
+        }
         // tally parameter area
         if (message[8] === 12) {
             // hdmi input id in byte 11, tally information in byte 12
@@ -157,6 +174,8 @@ class RolandV8HDConnector implements Connector {
 
     // ask the switcher for the tally state of all 8 inputs
     private requestStatus() {
+      if (!this.midi_output) { return }
+      this.checkSilence()
       if (!this.midi_output) { return }
       // Base SysEx message to the V-8HD; input address in byte 11, checksum in byte 15
       let sysex_msg = [0xF0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x68, 0x11, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x03, 0x71, 0xF7]

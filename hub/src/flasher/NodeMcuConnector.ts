@@ -2,7 +2,7 @@ import nodemcuLib from 'nodemcu-tool'
 import TallyDevice, { SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua, tallyNotRunning } from './HardwareProfile'
-import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
+import { describeFlashError, FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
 import { firmwareProblem, numberTypeFrom } from './FirmwareCheck'
 import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions, streamFromBoard, StreamOptions } from './BoardListener'
 import tmp from 'tmp-promise'
@@ -56,26 +56,51 @@ class NodeMcuConnector {
   nodemcu: any
   private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout } | null = null
 
-  withMutex<T> (fn: () => T): Promise<T> {
-    return new Promise((resolve, reject) => {
+  // One board operation at a time. Each gets a deadline: a job stuck on a board that vanished must
+  // not hold the USB port, and with it every later step, until vTally is restarted.
+  withMutex<T> (fn: () => T, maxMs = NodeMcuConnector.jobDeadlineMs): Promise<T> {
+    return new Promise((resolve) => {
       const interval = setInterval(() => {
         const mutexAquired = tryToAquireMutex()
         if (mutexAquired) {
           clearInterval(interval)
-          if (this.nodemcu.isConnected()) {
-            console.warn("Serial terminal was not closed by previous process.")
-            this.nodemcu.disconnect()
-          }
           resolve(true)
         }
       }, 100)
     })
-    .then(() => {
-      return fn()
+    .then(async () => {
+      if (this.boardPortOpen()) {
+        console.warn("Serial terminal was not closed by previous process.")
+        await this.closeBoardPort()
+      }
+      return this.within(maxMs, "working with it", fn)
     })
     .finally(() => {
       mutex = false
     })
+  }
+
+  // the longest one board operation may take; reading a freshly flashed board listens for 150 s
+  static jobDeadlineMs = 5 * 60 * 1000
+
+  // nodemcu-tool forgets its port only when closing it succeeds. After an unplug the port is already
+  // closed, so closing fails and nodemcu-tool keeps reporting a connection, which every later close
+  // rejects and every later write waits on forever. The hub keeps its own word: a failed close means
+  // the port is gone, until the next connect replaces nodemcu-tool's handle.
+  private portLost = false
+
+  private boardPortOpen(): boolean {
+    return this.nodemcu.isConnected() && !this.portLost
+  }
+
+  private async closeBoardPort() {
+    if (!this.boardPortOpen()) { return }
+    try {
+      await this.within(3000, "closing the port", () => this.nodemcu.disconnect())
+    } catch (e) {
+      this.portLost = true
+      console.warn(`The board's port was already gone: ${e?.message || e}`)
+    }
   }
 
   private listen: (options: ListenOptions) => Promise<HeardFromBoard>
@@ -176,18 +201,20 @@ class NodeMcuConnector {
   // until the board prints another line. A bare newline makes a running Lua print its prompt,
   // which releases the listener; then the check is tried again.
   private async connect(path: string, patienceMs = 4000) {
-    await this.nodemcu.connect(path, baudRate, false)
+    await this.within(5000, "opening the port", () => this.nodemcu.connect(path, baudRate, false))
+    this.portLost = false
     const deadline = Date.now() + patienceMs
     while (true) {
       try {
         return await this.nodemcu.checkConnection()
       } catch (e) {
         if (Date.now() >= deadline) throw e
-        await this.poke("\r\n").catch(() => {})
+        // a write to a port that vanished never settles: give up on it instead
+        await this.within(1000, "waking it up", () => this.poke("\r\n")).catch(() => {})
         await this.sleep(300)
         // lines that arrived meanwhile (boot messages, the prompt) would be read as the next
         // answer and every check after would be one line behind
-        await this.purge().catch(() => {})
+        await this.within(1000, "clearing its output", () => this.purge()).catch(() => {})
       }
     }
   }
@@ -283,7 +310,7 @@ class NodeMcuConnector {
             await this.connect(device.path)
           } catch (e) {
             // nothing answered: hear what the board prints instead, and wait for it if it is starting up
-            if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+            await this.closeBoardPort()
             const heard = await this.listen({ path: device.path, ms: listenMs, untilPrompt: true })
             tallyDevice.boardOutput = heard.text.slice(-1500)
             tallyDevice.boardState = classifyBoardOutput(heard)
@@ -323,7 +350,7 @@ class NodeMcuConnector {
       return tallyDevice
     }
     finally {
-      if(this.nodemcu && this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+      await this.closeBoardPort()
     }
   }
 
@@ -378,7 +405,7 @@ class NodeMcuConnector {
       return false
     }
     finally {
-      if(this.nodemcu && this.nodemcu.isConnected()) { this.nodemcu.disconnect() }
+      await this.closeBoardPort()
     }
   }
 
@@ -435,7 +462,7 @@ class NodeMcuConnector {
       return false
     }
     finally {
-      if(this.nodemcu && this.nodemcu.isConnected()) { this.nodemcu.disconnect() }
+      await this.closeBoardPort()
     }
   }
 
@@ -447,8 +474,12 @@ class NodeMcuConnector {
       return false
     }
     return this.withMutex(async () => {
-      if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+      await this.closeBoardPort()
       return this.flashFirmwareFn({ path, binPath, onProgress })
+    }).catch(e => {
+      // the job's deadline, or a failure before the flasher could report one itself
+      onProgress({ phase: "error", percent: 0, message: describeFlashError(e) })
+      return false
     })
   }
 
@@ -479,7 +510,7 @@ class NodeMcuConnector {
       await this.sleep(100)
     }
     try {
-      if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect() }
+      await this.closeBoardPort()
       await this.connect(path)
       this.wiringTest = { path, profile }
       await this.applyWiringProfile(profile)
@@ -487,7 +518,7 @@ class NodeMcuConnector {
       return this.getWiringTestState()
     } catch (e) {
       console.error(`Could not start the wiring test: ${e}`)
-      if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect().catch(() => {}) }
+      await this.closeBoardPort()
       this.wiringTest = null
       mutex = false
       return { active: false, error: tallyNotRunning(String(e?.message || e)) ? TALLY_NOT_RUNNING : `Could not talk to the light: ${e?.message || e}` }
@@ -526,9 +557,9 @@ class NodeMcuConnector {
     if (test.idleTimer) { clearTimeout(test.idleTimer) }
     this.wiringTest = null
     try {
-      if (this.nodemcu.isConnected()) {
+      if (this.boardPortOpen()) {
         await this.execute(endTestLua).catch(() => {})
-        await this.nodemcu.disconnect()
+        await this.closeBoardPort()
       }
     } finally {
       mutex = false
@@ -588,9 +619,9 @@ class NodeMcuConnector {
   // boards that need FLASH and RST pressed to install the firmware). The command is written
   // without waiting for a reply: the board may restart before it sends one.
   private async restartBoard(path: string) {
-    await this.poke("node.restart()\r\n")
+    await this.within(1000, "restarting", () => this.poke("node.restart()\r\n"))
     await this.sleep(300)
-    await this.nodemcu.disconnect()
+    await this.closeBoardPort()
     await this.sleep(1500)
     await this.connect(path, 20000)
   }
@@ -620,7 +651,7 @@ class NodeMcuConnector {
    * @param localFilePath the local file path
    */
   private async saveFileUpload(remoteFilePath: string, localFilePath: string) {
-    if (!this.nodemcu.isConnected())  {
+    if (!this.boardPortOpen())  {
       throw new Error("Expected to have an already established connection to NodeMCU, but did not.")
     }
 

@@ -3,6 +3,24 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] In the Windows app, any unexpected error opened a box that froze the whole hub until
+  someone clicked OK: the lights stopped getting updates, and the switcher and the page stopped too.
+  Errors are now written to the log and the hub carries on. Only "vTally is already running" is
+  still shown, and then the second copy quits.
+* [BUGFIX] Unplugging a board while the hub was talking to it could freeze every USB step until
+  vTally was restarted, or crash the hub. That covers installing firmware, reading the board, the
+  wiring test and saving settings. Now:
+  - A firmware install whose board is unplugged ends at once with "The board was unplugged during
+    the install".
+  - A port that is already gone no longer leaves the hub believing it is connected.
+  - Every board job has a time limit.
+  - Every Build-a-light step on the hub reports a failure to the page instead of leaving it waiting.
+* [BUGFIX] Roland V-8HD:
+  - A pulled USB cable is now noticed in about 1.5 s instead of 3 to 6 s, so the lights blink "unknown"
+    about 3.5 s after it is pulled. (The 2 s promised for 0.9.10 counted only from when the hub
+    noticed.)
+  - The hub says "connected" only once the V-8HD has answered, not when its USB port opens.
+  - While another program holds the V-8HD's port, each retry no longer leaks a MIDI handle.
 * [BUGFIX] When the hub lost the switcher (switched off, unplugged, cable knocked, vMix closed), every
   light kept showing the switcher's last state, so the camera that was live stayed red for the whole
   outage. Now, 2 seconds after the switcher is lost, every patched light switches to the blue

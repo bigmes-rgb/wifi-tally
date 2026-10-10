@@ -25,6 +25,7 @@ import TestConfiguration from './mixer/test/TestConfiguration'
 import WebTallyDriver from './tally/WebTallyDriver'
 import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConfiguration'
 import NodeMcuConnector from './flasher/NodeMcuConnector'
+import TallyDevice from './flasher/TallyDevice'
 import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
 import { getHubInfo } from './lib/HubInfo'
 
@@ -338,6 +339,12 @@ io.on('connection', (socket: ServerSideSocket) => {
     const listenMs = Math.max(1000, Math.min(180000, Number(options?.listenMs) || 6000))
     myNodeMcuConnector.getDevice(listenMs).then(device => {
       socket.emit('flasher.device', device.toJson())
+    }).catch(e => {
+      // the page waits for an answer: always give one
+      console.error("Reading the board failed:", e)
+      const device = new TallyDevice()
+      device.errorMessage = `${e?.message || e}`
+      socket.emit('flasher.device', device.toJson())
     })
   })
 
@@ -356,29 +363,32 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('flasher.settingsIni', (path, settingsIniString) => {
     myNodeMcuConnector.writeTallySettingsIni(path, settingsIniString, (state) => {
       socket.emit('flasher.settingsIni.progress', state)
-    })
+    }).catch(e => console.error("Saving the settings failed:", e))
   })
 
   socket.on('flasher.program', (path) => {
     myNodeMcuConnector.program(path, (state) => {
       socket.emit('flasher.program.progress', state)
-    })
+    }).catch(e => console.error("Installing the tally software failed:", e))
   })
 
   socket.on('flasher.firmware', (path) => {
     myNodeMcuConnector.flashFirmware(path, (progress) => {
       socket.emit('flasher.firmware.progress', progress)
-    })
+    }).catch(e => socket.emit('flasher.firmware.progress', { phase: "error", percent: 0, message: `${e?.message || e}` }))
   })
 
   socket.on('flasher.wiring.start', (path, profile) => {
     myNodeMcuConnector.startWiringTest(path, profile).then(state => socket.emit('flasher.wiring.state', state))
+      .catch(e => socket.emit('flasher.wiring.state', { active: false, error: `${e?.message || e}` }))
   })
   socket.on('flasher.wiring.show', (profile, operator, stage) => {
     myNodeMcuConnector.wiringTestShow(profile, operator, stage).then(state => socket.emit('flasher.wiring.state', state))
+      .catch(e => socket.emit('flasher.wiring.state', { active: false, error: `${e?.message || e}` }))
   })
   socket.on('flasher.wiring.stop', () => {
     myNodeMcuConnector.stopWiringTest().then(state => socket.emit('flasher.wiring.state', state))
+      .catch(e => socket.emit('flasher.wiring.state', { active: false, error: `${e?.message || e}` }))
   })
   socket.on('disconnect', () => {
     // the person closed the page in the middle of a wiring test
@@ -427,7 +437,8 @@ if (myConfiguration.isDev()) {
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
     // the Electron wrapper shows the message of an uncaught error in a dialog; make it a sentence
-    throw new Error(`vTally is already running: port ${myConfiguration.getHttpPort()} is in use. Quit the other copy from the tray icon (right-click, Exit) and start this one again.`)
+    // code EADDRINUSE: the Electron wrapper shows this one in a dialog and quits instead of carrying on
+    throw Object.assign(new Error(`vTally is already running: port ${myConfiguration.getHttpPort()} is in use. Quit the other copy from the tray icon (right-click, Exit) and start this one again.`), { code: 'EADDRINUSE' })
   }
   throw err
 })
