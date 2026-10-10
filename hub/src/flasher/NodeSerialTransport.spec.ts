@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import NodeSerialTransport, { SerialPortLike } from './NodeSerialTransport'
+import NodeSerialTransport, { SerialPortLike, UNPLUGGED } from './NodeSerialTransport'
 
 // a serial port that records what was asked of it and lets the test feed bytes in
 class FakePort extends EventEmitter implements SerialPortLike {
@@ -76,4 +76,17 @@ test("flushInput and drainInput discard what has arrived", async () => {
   port.emit('data', Buffer.from([4]))
   await transport.drainInput(5, 50)
   expect(transport.peek().length).toBe(0)
+})
+
+test("once node-serialport has closed an unplugged board's port, writes fail at once instead of waiting forever", async () => {
+  const { port, transport } = await setup()
+  // what @serialport/stream 8 does when a read fails because the board was unplugged: it closes
+  // the port itself, and a later write or drain waits for an 'open' that never comes
+  port.write = () => {}
+  port.drain = () => {}
+  port.isOpen = false
+  port.emit('close')
+  await expect(transport.write(Uint8Array.from([1]))).rejects.toThrow(UNPLUGGED)
+  await expect(transport.setDTR(false)).rejects.toThrow(UNPLUGGED)
+  await expect(transport.changeBaudrate(460800)).rejects.toThrow(UNPLUGGED)
 })

@@ -172,6 +172,10 @@ describe("fixEsp8266SpiRegisters() against the real esptool-js code", () => {
 })
 
 describe("describeFlashError()", () => {
+  test("an unplugged board is named as such, with what to do", () => {
+    expect(describeFlashError(new Error("The board was unplugged."))).toContain("unplugged during the install")
+    expect(describeFlashError(new Error("Cannot call write after a stream was destroyed"))).toContain("Plug it back in")
+  })
   test("esptool-js's 'serial noise' means the board stopped answering", () => {
     expect(describeFlashError(new Error("Serial data stream stopped: Possible serial noise or corruption."))).toBe("The board stopped answering during the install. Usually it was not in flashing mode.")
   })

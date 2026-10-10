@@ -20,6 +20,8 @@ export const defaultOpenPort: OpenPort = (path, baudRate) => {
 
 const SLIP_END = 0xc0, SLIP_ESC = 0xdb, SLIP_ESC_END = 0xdc, SLIP_ESC_ESC = 0xdd
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+// describeFlashError recognises this
+export const UNPLUGGED = "The board was unplugged."
 
 // What esptool-js needs from a serial port, on top of node-serialport instead of Web Serial.
 // Method names and semantics follow esptool-js's own Transport so ESPLoader can use it unchanged.
@@ -72,8 +74,19 @@ class NodeSerialTransport {
       this.buffer = next
     })
     port.on('error', (e: Error) => this.trace(`port error: ${e.message}`))
+    // node-serialport closes the port itself when the board is unplugged. Writing to a closed port
+    // then waits for an 'open' that never comes, and the install would hang with its dialog locked.
+    port.on('close', () => {
+      this.trace("port closed")
+      if (this.port === port) { this.port = null }
+    })
     await this.call(cb => port.open(cb))
     this.port = port
+  }
+
+  private openPortOrFail() {
+    if (!this.port || !this.port.isOpen) { throw new Error(UNPLUGGED) }
+    return this.port
   }
 
   async disconnect() {
@@ -91,17 +104,17 @@ class NodeSerialTransport {
   }
 
   async changeBaudrate(baud: number) {
-    if (!this.port) { throw new Error("port is not open") }
-    await this.call(cb => this.port.update({ baudRate: baud }, cb))
+    const port = this.openPortOrFail()
+    await this.call(cb => port.update({ baudRate: baud }, cb))
     this.baudrate = baud
   }
 
   async write(data: Uint8Array) {
-    if (!this.port) { throw new Error("port is not open") }
+    const port = this.openPortOrFail()
     const out = Buffer.from(this.slipWriter(data))
     this.trace(`write ${out.length} bytes`)
-    await this.call(cb => this.port.write(out, cb))
-    await this.call(cb => this.port.drain(cb))
+    await this.call(cb => port.write(out, cb))
+    await this.call(cb => this.openPortOrFail().drain(cb))
   }
 
   flushInput() { this.buffer = new Uint8Array(0) }
@@ -166,8 +179,8 @@ class NodeSerialTransport {
   }
 
   private async applySignals() {
-    if (!this.port) { throw new Error("port is not open") }
-    await this.call(cb => this.port.set({ dtr: this.dtr, rts: this.rts }, cb))
+    const port = this.openPortOrFail()
+    await this.call(cb => port.set({ dtr: this.dtr, rts: this.rts }, cb))
   }
   async setDTR(state: boolean) {
     this.dtr = state

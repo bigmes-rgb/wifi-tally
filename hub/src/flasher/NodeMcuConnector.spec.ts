@@ -378,3 +378,60 @@ test("readBootMessage listens at 74880 baud and stops shortly after the start-up
   expect(stopped).toBe(true)
   expect(all).toContain("boot mode:(2,6)")
 })
+
+describe("a board that was unplugged", () => {
+  // nodemcu-tool after an unplug: the port is already closed, so its close fails with "Port is not
+  // open" and it keeps reporting a connection (lib/transport/serialport.js clears its handle only
+  // after a successful close); a later connect replaces the handle
+  const unpluggedNodemcu = () => {
+    let handle = true
+    const nodemcu: any = {
+      executed: [] as string[],
+      onError: () => {},
+      isConnected: () => handle,
+      connect: async () => { handle = true; nodemcu.reopened = true },
+      disconnect: async () => { throw new Error("Port is not open") },
+      checkConnection: async () => {},
+      listDevices: async () => [],
+      execute: async (cmd: string) => { nodemcu.executed.push(cmd); return { response: "ok" } },
+    }
+    return nodemcu
+  }
+  const profile = { operator: { kind: "rgb", polarity: "anode", pixels: 5, order: "grb" }, stage: { kind: "none", polarity: "anode", pixels: 0, order: "grb" } } as const
+
+  test("a close that fails does not make later board jobs fail or hang", async () => {
+    const nodemcu = unpluggedNodemcu()
+    const connector = new NodeMcuConnector(nodemcu)
+    const first = await connector.getDevice()
+    expect(first.errorMessage).toBeUndefined()
+    const second = await connector.getDevice()
+    expect(second.errorMessage).toBeUndefined()
+    // and the wiring test opens the port again instead of failing on the stale handle
+    const started = await connector.startWiringTest("/dev/fake", profile)
+    expect(started.active).toBe(true)
+    expect(nodemcu.reopened).toBe(true)
+    await connector.stopWiringTest()
+  })
+
+  test("a job that never finishes gives the USB port back after its deadline", async () => {
+    const connector = new NodeMcuConnector(unpluggedNodemcu())
+    const deadline = NodeMcuConnector.jobDeadlineMs
+    NodeMcuConnector.jobDeadlineMs = 200
+    try {
+      await expect(connector.withMutex(() => new Promise(() => { /* a write to a vanished port */ }))).rejects.toThrow("stopped answering")
+      await expect(connector.withMutex(() => 42)).resolves.toBe(42)
+    } finally {
+      NodeMcuConnector.jobDeadlineMs = deadline
+    }
+  })
+
+  test("a wake-up write to a vanished port does not hold up connecting", async () => {
+    const nodemcu = unpluggedNodemcu()
+    nodemcu.checkConnection = async () => { throw new Error("Timeout, no response detected") }
+    const connector = new NodeMcuConnector(nodemcu, undefined, { poke: () => new Promise(() => { /* never settles */ }), purge: async () => {} })
+    const started = Date.now()
+    const state = await connector.startWiringTest("/dev/fake", profile)
+    expect(state.active).toBe(false)
+    expect(Date.now() - started).toBeLessThan(9000)
+  }, 15000)
+})

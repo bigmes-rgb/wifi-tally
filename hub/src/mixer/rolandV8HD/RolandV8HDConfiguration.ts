@@ -36,8 +36,8 @@ class RolandV8HDConfiguration extends Configuration {
                 throw new Error(`Could not parse "${requestInterval}" into a number.`)
             }
         }
-        // milliseconds between two rounds of questions over USB. The connector treats 3 s without an
-        // answer as a lost switcher, so more than 1000 makes a working V-8HD look unplugged.
+        // milliseconds between two rounds of questions over USB: above 1000 the lights lag the
+        // switcher by more than a second, and a pulled cable takes longer to notice
         if (!Number.isInteger(requestInterval) || requestInterval < RolandV8HDConfiguration.minRequestInterval || requestInterval > RolandV8HDConfiguration.maxRequestInterval) {
             throw new Error(`Use ${RolandV8HDConfiguration.minRequestInterval} to ${RolandV8HDConfiguration.maxRequestInterval} milliseconds.`)
         }
