@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { EventEmitter } from 'events'
-import { classifyBoardOutput, hasPrompt, listenToBoard, printable, streamFromBoard } from './BoardListener'
+import { classifyBoardOutput, hasPrompt, hubAddressesIn, listenToBoard, printable, streamFromBoard } from './BoardListener'
 
 // a serial port that prints what the test scripts, and records what the hub writes
 const fakePort = (script: (port: any) => void, failOpen = false) => {
@@ -49,12 +49,19 @@ describe("classifyBoardOutput()", () => {
     ["Fatal exception 28(LoadProhibitedCause):\r\nepc1=0x4000df64", "crashing"],
     ["NodeMCU 3.0.0.0\r\n·NodeMCU 3.0.0.0\r\n·", "crashing"],
     ["··ready\r\n", "otherFirmware"],
+    ["[INFO]  Got IP 192.168.1.50\r\n[INFO]  Searching for hub by broadcast\r\n", "tallyBusy"],
+    ["[INFO]  Found hub at 192.168.1.35\r\n[INFO]  Found hub at 192.168.1.6\r\n[INFO]  Found hub at 192.168.1.35\r\n", "twoHubs"],
+    ["[INFO]  Found hub at 192.168.1.35\r\n[INFO]  Found hub at 192.168.1.35\r\n", "tallyBusy"],
     ["", "silent"],
   ])("%j is %s", (text, state) => {
     expect(classifyBoardOutput(heard(text))).toBe(state)
   })
   test("unreadable bytes are shown as one dot per run", () => {
     expect(printable(Buffer.from([0x80, 0x81, 0x41, 0xff, 0x42]))).toBe("·A·B")
+  })
+  test("hub addresses come out once each, in the order first heard", () => {
+    expect(hubAddressesIn("[INFO]  Found hub at 192.168.1.35\r\n[INFO]  Found hub at 192.168.1.6\r\n[INFO]  Found hub at 192.168.1.35\r\n")).toEqual(["192.168.1.35", "192.168.1.6"])
+    expect(hubAddressesIn("NodeMCU 3.0.0.0\r\n")).toEqual([])
   })
   test("a '>' inside text is not a prompt", () => {
     expect(hasPrompt("a > b\r\n")).toBe(false)

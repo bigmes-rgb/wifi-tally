@@ -3,6 +3,15 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] A light that heard two hubs followed whichever spoke last, so it flickered between their
+  states and printed "Found hub at …" for each, over and over. One computer on the network twice
+  (cable and Wi-Fi) is enough to cause it. The light now stays with the first hub it hears, warns
+  once that another hub is also sending, and moves on only if its own hub goes silent for 10 seconds.
+  The flood also kept the light too busy to answer *Build a light*, which then called it a board
+  without NodeMCU and offered to reinstall the firmware. The page now recognises a light hearing two
+  hubs, names both addresses and says which case it is: this computer twice, or another computer
+  running vTally. A light running its tally software that is slow to answer is no longer mistaken
+  for one without firmware either. Found on a real board.
 * [BUGFIX] *Build a light* only looked for boards with a CH340 or CP2102 chip and said "Did not find
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing

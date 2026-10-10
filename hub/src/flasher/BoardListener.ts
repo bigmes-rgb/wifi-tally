@@ -10,6 +10,8 @@ export type BoardState =
   | "busy" // NodeMCU started but did not give a prompt yet
   | "crashing" // exceptions or repeated restarts
   | "otherFirmware" // it prints, but not NodeMCU: a board from the box, or a damaged install
+  | "tallyBusy" // the tally software is running and logging, too busy to answer in time
+  | "twoHubs" // the tally software hears a hub at two addresses and keeps switching
   | "silent" // nothing at all
 
 export interface HeardFromBoard {
@@ -76,6 +78,15 @@ export function listenToBoard({ path, ms, untilPrompt = true, pokeEveryMs = 3000
   })
 }
 
+// the hub addresses a tally logged with "Found hub at ...", in the order first seen
+export const hubAddressesIn = (text: string): string[] => {
+  const found: string[] = []
+  for (const m of text.matchAll(/Found hub at (\d+\.\d+\.\d+\.\d+)/g)) {
+    if (!found.includes(m[1])) found.push(m[1])
+  }
+  return found
+}
+
 // What the output says about the board, for someone holding it.
 export function classifyBoardOutput(heard: HeardFromBoard): BoardState {
   const text = heard.text
@@ -84,6 +95,8 @@ export function classifyBoardOutput(heard: HeardFromBoard): BoardState {
   const crashes = (text.match(/Fatal exception|Exception \(\d+\)|stack>>>|wdt reset|rst cause:\s*[2-4]|NodeMCU \d+\.\d+/gi) || []).length
   if (crashes >= 2 || /Fatal exception|Exception \(\d+\)|stack>>>/i.test(text)) return "crashing"
   if (heard.bytes === 0) return "silent"
+  if (hubAddressesIn(text).length >= 2) return "twoHubs"
+  if (/\[(INFO|WARN|ERROR)\]/.test(text)) return "tallyBusy"
   if (/NodeMCU/.test(text)) return "busy"
   return "otherFirmware"
 }
