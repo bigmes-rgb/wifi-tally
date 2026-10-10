@@ -87,3 +87,46 @@ export function classifyBoardOutput(heard: HeardFromBoard): BoardState {
   if (/NodeMCU/.test(text)) return "busy"
   return "otherFirmware"
 }
+
+export interface StreamOptions {
+  path: string
+  ms: number // stop after this long at most
+  writeFirst?: string // sent once the port is open, e.g. a restart command
+  onText: (text: string) => void // every printable chunk as it arrives
+  stopWhen?: (allText: string) => boolean
+  openPort?: OpenPort
+}
+
+// Passes along what a board prints, live, until stopWhen says so, time runs out, or stop() is called.
+export function streamFromBoard({ path, ms, writeFirst, onText, stopWhen, openPort = defaultOpenPort }: StreamOptions) {
+  let stop: () => void = () => {}
+  const done = new Promise<string>(resolve => {
+    const port = openPort(path, 115200)
+    let all = ""
+    let finished = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = () => {
+      if (finished) return
+      finished = true
+      if (timer) clearTimeout(timer)
+      port.removeAllListeners('data')
+      if (port.isOpen) port.close(() => resolve(all))
+      else resolve(all)
+    }
+    stop = finish
+    port.on('data', (chunk: Buffer) => {
+      const text = printable(chunk)
+      all += text
+      if (all.length > 20000) all = all.slice(-20000)
+      onText(text)
+      if (stopWhen && stopWhen(all)) finish()
+    })
+    port.on('error', () => finish())
+    port.open(err => {
+      if (err) { finish(); return }
+      if (writeFirst) port.write(Buffer.from(writeFirst), () => {})
+      timer = setTimeout(finish, ms)
+    })
+  })
+  return { done, stop: () => stop() }
+}

@@ -43,6 +43,9 @@ export interface ServerSentEvents {
     'hub.info': (info: HubInfoType) => void
 
     'flasher.device': (tallyDevice: TallyDeviceObjectType) => void
+    // what a light prints over USB while it joins the Wi-Fi (step 5 of Build a light)
+    'flasher.watch.text': (text: string) => void
+    'flasher.watch.end': () => void
     'flasher.settingsIni.progress': (state: TallySettingsIniProgressType) => void
     'flasher.program.progress': (state: TallyProgramProgressType) => void
     'flasher.wiring.state': (state: WiringTestState) => void
@@ -86,6 +89,8 @@ export interface ClientSentEvents {
 
     // listenMs: how long to listen to a board that does not answer (longer right after installing firmware)
     'flasher.device.get': (options?: { listenMs?: number }) => void
+    'flasher.watch.start': (path: string) => void
+    'flasher.watch.stop': () => void
     'flasher.settingsIni': (path: string, settingsIniString: string) => void
     'flasher.program': (path: string) => void
     'flasher.firmware': (path: string) => void

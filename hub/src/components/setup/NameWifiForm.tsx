@@ -37,11 +37,13 @@ type Props = {
   device: TallyDevice
   profile: HardwareProfile
   rememberedSsid?: string
-  onSaved: (name: string, ssid: string) => void
+  // what the light had before its firmware was reinstalled (which wipes its files)
+  rememberedSettings?: TallySettingsIni
+  onSaved: (name: string, ssid: string, saved: TallySettingsIni) => void
 }
 
 // Name, Wi-Fi and the hardware profile go to the light; no hub address, it finds the hub itself.
-function NameWifiForm({ device, profile, rememberedSsid, onSaved }: Props) {
+function NameWifiForm({ device, profile, rememberedSsid, rememberedSettings, onSaved }: Props) {
   const classes = useStyles()
   const tallies = useTallies()
   const [name, setName] = useState("")
@@ -51,22 +53,24 @@ function NameWifiForm({ device, profile, rememberedSsid, onSaved }: Props) {
   const [progress, setProgress] = useState<TallySettingsIniProgressType>(undefined)
 
   // take over whatever the light already has, so re-doing one keeps its name
+  // what was saved last (or kept across a firmware reinstall) wins over what the hub read earlier
+  const previous = rememberedSettings || device?.tallySettings
   useEffect(() => {
-    const ini = device?.tallySettings
+    const ini = previous
     if (ini) {
       if (ini.getTallyName()) setName(ini.getTallyName())
       if (ini.getStationSsid()) setSsid(ini.getStationSsid())
       if (ini.getStationPassword()) setPassword(ini.getStationPassword())
     }
-  }, [device])
+  }, [device, rememberedSettings]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const takenNames = (tallies || []).map(t => t.name).filter(n => n !== device?.tallySettings?.getTallyName())
+  const takenNames = (tallies || []).map(t => t.name).filter(n => n !== previous?.getTallyName())
   const nameError = validateName(name, takenNames)
   const ssidError = ssid.trim() === "" ? "The Wi-Fi the light should join" : ""
   const canSave = !nameError && !ssidError && !busy
 
   const save = () => {
-    const ini = device.tallySettings?.clone() || new TallySettingsIni()
+    const ini = previous?.clone() || new TallySettingsIni()
     ini.setTallyName(name.trim())
     ini.setStationSsid(ssid.trim())
     ini.setStationPassword(password)
@@ -83,11 +87,12 @@ function NameWifiForm({ device, profile, rememberedSsid, onSaved }: Props) {
         if (!p.error) {
           // done: the next step takes over, no dialog to dismiss
           setProgress(undefined)
-          onSaved(name.trim(), ssid.trim())
+          onSaved(name.trim(), ssid.trim(), ini)
         }
       }
     }
     socket.on('flasher.settingsIni.progress', onProgress)
+    socket.emit('flasher.watch.stop') // a running Wi-Fi report holds the USB port
     socket.emit('flasher.settingsIni', device.path, ini.toString())
   }
 
