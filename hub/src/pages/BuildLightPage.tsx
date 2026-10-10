@@ -75,7 +75,7 @@ const BuildLightPage = () => {
   </div>
 
   return <Layout testId="build-light">
-    <MiniPage title="Build a light" testId="build-light-page">
+    <MiniPage title="Build a light" testId="build-light-page" maxWidth="md">
       <Typography paragraph color="textSecondary">
         From a bare board to a light that is tested and on the network. Each step checks the one before it.
       </Typography>

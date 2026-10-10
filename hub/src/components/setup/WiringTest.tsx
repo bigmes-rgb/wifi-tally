@@ -3,6 +3,7 @@ import { Alert, AlertTitle } from '@material-ui/lab'
 import React, { useEffect, useRef, useState } from 'react'
 import { HardwareProfile, Rgb } from '../../flasher/HardwareProfile'
 import { WiringTestState } from '../../flasher/NodeMcuConnector'
+import WiringDiagram from './WiringDiagram'
 import { applyFixes, checksFor, diagnose, Finding, wiringPassed, WiringAnswer, WiringCheck } from '../../flasher/WiringDiagnosis'
 import { socket } from '../../hooks/useSocket'
 
@@ -160,12 +161,17 @@ function WiringTest({ path, profile, onProfileChange, onPassed }: Props) {
   }
 
   const passed = findings ? wiringPassed(findings, profile) : false
+  const pinsToCheck = Array.from(new Set((findings || []).flatMap(f => f.pins || [])))
   return <>
     {findings?.map((f, i) => (
       <Alert key={i} severity={f.severity === "ok" ? "success" : f.severity === "fix" ? "warning" : "info"} className={classes.block} data-testid={`wiring-finding-${f.severity}`}>
         {f.text}
       </Alert>
     ))}
+    {pinsToCheck.length > 0 && <div className={classes.block} data-testid="wiring-test-diagram">
+      <Typography paragraph color="textSecondary">The pins to check are ringed in red.</Typography>
+      <WiringDiagram profile={profile} highlightPins={pinsToCheck} />
+    </div>}
     {error && <Alert severity="error" className={classes.block}>{error}</Alert>}
     {passed
       ? <Alert severity="success" className={classes.block} data-testid="wiring-passed"><AlertTitle>Wiring test passed</AlertTitle>Everything lit the way it should.</Alert>

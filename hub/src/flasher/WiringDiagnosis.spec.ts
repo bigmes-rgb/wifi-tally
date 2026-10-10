@@ -97,3 +97,13 @@ describe("diagnose() for a WS2812 strip", () => {
     expect(findings[0].text).toContain("D4")
   })
 })
+
+describe("findings name the pins to check, for the diagram", () => {
+  test("swapped legs name both pins", () => {
+    const profile: HardwareProfile = { operator: { kind: "rgb", polarity: "anode", pixels: 5, order: "grb" }, stage: { kind: "none", polarity: "anode", pixels: 4, order: "grb" } }
+    const checks = checksFor(profile)
+    const answers = checks.map(c => ({ checkId: c.id, answer: c.id === "operator-R" ? "G" : c.id === "operator-G" ? "R" : c.id === "operator-B" ? "B" : "nothing" }))
+    const swapped = diagnose(profile, checks, answers).find(f => /swapped/.test(f.text))
+    expect(swapped?.pins?.sort()).toEqual(["D1", "D2"])
+  })
+})

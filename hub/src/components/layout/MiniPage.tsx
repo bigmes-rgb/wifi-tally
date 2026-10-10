@@ -24,16 +24,18 @@ type MiniPageProps = {
   addHeaderContent?: React.ReactNode
   contentPadding?: string
   testId?: string
+  // pages with a wide drawing can ask for more room
+  maxWidth?: "sm" | "md"
   children: React.ReactNode
 }
 
-function MiniPage({ title, addHeaderContent, contentPadding, testId, children }: MiniPageProps) {
+function MiniPage({ title, addHeaderContent, contentPadding, testId, maxWidth = "sm", children }: MiniPageProps) {
   const classes = useStyles({
     contentPadding
   })
 
   return(
-    <Container className={classes.root} maxWidth="sm" data-testid={testId}>
+    <Container className={classes.root} maxWidth={maxWidth} data-testid={testId}>
       <Paper>
         <div className={classes.header}>
           <Typography variant="h1">{title}</Typography>

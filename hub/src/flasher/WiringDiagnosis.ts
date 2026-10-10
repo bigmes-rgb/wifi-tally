@@ -18,6 +18,8 @@ export type Finding = {
   severity: "ok" | "fix" | "info"
   role: Role
   text: string
+  // board pins the text names, so the wiring diagram can ring them
+  pins?: string[]
   // when the hub can correct the profile itself
   fixPolarity?: "anode" | "cathode"
   fixOrder?: "grb" | "rgb"
@@ -125,18 +127,18 @@ export function diagnose(profile: HardwareProfile, checks: WiringCheck[], answer
         if (got === channel) continue
         allGood = false
         if (got === "nothing") {
-          findings.push({ severity: "fix", role, text: `The ${CHANNEL_NAME[channel]} of the ${name} never lit. Check the wire from ${pinFor(role, channel)} to the LED's ${CHANNEL_NAME[channel]} leg.` })
+          findings.push({ severity: "fix", role, pins: [pinFor(role, channel)], text: `The ${CHANNEL_NAME[channel]} of the ${name} never lit. Check the wire from ${pinFor(role, channel)} to the LED's ${CHANNEL_NAME[channel]} leg.` })
         } else if (got === "white") {
-          findings.push({ severity: "fix", role, text: `Several colours lit when only ${CHANNEL_NAME[channel]} should. Look for a solder bridge between ${pinFor(role, channel)} and its neighbours.` })
+          findings.push({ severity: "fix", role, pins: [pinFor(role, channel)], text: `Several colours lit when only ${CHANNEL_NAME[channel]} should. Look for a solder bridge between ${pinFor(role, channel)} and its neighbours.` })
         } else {
           const wrong = got as Channel
           if (seen[wrong] === channel) {
             // the two legs are simply swapped: say it once, for the pair
             if (channel < wrong) {
-              findings.push({ severity: "fix", role, text: `The ${CHANNEL_NAME[channel]} and ${CHANNEL_NAME[wrong]} legs of the ${name} are swapped. Swap the wires on ${pinFor(role, channel)} and ${pinFor(role, wrong)}.` })
+              findings.push({ severity: "fix", role, pins: [pinFor(role, channel), pinFor(role, wrong)], text: `The ${CHANNEL_NAME[channel]} and ${CHANNEL_NAME[wrong]} legs of the ${name} are swapped. Swap the wires on ${pinFor(role, channel)} and ${pinFor(role, wrong)}.` })
             }
           } else {
-            findings.push({ severity: "fix", role, text: `${pinFor(role, channel)} should drive ${CHANNEL_NAME[channel]} but lights the ${CHANNEL_NAME[wrong]} leg. Move that wire to ${pinFor(role, wrong)}.` })
+            findings.push({ severity: "fix", role, pins: [pinFor(role, channel), pinFor(role, wrong)], text: `${pinFor(role, channel)} should drive ${CHANNEL_NAME[channel]} but lights the ${CHANNEL_NAME[wrong]} leg. Move that wire to ${pinFor(role, wrong)}.` })
           }
         }
       }
@@ -156,7 +158,7 @@ export function diagnose(profile: HardwareProfile, checks: WiringCheck[], answer
       const lit = parseInt(answerFor(`${role}-pixels`) || "", 10)
       if (!isNaN(lit) && lit !== light.pixels) {
         if (lit === 0) {
-          findings.push({ severity: "fix", role, text: `No pixel lit for the ${name}. Check the data wire on ${PINS.ws2812} and the strip's power.` })
+          findings.push({ severity: "fix", role, pins: [PINS.ws2812, "VIN", "GND"], text: `No pixel lit for the ${name}. Check the data wire on ${PINS.ws2812} and the strip's power.` })
         } else {
           findings.push({ severity: "fix", role, fixPixels: lit, text: `${lit} pixel${lit === 1 ? "" : "s"} lit, ${light.pixels} expected. The hub will use ${lit} from now on.` })
         }
