@@ -3,17 +3,26 @@
  */
 import { promises as fs } from 'fs'
 import tmp from 'tmp'
-import { flashNodeMcuFirmware, FirmwareProgressType, NODEMCU_FLASH } from './FirmwareFlasher'
+import { fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, NODEMCU_FLASH } from './FirmwareFlasher'
 import NodeSerialTransport from './NodeSerialTransport'
 
 tmp.setGracefulCleanup()
 
-// an ESPLoader that remembers what it was asked to do
-const fakeEsptool = (chip = "ESP8266EX", failWrite = false) => {
-  const calls: any = { options: null, mainCalled: false, after: null, writeOptions: null }
+// an ESPLoader that remembers what it was asked to do. Like the real one, main() runs
+// detectChip() to create this.chip and then reads the flash ID with it.
+const fakeEsptool = (chip = "ESP8266EX", failWrite = false, detectedSize: string | null = "4MB") => {
+  const calls: any = { options: null, mainCalled: false, after: null, writeOptions: null, chipAtFlashIdRead: null }
   class ESPLoader {
+    chip: any = null
     constructor(options: any) { calls.options = options }
-    async main() { calls.mainCalled = true; return chip }
+    async detectChip() { this.chip = { CHIP_NAME: /ESP8266/.test(chip) ? "ESP8266" : "ESP32", SPI_MOSI_DLEN_OFFS: 0, SPI_MISO_DLEN_OFFS: 0 } }
+    async main() {
+      calls.mainCalled = true
+      await this.detectChip()
+      calls.chipAtFlashIdRead = { ...this.chip }
+      return chip
+    }
+    async detectFlashSize() { return detectedSize }
     async writeFlash(options: any) {
       calls.writeOptions = options
       if (failWrite) { throw new Error("Timed out waiting for packet header") }
@@ -47,7 +56,7 @@ test("it writes the image at address 0 with the NodeMCU flash settings and resta
   expect(esptool.calls.writeOptions.fileArray[0].address).toBe(0)
   expect(esptool.calls.writeOptions.fileArray[0].data.length).toBe(2048)
   expect(esptool.calls.writeOptions.flashMode).toBe(NODEMCU_FLASH.flashMode)
-  expect(esptool.calls.writeOptions.flashSize).toBe("detect")
+  expect(esptool.calls.writeOptions.flashSize).toBe("4MB")
   expect(esptool.calls.after).toBe("hard_reset")
   expect(transport.disconnected).toBe(1)
   expect(progress.map(p => p.phase)).toEqual(["connecting", "connecting", "writing", "writing", "writing", "restarting", "done"])
@@ -96,5 +105,68 @@ describe("the esptool-js bundle the build ships", () => {
     const loader = new esptool.ESPLoader({ transport, baudrate: 115200, romBaudrate: 115200, terminal: { clean() {}, writeLine() {}, write() {} } })
     expect(typeof loader.main).toBe("function")
     expect(typeof loader.writeFlash).toBe("function")
+  })
+})
+
+test("the ESP8266 register fix is in place before main() first reads the flash ID", async () => {
+  const esptool = fakeEsptool()
+  await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: () => {}, loadEsptool: esptool.load, makeTransport: fakeTransport })
+  expect(esptool.calls.chipAtFlashIdRead.SPI_MOSI_DLEN_OFFS).toBeNull()
+  expect(esptool.calls.chipAtFlashIdRead.SPI_MISO_DLEN_OFFS).toBeNull()
+})
+
+test("when the flash size cannot be read it keeps the image's own size instead of refusing", async () => {
+  const esptool = fakeEsptool("ESP8266EX", false, null)
+  const progress: FirmwareProgressType[] = []
+  const ok = await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: esptool.load, makeTransport: fakeTransport })
+  expect(ok).toBe(true)
+  expect(esptool.calls.writeOptions.flashSize).toBe("keep")
+  expect(progress[progress.length - 1].phase).toBe("done")
+})
+
+describe("fixEsp8266SpiRegisters() against the real esptool-js code", () => {
+  // Bundles the real ESP8266ROM target and ESPLoader, then runs the real runSpiflashCommand
+  // (what readFlashId uses) against a recording stand-in for the serial link.
+  const load = () => {
+    const esbuild = require('esbuild')
+    const os = require('os')
+    const nodePath = require('path')
+    const lib = nodePath.dirname(require.resolve('esptool-js'))
+    const outfile = nodePath.join(os.tmpdir(), `esptool-8266-${process.pid}.bundle.js`)
+    esbuild.buildSync({
+      stdin: { contents: `export { ESP8266ROM } from "./targets/esp8266.js"; export { ESPLoader } from "./esploader.js";`, resolveDir: lib, loader: 'js' },
+      bundle: true, platform: 'node', format: 'cjs', target: 'node14', outfile, logLevel: 'silent',
+    })
+    return require(outfile)
+  }
+  const readFlashIdWrites = async (fix: boolean) => {
+    const { ESP8266ROM, ESPLoader } = load()
+    const chip = new ESP8266ROM()
+    if (fix) { fixEsp8266SpiRegisters(chip) }
+    const writes: [number, number][] = []
+    const link = {
+      chip,
+      writeReg: async (addr: number, value: number) => { writes.push([addr, value]) },
+      readReg: async () => 0,
+    }
+    await ESPLoader.prototype.readFlashId.call({ ...link, runSpiflashCommand: ESPLoader.prototype.runSpiflashCommand.bind(link) })
+    return writes
+  }
+  const SPI_CMD = 0x60000200, SPI_USR1 = 0x60000220
+
+  test("unfixed, esptool-js 0.7.0 writes the read length into SPI_CMD and never sets SPI_USR1 (the bug)", async () => {
+    const writes = await readFlashIdWrites(false)
+    expect(writes.some(([addr, value]) => addr === SPI_CMD && value === 23)).toBe(true)
+    expect(writes.some(([addr]) => addr === SPI_USR1)).toBe(false)
+  })
+  test("fixed, the 24-bit read length goes into SPI_USR1 the way esptool.py does it", async () => {
+    const writes = await readFlashIdWrites(true)
+    expect(writes).toContainEqual([SPI_USR1, 23 << 8])
+    expect(writes.some(([addr, value]) => addr === SPI_CMD && value === 23)).toBe(false)
+  })
+  test("other chips are left alone", () => {
+    const chip = { CHIP_NAME: "ESP32", SPI_MOSI_DLEN_OFFS: 0x28, SPI_MISO_DLEN_OFFS: 0x2c }
+    fixEsp8266SpiRegisters(chip)
+    expect(chip.SPI_MOSI_DLEN_OFFS).toBe(0x28)
   })
 })
