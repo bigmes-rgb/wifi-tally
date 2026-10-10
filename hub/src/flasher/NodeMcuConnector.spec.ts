@@ -135,6 +135,16 @@ describe("wiring test session", () => {
     expect(nodemcu.executed).toEqual([])
   })
 
+  test("a board without the tally program is reported as such when the test starts, and the port is freed", async () => {
+    const nodemcu = scriptedNodemcu()
+    nodemcu.execute = async () => ({ response: "stdin:1: attempt to index global 'MySettings' (a nil value)" })
+    const connector = new NodeMcuConnector(nodemcu)
+    const state = await connector.startWiringTest("/dev/fake", profile)
+    expect(state.active).toBe(false)
+    expect(state.error).toContain("tally software is not running")
+    expect(nodemcu.isConnected()).toBe(false)
+  }, 20000)
+
   test("a board that stops answering ends the session and frees the port", async () => {
     const nodemcu = scriptedNodemcu()
     const connector = new NodeMcuConnector(nodemcu)

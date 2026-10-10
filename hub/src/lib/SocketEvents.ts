@@ -99,7 +99,7 @@ export interface ClientSentEvents {
     'flasher.program': (path: string) => void
     'flasher.firmware': (path: string) => void
     'flasher.wiring.start': (path: string, profile: HardwareProfile) => void
-    'flasher.wiring.show': (profile: HardwareProfile, operator: Rgb, stage: Rgb, blink?: boolean) => void
+    'flasher.wiring.show': (profile: HardwareProfile, operator: Rgb, stage: Rgb) => void
     'flasher.wiring.stop': () => void
 }
 

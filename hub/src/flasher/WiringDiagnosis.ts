@@ -4,9 +4,8 @@ import { Channel, HardwareProfile, LightProfile, Off, PINS, Rgb, Role } from './
 export type WiringCheck = {
   id: string
   role: Role
-  kind: "board" | "dark" | "colour" | "pixels"
+  kind: "dark" | "colour" | "pixels"
   channel?: Channel // for "colour"
-  blink?: boolean // blink the board's own LED while asking
   operator: Rgb
   stage: Rgb
   question: string
@@ -41,12 +40,10 @@ const colourAnswers = [
 
 // the checks to run for one light, in order
 export function checksFor(profile: HardwareProfile): WiringCheck[] {
-  // first a control: proves the hub's commands reach a running tally program at all
-  const checks: WiringCheck[] = [{
-    id: "board-led", role: "operator", kind: "board", blink: true, operator: Off, stage: Off,
-    question: "Look at the small LED next to the USB socket on the board. Is it blinking?",
-    answers: [{ id: "yes", label: "Yes, it blinks" }, { id: "no", label: "No" }],
-  }]
+  // No question about the board itself: whether the tally program runs and follows the hub is
+  // something the hub learns from the board's own replies (see tallyNotRunning). The board's LED is
+  // no use for it: many boards have none on D0, and on D4 it shares the strip's data line.
+  const checks: WiringCheck[] = []
   const roles: Role[] = ["operator", "stage"]
   for (const role of roles) {
     const light: LightProfile = profile[role]
@@ -94,19 +91,11 @@ export function diagnose(profile: HardwareProfile, checks: WiringCheck[], answer
   const answerFor = (id: string) => answers.find(a => a.checkId === id)?.answer
   const roles: Role[] = ["operator", "stage"]
 
-  if (answerFor("board-led") === "no") {
-    // nothing else means anything: the lights cannot follow commands that do not arrive
-    return [{
-      severity: "fix", role: "operator",
-      text: "The board did not blink its own LED when the hub told it to, so the tally software is not running on it and no light can come on, however it is wired. Go back to \"Plug it in\" and install the tally software (or the firmware, if it asks for that), then run the test again.",
-    }]
-  }
-
   for (const role of roles) {
     const light = profile[role]
     if (light.kind === "none") continue
     const name = roleName(role)
-    const roleChecks = checks.filter(c => c.role === role && c.kind !== "board")
+    const roleChecks = checks.filter(c => c.role === role)
     if (!roleChecks.every(c => answerFor(c.id) !== undefined)) {
       continue // not finished yet
     }

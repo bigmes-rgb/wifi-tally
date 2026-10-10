@@ -3,6 +3,13 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] The wiring test failed lights whose board has no LED on D0, which is many boards,
+  including the LoLin board it was found on. It asked whether "the small LED next to the USB socket"
+  blinked, and read "No" as "the tally software is not running", even after the strip had just shown
+  red, green and blue on cue. Next then stayed locked. The question is gone. It was never needed:
+  every test colour goes through the tally program, and a board without that program answers the
+  hub's first command with a Lua error naming it. The hub now recognises that answer and says
+  "The tally software is not running on this light" by itself.
 * [BUGFIX] A light that heard two hubs followed whichever spoke last, so it flickered between their
   states and printed "Found hub at …" for each, over and over. One computer on the network twice
   (cable and Wi-Fi) is enough to cause it. The light now stays with the first hub it hears, warns
