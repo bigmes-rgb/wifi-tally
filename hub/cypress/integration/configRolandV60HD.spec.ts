@@ -30,10 +30,12 @@ describe('Check Roland V-60HD Configuration', () => {
     // request interval
     cy.getTestId("rolandV60HD-requestInterval").type("{selectall}foobar")
     cy.getTestId("rolandV60HD-submit").should('be.disabled')
-    cy.getTestId("rolandV60HD-requestInterval").type("{selectall}42,5")
+    cy.getTestId("rolandV60HD-requestInterval").type("{selectall}142,5")
     cy.getTestId("rolandV60HD-submit").should('be.enabled')
-    cy.getTestId("rolandV60HD-requestInterval").type("{selectall}42.5")
+    cy.getTestId("rolandV60HD-requestInterval").type("{selectall}142.5")
     cy.getTestId("rolandV60HD-submit").should('be.enabled')
+    cy.getTestId("rolandV60HD-requestInterval").type("{selectall}1")
+    cy.getTestId("rolandV60HD-submit").should('be.disabled')
     cy.getTestId("rolandV60HD-requestInterval").type("{selectall}100")
     cy.getTestId("rolandV60HD-submit").should('be.enabled')
 

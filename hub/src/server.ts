@@ -140,6 +140,12 @@ io.on('connection', (socket: ServerSideSocket) => {
     new SocketAwareEvent(myEmitter, 'config.changed.obs', socket, (socket, obsConfiguration) => {
       socket.emit('config.state.obs', obsConfiguration.toJson())
     }),
+    new SocketAwareEvent(myEmitter, 'config.changed.rolandV8HD', socket, (socket, rolandV8HDConfiguration) => {
+      socket.emit('config.state.rolandV8HD', rolandV8HDConfiguration.toJson())
+    }),
+    new SocketAwareEvent(myEmitter, 'config.changed.rolandV60HD', socket, (socket, rolandV60HDConfiguration) => {
+      socket.emit('config.state.rolandV60HD', rolandV60HDConfiguration.toJson())
+    }),
     new SocketAwareEvent(myEmitter, 'config.changed.vmix', socket, (socket, vmixConfiguration) => {
       socket.emit('config.state.vmix', vmixConfiguration.toJson())
     }),

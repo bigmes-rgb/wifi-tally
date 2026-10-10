@@ -36,6 +36,11 @@ class RolandV8HDConfiguration extends Configuration {
                 throw new Error(`Could not parse "${requestInterval}" into a number.`)
             }
         }
+        // milliseconds between two rounds of questions over USB. The connector treats 3 s without an
+        // answer as a lost switcher, so more than 1000 makes a working V-8HD look unplugged.
+        if (!Number.isInteger(requestInterval) || requestInterval < RolandV8HDConfiguration.minRequestInterval || requestInterval > RolandV8HDConfiguration.maxRequestInterval) {
+            throw new Error(`Use ${RolandV8HDConfiguration.minRequestInterval} to ${RolandV8HDConfiguration.maxRequestInterval} milliseconds.`)
+        }
         this.requestInterval = requestInterval
 
         return this
@@ -46,6 +51,8 @@ class RolandV8HDConfiguration extends Configuration {
     }
 
     private static readonly defaultRequestInterval = 100
+    static readonly minRequestInterval = 50
+    static readonly maxRequestInterval = 1000
 }
 
 export default RolandV8HDConfiguration

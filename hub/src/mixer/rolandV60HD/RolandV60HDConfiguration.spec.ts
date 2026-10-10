@@ -107,3 +107,22 @@ describe('clone', () => {
         expect(clone.getRequestInterval()).toEqual(300)
     })
 })
+
+describe('the request interval only takes values the V-60HD can serve', () => {
+    test.each([0, -5, 1, 99, 2001, 100.5])("%p ms is refused", value => {
+        expect(() => new RolandV60HDConfiguration().setRequestInterval(value)).toThrow("100 to 2000 milliseconds")
+    })
+    test("'1', meant as one second, is refused rather than flooding the switcher with 8 requests per millisecond", () => {
+        expect(() => new RolandV60HDConfiguration().setRequestInterval("1")).toThrow("milliseconds")
+    })
+    test.each([100, 250, 2000])("%p ms is accepted", value => {
+        const conf = new RolandV60HDConfiguration()
+        conf.setRequestInterval(value)
+        expect(conf.getRequestInterval()).toEqual(value)
+    })
+    test("a saved value outside the range falls back to the default instead of being used", () => {
+        const conf = new RolandV60HDConfiguration()
+        conf.fromJson({ ip: "192.168.1.20", port: 80, requestInterval: 1 })
+        expect(conf.getRequestInterval()).toEqual(250)
+    })
+})

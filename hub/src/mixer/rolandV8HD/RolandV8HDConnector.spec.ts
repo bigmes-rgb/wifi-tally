@@ -42,7 +42,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const setup = (midi = fakeMidi()) => {
   const c = communicator()
   const config = new RolandV8HDConfiguration()
-  config.setRequestInterval(20)
+  config.requestInterval = 20 // faster than a person may choose, to keep the tests short
   const connector = new RolandV8HDConnector(config, c, midi, { retryIntervalMs: 30, silenceTimeoutMs: 120 })
   return { midi, c, connector }
 }

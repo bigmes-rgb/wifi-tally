@@ -75,6 +75,11 @@ class RolandV60HDConfiguration extends Configuration {
             throw new Error(`Could not parse "${requestInterval}" into a number.`)
         }
       }
+      // milliseconds between two rounds of 8 requests: below 100 the switcher's small web server is
+      // flooded, above 2000 the lights lag the switcher by seconds
+      if (!Number.isInteger(requestInterval) || requestInterval < RolandV60HDConfiguration.minRequestInterval || requestInterval > RolandV60HDConfiguration.maxRequestInterval) {
+        throw new Error(`Use ${RolandV60HDConfiguration.minRequestInterval} to ${RolandV60HDConfiguration.maxRequestInterval} milliseconds.`)
+      }
       this.requestInterval = requestInterval
     }
 
@@ -85,6 +90,8 @@ class RolandV60HDConfiguration extends Configuration {
     private static readonly defaultIp = ipAddress("127.0.0.1")
     private static readonly defaultPort = ipPort(80)
     private static readonly defaultRequestInterval = 250
+    static readonly minRequestInterval = 100
+    static readonly maxRequestInterval = 2000
 }
 
 export default RolandV60HDConfiguration
