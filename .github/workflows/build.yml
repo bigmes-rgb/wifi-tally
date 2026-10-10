@@ -223,7 +223,10 @@ jobs:
           (NODE_PATH=../node_modules PORT=3100 CONFIG_FILE=/tmp/vtally-e2e.json node src/server.js --env=production --with-test > /tmp/hub-e2e.log 2>&1 &)
           for i in $(seq 1 30); do curl -sf http://localhost:3100/ > /dev/null && break; sleep 1; done
           mkdir -p /tmp/pw /tmp/e2e-shots
-          (cd /tmp/pw && npm init -y > /dev/null && npm install --no-audit --no-fund playwright@1.38.1 > /dev/null && npx playwright install --with-deps chromium)
+          # no --with-deps: this Playwright predates Ubuntu 24.04 package names; the runner has what Chromium needs
+          # no --with-deps: Playwright 1.38 (the last for Node 16) predates Ubuntu 24.04's package
+          # names, and the runner already has the libraries Chromium needs
+          (cd /tmp/pw && npm init -y > /dev/null && npm install --no-audit --no-fund playwright@1.38.1 > /dev/null && npx playwright install chromium)
           NODE_PATH=/tmp/pw/node_modules HUB_URL=http://localhost:3100 SHOTS_DIR=/tmp/e2e-shots node ../e2e/build-a-light.js || (tail -60 /tmp/hub-e2e.log; exit 1)
       - uses: actions/upload-artifact@v4
         if: always()
