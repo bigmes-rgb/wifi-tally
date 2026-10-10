@@ -1,4 +1,4 @@
-import { boardBlinkLua, boardBlinkStopLua, defaultHardwareProfile, endTestLua, HardwareProfile, Off, profileToIniValues, profileToLuaCommands, readProfileFromIni, showColorLua, writeProfileToIni } from './HardwareProfile'
+import { defaultHardwareProfile, endTestLua, HardwareProfile, Off, profileToIniValues, profileToLuaCommands, readProfileFromIni, showColorLua, tallyNotRunning, writeProfileToIni } from './HardwareProfile'
 import TallySettingsIni from './TallySettingsIni'
 
 describe("profileToIniValues()", () => {
@@ -67,12 +67,25 @@ describe("the Lua the wiring test sends", () => {
   test("matches the fixture the tally's own tests run", () => {
     const fs = require('fs')
     const strip: HardwareProfile = { operator: { kind: "ws2812", polarity: "anode", pixels: 5, order: "grb" }, stage: { kind: "none", polarity: "anode", pixels: 4, order: "grb" } }
-    const lines = [...profileToLuaCommands(strip), boardBlinkLua, showColorLua(Off, Off), boardBlinkStopLua, showColorLua([255, 0, 0], Off), endTestLua]
+    const lines = [...profileToLuaCommands(strip), showColorLua(Off, Off), showColorLua([255, 0, 0], Off), endTestLua]
     const fixture = fs.readFileSync(__dirname + "/../../../tally/spec/fixtures/wiring-test-strip.txt", "utf8").trim().split("\n")
     expect(lines).toEqual(fixture)
   })
   test("every command fits the NodeMCU's 256-character line with the hub's ok-marker", () => {
-    const lines = [...profileToLuaCommands(defaultHardwareProfile()), boardBlinkLua, boardBlinkStopLua, endTestLua, showColorLua([255, 255, 255], [255, 255, 255])]
+    const lines = [...profileToLuaCommands(defaultHardwareProfile()), endTestLua, showColorLua([255, 255, 255], [255, 255, 255])]
     lines.forEach(l => expect((l + '; print("ok")').length).toBeLessThan(256))
+  })
+})
+
+describe("tallyNotRunning()", () => {
+  // Lua 5.1's own answer (the NodeMCU's Lua) to the test's commands on a board without the tally
+  // program; tally/spec/wiring_test_spec.lua checks the Lua side
+  test("a board without the tally program is recognised from its reply", () => {
+    expect(tallyNotRunning("stdin:1: attempt to index global 'MySettings' (a nil value)")).toBe(true)
+    expect(tallyNotRunning("stdin:1: attempt to index global 'MyLed' (a nil value)")).toBe(true)
+  })
+  test("other failures are not mistaken for it", () => {
+    expect(tallyNotRunning("Timed out running a command")).toBe(false)
+    expect(tallyNotRunning("stdin:1: attempt to call field 'static' (a nil value)")).toBe(false)
   })
 })

@@ -1,7 +1,7 @@
 import nodemcuLib from 'nodemcu-tool'
 import TallyDevice, { SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
-import { boardBlinkLua, boardBlinkStopLua, endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua } from './HardwareProfile'
+import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua, tallyNotRunning } from './HardwareProfile'
 import { FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
 import { firmwareProblem, numberTypeFrom } from './FirmwareCheck'
 import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions, streamFromBoard, StreamOptions } from './BoardListener'
@@ -50,10 +50,11 @@ export type WiringTestState = {
 
 // a wiring test keeps the serial connection open between colours; this closes it after inactivity
 const wiringTestIdleMs = 3 * 60 * 1000
+const TALLY_NOT_RUNNING = "The tally software is not running on this light, so the hub cannot drive its LEDs. Go back to \"Plug it in\", install the tally software, then start the test again."
 
 class NodeMcuConnector {
   nodemcu: any
-  private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout, blinking?: boolean } | null = null
+  private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout } | null = null
 
   withMutex<T> (fn: () => T): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -489,7 +490,7 @@ class NodeMcuConnector {
       if (this.nodemcu.isConnected()) { await this.nodemcu.disconnect().catch(() => {}) }
       this.wiringTest = null
       mutex = false
-      return { active: false, error: `Could not talk to the light: ${e?.message || e}` }
+      return { active: false, error: tallyNotRunning(String(e?.message || e)) ? TALLY_NOT_RUNNING : `Could not talk to the light: ${e?.message || e}` }
     }
   }
 
@@ -500,7 +501,7 @@ class NodeMcuConnector {
     this.wiringTest.profile = profile
   }
 
-  async wiringTestShow(profile: HardwareProfile, operator: Rgb, stage: Rgb, blink = false): Promise<WiringTestState> {
+  async wiringTestShow(profile: HardwareProfile, operator: Rgb, stage: Rgb): Promise<WiringTestState> {
     if (!this.wiringTest) {
       return { active: false, error: "The wiring test is not running. Start it again." }
     }
@@ -508,19 +509,13 @@ class NodeMcuConnector {
       if (JSON.stringify(profile) !== JSON.stringify(this.wiringTest.profile)) {
         await this.applyWiringProfile(profile)
       }
-      if (blink) {
-        await this.execute(boardBlinkLua)
-        this.wiringTest.blinking = true
-      } else if (this.wiringTest.blinking) {
-        await this.execute(boardBlinkStopLua)
-        this.wiringTest.blinking = false
-      }
       await this.execute(showColorLua(operator, stage))
       this.touchWiringTest()
       return this.getWiringTestState()
     } catch (e) {
       console.error(`Wiring test failed: ${e}`)
       await this.stopWiringTest()
+      if (tallyNotRunning(String(e?.message || e))) return { active: false, error: TALLY_NOT_RUNNING }
       return { active: false, error: `Lost the light: ${e?.message || e}. Unplug it, plug it back in and start the test again.` }
     }
   }

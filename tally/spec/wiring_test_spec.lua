@@ -1,7 +1,6 @@
 -- The hub's wiring test drives a running tally with short Lua commands over USB (see
 -- hub/src/flasher/HardwareProfile.ts). fixtures/wiring-test-strip.txt holds exactly what the hub
--- sends for a 5-pixel strip, in order: the profile, the board-LED blink, dark, stop blinking, red,
--- end of test. The hub's own test fails if those commands change. This runs them through the real
+-- sends for a 5-pixel strip, in order: the profile, dark, red, end of test. The hub's own test fails if those commands change. This runs them through the real
 -- tally code, appending '; print("ok")' as the hub does, and checks what the LEDs get.
 
 local function readFixture()
@@ -27,20 +26,13 @@ describe("wiring test commands from the hub", function()
 
         local lines = readFixture()
         local printed = {}
-        for i = 1, 4 do run(lines[i], printed) end -- profile and blink
-        local led = {}
-        for time = 250, 1500, 250 do table.insert(led, _G.pinByTime:get(0, time)) end
-
-        for i = 5, 7 do run(lines[i], printed) end -- dark, stop blinking, red
+        for i = 1, 5 do run(lines[i], printed) end -- profile, dark, red
         local red = _G.ws2812:getDataAt(0)
 
-        run(lines[8], printed) -- end of test
+        run(lines[6], printed) -- end of test
 
         it("every command runs and answers ok", function()
-            assert.is_same({"ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok"}, printed)
-        end)
-        it("blinks the board's own LED (D0) on and off", function()
-            assert.is_same({0, 1, 0, 1, 0, 1}, led)
+            assert.is_same({"ok", "ok", "ok", "ok", "ok", "ok"}, printed)
         end)
         it("writes red to all five pixels, in GRB order", function()
             assert.is_same({
@@ -54,7 +46,16 @@ describe("wiring test commands from the hub", function()
         end)
         it("ends the test mode", function()
             assert.is_nil(_G.testMode)
-            assert.is_nil(_G.wtBlink)
+        end)
+    end)
+    insulate("a board without the tally program", function()
+        -- the hub's tallyNotRunning() recognises this answer and says so, instead of asking the
+        -- person to judge an LED
+        it("fails the first command with an error that names MySettings", function()
+            local chunk = loadstring(readFixture()[1] .. '; print("ok")')
+            local ok, err = pcall(chunk)
+            assert.is_false(ok)
+            assert.truthy(err:find("attempt to index global 'MySettings' (a nil value)", 1, true))
         end)
     end)
 end)

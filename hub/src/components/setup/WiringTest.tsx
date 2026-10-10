@@ -89,7 +89,7 @@ function WiringTest({ path, profile, onProfileChange, onPassed }: Props) {
 
   const show = (check: WiringCheck) => {
     setBusy(true)
-    socket.emit('flasher.wiring.show', profileRef.current, check.operator, check.stage, !!check.blink)
+    socket.emit('flasher.wiring.show', profileRef.current, check.operator, check.stage)
   }
 
   const start = () => {
