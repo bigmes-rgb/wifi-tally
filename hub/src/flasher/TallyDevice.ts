@@ -1,4 +1,5 @@
 import TallySettingsIni from "./TallySettingsIni"
+import type { BoardState } from "./BoardListener"
 
 export type UpdateType = "not-available" | "up-to-date" | "updateable"
 
@@ -25,6 +26,9 @@ export interface TallyDeviceObjectType {
   firmwareAvailable?: boolean
   // every serial port the computer reported when it looked, so the UI can say what it saw
   serialPorts?: SerialPortInfo[]
+  // when the board did not answer: what it printed, and what that means
+  boardOutput?: string
+  boardState?: BoardState
 }
 
 class TallyDevice{
@@ -40,6 +44,8 @@ class TallyDevice{
   errorMessage?: string
   firmwareAvailable?: boolean
   serialPorts: SerialPortInfo[] = []
+  boardOutput?: string
+  boardState?: BoardState
 
   toJson(): TallyDeviceObjectType {
     return {
@@ -55,6 +61,8 @@ class TallyDevice{
       update: this.update,
       firmwareAvailable: this.firmwareAvailable,
       serialPorts: this.serialPorts,
+      boardOutput: this.boardOutput,
+      boardState: this.boardState,
     }
   }
 
@@ -72,6 +80,8 @@ class TallyDevice{
     device.update = data.update
     device.firmwareAvailable = data.firmwareAvailable
     device.serialPorts = data.serialPorts || []
+    device.boardOutput = data.boardOutput
+    device.boardState = data.boardState
 
     return device
   }

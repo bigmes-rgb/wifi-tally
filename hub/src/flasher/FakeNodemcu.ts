@@ -1,4 +1,5 @@
 import { FirmwarePhase, FlashFirmwareFn } from './FirmwareFlasher'
+import { HeardFromBoard, ListenOptions } from './BoardListener'
 
 // A pretend NodeMCU on a pretend USB port, used when the hub runs with --with-test
 // so the "Build a light" pages can be walked through without hardware.
@@ -8,6 +9,8 @@ class FakeNodemcu {
   executed: string[] = []
   // a board straight from the box has no NodeMCU firmware: nothing answers until it is flashed
   flashed = false
+  // like a real board, the first start after flashing formats the file system and answers nothing
+  firstStartUntil = 0
   private connected = false
 
   onError() {}
@@ -16,6 +19,7 @@ class FakeNodemcu {
   async disconnect() { this.connected = false }
   async checkConnection() {
     if (!this.flashed) { throw new Error("No response detected - is NodeMCU online and the Lua interpreter ready ?") }
+    if (Date.now() < this.firstStartUntil) { throw new Error("Timeout, no response detected - is NodeMCU online and the Lua interpreter ready ?") }
   }
   async listDevices(_showAll?: boolean) { return [{ path: "FAKE0", vendorId: "10c4", productId: "ea60" }] }
   async deviceInfo() {
@@ -56,6 +60,23 @@ export const fakeFlashFirmware = (fake: FakeNodemcu): FlashFirmwareFn => async (
   step("restarting", 96)
   await sleep(300)
   fake.flashed = true
+  fake.firstStartUntil = Date.now() + 6000
   step("done", 100, "Firmware installed")
   return true
+}
+
+// What the pretend board prints: the ROM's boot line and "ready" from the factory firmware, then
+// after flashing NodeMCU's formatting message, then its prompt.
+export const fakeListen = (fake: FakeNodemcu) => async ({ ms }: ListenOptions): Promise<HeardFromBoard> => {
+  const sleep = (t: number) => new Promise(resolve => setTimeout(resolve, t))
+  if (!fake.flashed) return { text: "·ets Jan  8 2013,rst cause:2, boot mode:(3,6)·\r\nready\r\n", sawPrompt: false, bytes: 60 }
+  const formatting = "Formatting file system. Please wait...\r\n"
+  const wait = Math.max(0, fake.firstStartUntil - Date.now())
+  if (wait > ms) {
+    await sleep(ms)
+    return { text: formatting, sawPrompt: false, bytes: formatting.length }
+  }
+  await sleep(wait)
+  const text = formatting + "NodeMCU 3.0.0.0 built with Docker\r\n> "
+  return { text, sawPrompt: true, bytes: text.length }
 }

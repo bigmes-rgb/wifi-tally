@@ -84,7 +84,8 @@ export interface ClientSentEvents {
     'config.change.setup': (completed: boolean) => void
     'hub.info.get': () => void
 
-    'flasher.device.get': () => void
+    // listenMs: how long to listen to a board that does not answer (longer right after installing firmware)
+    'flasher.device.get': (options?: { listenMs?: number }) => void
     'flasher.settingsIni': (path: string, settingsIniString: string) => void
     'flasher.program': (path: string) => void
     'flasher.firmware': (path: string) => void
