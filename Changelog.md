@@ -7,6 +7,14 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   any connected device" for everything else. It now tries any USB serial port, preferring the known
   chips, and when it finds none it lists the ports the computer does see, so "Windows is not seeing
   the board" (cable, socket, driver) and "the board is there but unrecognised" are told apart.
+* [FEATURE] *Build a light* draws the wiring for exactly what is selected: only the lights chosen, a
+  strip with the number of pixels entered and where to cut it, an RGB LED with its common leg, and
+  every wire from its board pin to its pad in the colour the pin table uses. The pin table is built
+  from the same plan, so the two cannot disagree. *Print diagram and table* puts both on paper for
+  the bench, and when the wiring test finds a fault it shows the drawing with the pins to check ringed.
+  Replaces the four stock pictures, which showed a stage strip even when none was selected.
+* [BUGFIX] The power note said a light needs "well under 200 mA". True for plain LEDs, not for strips:
+  it now works out the current from the pixel count and asks for a 1 A charger.
 * [BUGFIX] "Install firmware" stopped with "Could not auto-detect Flash size" on every ESP8266. The
   flashing library (esptool-js 0.7.0) programs the wrong SPI register on the ESP8266 when it asks
   the flash chip for its ID. The hub corrects that register map as soon as the chip is detected, and
