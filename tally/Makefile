@@ -34,6 +34,7 @@ out/%.lc: src/%.lua out
 # The light program for the board's flash (LFS): init.lua loads it once and runs it from there, which keeps the
 # code out of the board's RAM. gen/lfs-stamp.lua is a module in the image that says which build it is; lfs.stamp,
 # next to it, says which build the files are. The .lc files stay as the fallback. gen/ is not uploaded to boards.
+# No -s here: luac.cross ignores it for flash images, and debug info in the flash costs no RAM.
 gen:
 	mkdir -p gen/
 gen/lfs-stamp.lua: $(SOURCES) gen
@@ -41,7 +42,7 @@ gen/lfs-stamp.lua: $(SOURCES) gen
 out/lfs.stamp: gen/lfs-stamp.lua out
 	sed -n 's/^return "\(.*\)"$$/\1/p' $< | tr -d '\n' > $@
 out/lfs.img: $(SOURCES) gen/lfs-stamp.lua out
-	$(LUAC) -f -s -m $(LFS_SIZE) -o $@ $(SOURCES) gen/lfs-stamp.lua
+	$(LUAC) -f -m $(LFS_SIZE) -o $@ $(SOURCES) gen/lfs-stamp.lua
 
 build: $(TARGETS) out/init.lua out/tally-settings.ini.example out/lfs.img out/lfs.stamp
 

@@ -35,7 +35,11 @@ for key, val in pairs(bootreasons) do
 end
 
 local fn = MyLog.info
-if bootreason == bootreasons.HW_WATCHDOG_RESET or bootreason == bootreasons.SW_WATCHDOG_RESET then
+if _G.lfsJustLoaded then
+    -- loading the program into the flash ends in a watchdog reset on purpose (see init.lua): not a crash
+    humanReadable = "loading the program into the flash"
+    _G.lfsJustLoaded = nil
+elseif bootreason == bootreasons.HW_WATCHDOG_RESET or bootreason == bootreasons.SW_WATCHDOG_RESET then
     fn = MyLog.error
 end
 

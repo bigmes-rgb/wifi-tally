@@ -7,8 +7,10 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
   program filled the board's working memory (under 6 kB was left, the hub log shows it), so the Wi-Fi ran
   out of room. The program now runs from the board's flash instead: "Install now" puts it there as well,
   the light loads it into the flash once and restarts, and from then on the program takes almost no
-  working memory. If loading it into the flash fails, the light runs from its files as before, and
-  tries only once. Lights need "Install now" once to get this.
+  working memory. If loading it into the flash fails, the light runs from its files as before and does
+  not try again by itself; the hub then offers "Install now" once more, which is another try. The
+  restart after the load shows up as "booted because of loading the program into the flash". Lights
+  need "Install now" once to get this.
 * [BUGFIX] A firmware install that had written the firmware and checked it was still reported as
   failed when the hub did not see the board restart ("The board did not restart"), and the page then
   offered the same install again. Once the firmware is written and checked, the install is done. The

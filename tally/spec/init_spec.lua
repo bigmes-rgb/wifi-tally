@@ -20,10 +20,13 @@ local function board(opts)
     }
     _G.node = {
         -- what is in the flash: the stamp module, if any
+        -- as the firmware answers (lflash.c luaN_index): nothing loaded -> nil and the addresses; a module in the
+        -- flash -> its function alone; a loaded flash without that module -> the build time, addresses, module list
         flashindex = function(name)
-            if name == "lfs-stamp" and opts.flashStamp then return function() return opts.flashStamp end end
-            if opts.flashStamp and opts.flashModules and opts.flashModules[name] then return opts.flashModules[name] end
-            return nil, 0x40200000, 0x100000, 0x15000 -- not loaded, or no such module
+            if not opts.flashStamp then return nil, 0x40200000, 0x100000, 0x15000 end
+            if name == "lfs-stamp" then return function() return opts.flashStamp end end
+            if opts.flashModules and opts.flashModules[name] then return opts.flashModules[name] end
+            return 1591740000, 0x40200000, 0x100000, 0x8b08, { "lfs-stamp" }
         end,
         flashreload = function(img)
             table.insert(reloads, img)
@@ -77,6 +80,49 @@ describe("init.lua", function()
         assert.is_true(fromFlash)
         assert.is_nil(b.appLoadedFrom)
         assert.is_nil(b.files["lfs.tried"])
+    end)
+
+    it("marks the boot right after the load, which ends in a watchdog reset on purpose", function()
+        _G.lfsJustLoaded = nil
+        board({ files = { ["lfs.stamp"] = "abc", ["lfs.tried"] = "abc" }, flashStamp = "abc", flashModules = { ["my-app"] = function() return true end } })
+        assert.is_true(_G.lfsJustLoaded)
+        _G.lfsJustLoaded = nil
+        board({ files = { ["lfs.stamp"] = "abc" }, flashStamp = "abc", flashModules = { ["my-app"] = function() return true end } })
+        assert.is_nil(_G.lfsJustLoaded)
+    end)
+
+    it("runs from the flash when it holds the current build even without lfs.img", function()
+        local fromFlash = false
+        local b = board({ files = { ["lfs.stamp"] = "abc", ["my-app.lc"] = "x" }, flashStamp = "abc", flashModules = { ["my-app"] = function() fromFlash = true; return true end } })
+        assert.is_true(b.ok, tostring(b.err))
+        assert.is_true(fromFlash)
+        assert.is_same({}, b.reloads)
+    end)
+
+    it("a try at an older build does not block the new one", function()
+        local b = board({ files = { ["lfs.img"] = "img", ["lfs.stamp"] = "new", ["lfs.tried"] = "old" }, flashStamp = "old" })
+        assert.is_same({ "lfs.img" }, b.reloads)
+        assert.is_same("new", b.files["lfs.tried"])
+    end)
+
+    it("falls back to the files for a module the flash does not hold, and says so", function()
+        local b = board({ files = { ["lfs.stamp"] = "abc" }, flashStamp = "abc", flashModules = {} })
+        assert.is_true(b.ok, tostring(b.err))
+        assert.is_same("file", b.appLoadedFrom)
+        -- the flash loader answers require with a string for a module it lacks, as the file loader does
+        local flashLoader = b.loaders[2]
+        assert.is_string(flashLoader("nothing-here"))
+    end)
+
+    it("runs from the files when the marker cannot be written, instead of loading without a guard", function()
+        local b = board({ files = { ["lfs.img"] = "img", ["lfs.stamp"] = "abc" } })
+        -- the file system refuses the write
+        _G.file.open = function(name, mode) if mode ~= "r" then return nil end end
+        package.loaded["my-app"] = nil
+        local reloads = b.reloads
+        local ok = pcall(dofile, "src/init.lua")
+        assert.is_true(ok)
+        assert.is_same(1, #reloads) -- only the first board() call reloaded
     end)
 
     it("loads a newer build over an older one in the flash", function()

@@ -266,6 +266,17 @@ insulate("hub discovery", function()
             assert.is_nil(saved)
             assert.truthy(packets[#packets]:find('wifi-failed "Doe"', 1, true))
         end)
+        it("saves a later message after one whose code failed to load", function()
+            setupWifi()
+            local attempts = 0
+            local good = package.preload["my-wifi-handover"]
+            package.preload["my-wifi-handover"] = function() attempts = attempts + 1; if attempts == 1 then error("not enough memory") end; return good() end
+            myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
+            assert.is_nil(saved)
+            myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
+            assert.is_same({ "Church", "new=pass" }, saved)
+            assert.is_nil(package.loaded["my-wifi-handover"])
+        end)
         it("is refused when garbled, and answered so", function()
             setupWifi()
             myHandleReceive("wifi 4368757 zz", "192.168.1.35")

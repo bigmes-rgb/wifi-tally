@@ -3,8 +3,8 @@
 -- takes almost no RAM.
 -- "Install now" puts lfs.img (the program for the flash) and lfs.stamp (which build it is) on the board. A new stamp
 -- is loaded into the flash once; the board restarts when that worked. If it did not, or the flash holds another
--- build, the .lc files run as before. One try per stamp, so an image that does not load cannot restart the light
--- over and over; "Install now" allows another try.
+-- build, the .lc files run as before. One try per stamp (lfs.tried), so an image that does not load cannot restart
+-- the light over and over; "Install now" removes lfs.tried, which allows another try.
 
 local lfsModule = function(name)
     local fn, base = node.flashindex(name)
@@ -23,18 +23,27 @@ end
 local inFlash = false
 local ok, err = pcall(function()
     local want = readFile("lfs.stamp")
-    if not want or not file.exists("lfs.img") then return end
+    if not want then return end
     local stamp = lfsModule("lfs-stamp")
     if stamp and stamp() == want then
         inFlash = true
-        if file.exists("lfs.tried") then file.remove("lfs.tried") end
+        if file.exists("lfs.tried") then
+            -- the boot right after the load: it ends in a watchdog reset by design, which is no crash
+            _G.lfsJustLoaded = true
+            file.remove("lfs.tried")
+        end
         return
     end
+    if not file.exists("lfs.img") then return end
     if readFile("lfs.tried") == want then
         print("The light program did not load into the flash. Running it from its files.")
         return
     end
     local f = file.open("lfs.tried", "w")
+    if not f then
+        print("Could not write lfs.tried, so the light program is not loaded into the flash. Running it from its files.")
+        return
+    end
     f:write(want)
     f:close()
     print("Loading the light program into the flash. The board restarts when it is done.")

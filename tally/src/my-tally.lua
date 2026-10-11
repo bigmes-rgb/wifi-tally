@@ -57,11 +57,9 @@ local handleWifi = function(data, ip)
     local ourHub = MySettings:hubIp() or learnedHubIp
     if ip == nil or ourHub == nil or ip ~= ourHub then return end
     -- a failed load (no memory, say) must not restart the light: it answers "wifi-failed"
-    local ran, saved = pcall(function()
-        local save = require("my-wifi-handover")
-        package.loaded["my-wifi-handover"] = nil
-        return save(data)
-    end)
+    local ran, saved = pcall(function() return require("my-wifi-handover")(data) end)
+    -- dropped whatever happened: a failed load would otherwise block every later require
+    package.loaded["my-wifi-handover"] = nil
     if not ran then print("Could not save the new Wi-Fi: " .. tostring(saved)) end
     local ok = ran and saved == true
     MyTally:send(string.format('%s "%s"', ok and "wifi-saved" or "wifi-failed", MySettings:name()))
