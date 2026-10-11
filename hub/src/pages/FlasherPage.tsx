@@ -11,6 +11,7 @@ import TallySettingsIni from '../flasher/TallySettingsIni';
 import RefreshIcon from '@material-ui/icons/Refresh';
 import { socket } from '../hooks/useSocket';
 import useTallyDevice from '../hooks/useTallyDevice';
+import BoardPicker from '../components/setup/BoardPicker';
 import Help from '../components/flasher/Help';
 import ProgramProgress from '../components/flasher/ProgramProgress';
 
@@ -20,6 +21,9 @@ const useStyles = makeStyles(theme => {
       marginBottom: theme.spacing(2),
     },
     success: {
+      marginBottom: theme.spacing(2),
+    },
+    picker: {
       marginBottom: theme.spacing(2),
     },
     footer: {
@@ -38,7 +42,8 @@ const FlasherPage = () => {
   const [uploadingOpen, setUploadingOpen] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<TallySettingsIniProgressType>(undefined)
   const [programProgress, setProgramProgress] = useState<TallyProgramProgressType>(undefined)
-  const tallyDevice = useTallyDevice(increment)
+  const [boardPath, setBoardPath] = useState<string | undefined>(undefined)
+  const tallyDevice = useTallyDevice(increment, undefined, boardPath)
   const isLoading = tallyDevice === undefined
 
   const classes = useStyles()
@@ -102,6 +107,7 @@ const FlasherPage = () => {
         <Typography paragraph>
           This tool allows to update the configuration or software of a Hardware Tally Light.
         </Typography>
+        <BoardPicker device={tallyDevice} onPick={path => { setBoardPath(path); handleReload() }} className={classes.picker} />
         { tallyDevice === undefined ? (
           <Spinner />
         ) : (

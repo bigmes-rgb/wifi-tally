@@ -3,6 +3,7 @@ import yargs from 'yargs'
 
 import TallyContainer from './tally/TallyContainer'
 import UdpTallyDriver from './tally/UdpTallyDriver'
+import { wifiProblem } from './tally/WifiHandover'
 import { AppConfiguration } from './lib/AppConfiguration'
 import { MixerDriver } from './lib/MixerDriver'
 import express from 'express'
@@ -55,7 +56,7 @@ if (myConfiguration.isTest()) {
 }
 
 const myTallyContainer = new TallyContainer(myConfiguration, myEmitter)
-new UdpTallyDriver(myConfiguration, myTallyContainer)
+const myUdpTallyDriver = new UdpTallyDriver(myConfiguration, myTallyContainer)
 const myWebTallyDriver = new WebTallyDriver(myConfiguration, myTallyContainer)
 
 const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
@@ -208,6 +209,15 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('tally.create', (tallyName, channelId) => {
     myWebTallyDriver.create(tallyName, channelId)
   })
+  // "Change Wi-Fi on all lights": send it, then pass each light's answer to this page for a while
+  socket.on('tallies.wifi.send', (ssid: string, password: string) => {
+    const problem = wifiProblem(ssid, password)
+    if (problem) { socket.emit('tallies.wifi.sent', { sentTo: [], problem }); return }
+    const onAnswer = (answer: { tallyName: string, saved: boolean }) => socket.emit('tallies.wifi.answer', answer)
+    myEmitter.on('tally.wifi', onAnswer)
+    setTimeout(() => myEmitter.off('tally.wifi', onAnswer), 30000)
+    socket.emit('tallies.wifi.sent', { sentTo: myUdpTallyDriver.sendWifi(ssid, password) })
+  })
   socket.on('tally.settings', (tallyName, tallyType, settings) => {
     const configuration = new TallyConfiguration()
     configuration.fromJson(settings)
@@ -335,9 +345,10 @@ io.on('connection', (socket: ServerSideSocket) => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort()))
   })
 
-  socket.on('flasher.device.get', (options?: { listenMs?: number }) => {
+  socket.on('flasher.device.get', (options?: { listenMs?: number, path?: string }) => {
     const listenMs = Math.max(1000, Math.min(180000, Number(options?.listenMs) || 6000))
-    myNodeMcuConnector.getDevice(listenMs).then(device => {
+    const path = typeof options?.path === "string" ? options.path : undefined
+    myNodeMcuConnector.getDevice(listenMs, path).then(device => {
       socket.emit('flasher.device', device.toJson())
     }).catch(e => {
       // the page waits for an answer: always give one

@@ -16,6 +16,9 @@ _G.Ws2812Types = {
 -- defaults
 local staSsid = nil
 local staPw = nil
+-- the network before the hub sent a new one: the light goes back to it if it cannot join the new one
+local staPrevSsid = nil
+local staPrevPw = nil
 local hubIp = nil
 local hubPort = 7411
 local name = string.format("%x", node.chipid())
@@ -58,6 +61,12 @@ _G.MySettings = {
     staPw = function()
         return staPw
     end,
+    staPrevSsid = function()
+        return staPrevSsid
+    end,
+    staPrevPw = function()
+        return staPrevPw
+    end,
     hubIp = function()
         return hubIp
     end,
@@ -91,7 +100,51 @@ _G.MySettings = {
     isValid = function()
         return staSsid ~= nil
     end,
+    -- Saves a new Wi-Fi sent by the hub, keeping the current one as the one to go back to. The light
+    -- stays on its current network until that goes away. Written to a new file first, the old one
+    -- kept as .bak until the new one is in place, so a power cut never leaves it without settings.
+    saveWifi = function(newSsid, newPw)
+        local lines = {}
+        local f = file.open(fileName, "r")
+        if f then
+            while true do
+                local line = f:readline()
+                if not line then break end
+                local k = line:match("^%s*([^=]-)%s*=")
+                if k ~= "station.ssid" and k ~= "station.password" and k ~= "station.previous.ssid" and k ~= "station.previous.password" then
+                    table.insert(lines, (line:gsub("[\r\n]+$", "")))
+                end
+            end
+            f:close()
+        end
+        local keepPrevious = staSsid ~= nil and staSsid ~= newSsid
+        table.insert(lines, "station.ssid=" .. newSsid)
+        table.insert(lines, "station.password=" .. newPw)
+        if keepPrevious then
+            table.insert(lines, "station.previous.ssid=" .. staSsid)
+            table.insert(lines, "station.previous.password=" .. (staPw or ""))
+        end
+        local out = file.open(fileName .. ".new", "w+")
+        if not out then return false end
+        for _, line in ipairs(lines) do out:writeline(line) end
+        out:close()
+        file.remove(fileName .. ".bak")
+        if file.exists(fileName) and not file.rename(fileName, fileName .. ".bak") then return false end
+        if not file.rename(fileName .. ".new", fileName) then
+            file.rename(fileName .. ".bak", fileName)
+            return false
+        end
+        file.remove(fileName .. ".bak")
+        if keepPrevious then staPrevSsid, staPrevPw = staSsid, staPw end
+        staSsid, staPw = newSsid, newPw
+        return true
+    end,
 }
+
+-- a save that was cut off between the two renames left only the backup
+if not file.exists(fileName) and file.exists(fileName .. ".bak") then
+    file.rename(fileName .. ".bak", fileName)
+end
 
 --
 -- PARSE SETTINGS FILE
@@ -115,6 +168,10 @@ if file.exists(fileName) then
                         staSsid = v
                     elseif k == "station.password" then
                         staPw = v
+                    elseif k == "station.previous.ssid" then
+                        staPrevSsid = v
+                    elseif k == "station.previous.password" then
+                        staPrevPw = v
                     elseif k == "hub.ip" then
                         -- empty or "auto": find the hub by broadcast instead. Anything else has to be
                         -- an address: sending to a malformed one raises, and the light restarted

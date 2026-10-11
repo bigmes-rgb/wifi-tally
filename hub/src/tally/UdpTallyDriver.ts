@@ -14,6 +14,7 @@ class UdpTallyDriver {
     container: TallyContainer
     configuration: AppConfiguration
     lastTallyReport: Map<string, Date> = new Map()
+    private timers: ReturnType<typeof setInterval>[] = []
 
     constructor(configuration: AppConfiguration, container: TallyContainer) {
         this.configuration = configuration
@@ -37,6 +38,9 @@ class UdpTallyDriver {
                     const {tallyName, log} = command
                     this.tallyReported(tallyName, rinfo)
                     this.container.addLog(tallyName, "udp", log)
+                } else if (command.command === "wifi-answer") {
+                    this.tallyReported(command.tallyName, rinfo)
+                    this.container.emitter.emit('tally.wifi', { tallyName: command.tallyName, saved: command.saved })
                 } else {
                     // typescript should complain if we missed a command
                     ((_: never) => {})(command)
@@ -58,7 +62,7 @@ class UdpTallyDriver {
         this.io.bind(this.configuration.getTallyPort())
 
         // check that all tallies are still reporting regularily
-        setInterval(() => {
+        this.timers.push(setInterval(() => {
             const now = new Date()
             this.container.getUdpTallies().forEach(tally => {
                 const lastTallyReportDate = this.lastTallyReport.get(tally.name)
@@ -81,17 +85,25 @@ class UdpTallyDriver {
                     }
                 }
             })
-        }, 500)
+        }, 500))
 
         // send keep-alive messages
         // - show the tally, we are still here
         // - compensate for lost packages
-        setInterval(() => {
+        this.timers.push(setInterval(() => {
             this.container.getUdpTallies().forEach(tally => {
                 this.updateTallyState(tally, this.container.lastPrograms, this.container.lastPreviews)
             })
-        }, 1000 / this.configuration.getTallyKeepAlivesPerSecond())
+        }, 1000 / this.configuration.getTallyKeepAlivesPerSecond()))
     }
+
+    // stops the timers and the socket (tests; the hub itself runs until it exits)
+    close() {
+        this.timers.forEach(timer => clearInterval(timer))
+        this.timers = []
+        this.io.close()
+    }
+
     private tallyReported(tallyName: string, rinfo: dgram.RemoteInfo) {
         this.lastTallyReport.set(tallyName, new Date())
         let tally = this.container.getOrCreate(tallyName, "udp") as UdpTally
@@ -107,6 +119,22 @@ class UdpTallyDriver {
             this.container.update(tally)
         }
         return tally
+    }
+
+    // Hands every connected light a new Wi-Fi, to use once its current network goes away (see the
+    // tally's handleWifi). Name and password go as hex, so no character can break the message.
+    // Returns the names of the lights it was sent to; each answers "wifi-saved" or "wifi-failed".
+    sendWifi(ssid: string, password: string): string[] {
+        const hex = (s: string) => Buffer.from(s, "utf8").toString("hex")
+        const command = `wifi ${hex(ssid)} ${hex(password)}`
+        const sentTo: string[] = []
+        this.container.getTallies().forEach(tally => {
+            if (tally instanceof UdpTally && tally.isConnected()) {
+                this.io.send(command, tally.port, tally.address)
+                sentTo.push(tally.name)
+            }
+        })
+        return sentTo
     }
 
     updateTallyState(tally: UdpTally, programs: ChannelList, previews: ChannelList) {

@@ -11,6 +11,24 @@ export interface SerialPortInfo {
   productId?: string
 }
 
+// USB-to-serial chips seen on NodeMCU boards: CH340/CH341/CH9102 (QinHeng), CP2102 (Silicon Labs),
+// FT232 (FTDI). Any other USB serial port is still a candidate, after these.
+const CHIP_NAMES: Record<string, string> = { "1A86": "CH340", "10C4": "CP2102", "0403": "FTDI" }
+export const KNOWN_VENDOR_IDS = Object.keys(CHIP_NAMES)
+
+const vendorOf = (port: SerialPortInfo) => (port.vendorId || "").toUpperCase()
+
+// the ports that could be a NodeMCU, the most likely first. A port without a vendor id is
+// on-board or Bluetooth and never a NodeMCU.
+export function boardCandidates(ports: SerialPortInfo[] = []): SerialPortInfo[] {
+  const known = ports.filter(port => KNOWN_VENDOR_IDS.includes(vendorOf(port)))
+  const other = ports.filter(port => vendorOf(port) !== "" && !KNOWN_VENDOR_IDS.includes(vendorOf(port)))
+  return [...known, ...other]
+}
+
+// "COM6 (CH340)", for a list someone picks from
+export const describePort = (port: SerialPortInfo) => `${port.path} (${CHIP_NAMES[vendorOf(port)] || port.manufacturer || "USB serial"})`
+
 export interface TallyDeviceObjectType {
   vendorId: string
   productId: string

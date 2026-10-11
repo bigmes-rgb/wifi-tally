@@ -39,6 +39,7 @@ export interface EventHandlersDataMap {
     'tally.changed': (t: Tally|undefined) => void
     'tally.removed': (t: Tally) => void
     'tally.logged': (data: {tally: Tally, log: Log}) => void
+    'tally.wifi': (data: {tallyName: string, saved: boolean}) => void
 }
 
 export type ServerEventName = keyof EventHandlersDataMap

@@ -204,6 +204,12 @@ describe("flashFirmware()", () => {
 })
 
 describe("pickBoard()", () => {
+  test("takes the board the person picked when several are plugged in", () => {
+    const ports = [{ path: "COM6", vendorId: "1A86" }, { path: "COM7", vendorId: "1A86" }]
+    expect(NodeMcuConnector.pickBoard(ports, "COM7")?.path).toEqual("COM7")
+    expect(NodeMcuConnector.pickBoard(ports, "COM3")?.path).toEqual("COM6") // unplugged since: the likeliest
+    expect(NodeMcuConnector.pickBoard(ports)?.path).toEqual("COM6")
+  })
   test("it prefers a known NodeMCU chip over other USB serial devices", () => {
     const board = NodeMcuConnector.pickBoard([
       { path: "COM3", vendorId: "2341", productId: "0043", manufacturer: "Arduino" },

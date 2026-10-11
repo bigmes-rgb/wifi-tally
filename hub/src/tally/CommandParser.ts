@@ -11,7 +11,14 @@ export type LogCommand = {
   log: Log
 }
 
-export type TallySentCommand = TallyHoCommand | LogCommand
+// a light's answer to a new Wi-Fi sent by the hub
+export type WifiAnswerCommand = {
+  command: "wifi-answer"
+  tallyName: string
+  saved: boolean // "wifi-saved"; "wifi-failed" when the light could not save it
+}
+
+export type TallySentCommand = TallyHoCommand | LogCommand | WifiAnswerCommand
 
 export class InvalidCommandError extends Error {
   constructor(...args) {
@@ -27,6 +34,10 @@ class TallyCommandParser {
         return this.parseTallyHo(msg)
     } else if (msg.startsWith("log ")) {
         return this.parseLog(msg)
+    } else if (msg.startsWith("wifi-saved ") || msg.startsWith("wifi-failed ")) {
+        const result = msg.match(/^(wifi-saved|wifi-failed) "(.+)"$/)
+        if (result === null) { throw new InvalidCommandError(msg) }
+        return { command: "wifi-answer", tallyName: result[2], saved: result[1] === "wifi-saved" }
     } else {
         throw new InvalidCommandError(msg)
     }

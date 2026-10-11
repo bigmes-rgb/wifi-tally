@@ -4,7 +4,8 @@ import { socket } from './useSocket'
 
 // the tally plugged into the hub's USB port. Every change of `refresh` asks the hub again.
 // listenMs: how long the hub listens to a board that does not answer before reporting.
-function useTallyDevice(refresh: number, listenMs?: number) {
+// path: the board picked when several are plugged in; otherwise the hub picks the likeliest.
+function useTallyDevice(refresh: number, listenMs?: number, path?: string) {
   const [tallyDevice, setTallyDevice] = useState<TallyDevice>(undefined)
 
   useEffect(() => {
@@ -14,7 +15,7 @@ function useTallyDevice(refresh: number, listenMs?: number) {
     socket.on('flasher.device', onFlasherDevice)
 
     setTallyDevice(undefined)
-    socket.emit('flasher.device.get', listenMs ? { listenMs } : undefined)
+    socket.emit('flasher.device.get', listenMs || path ? { listenMs, path } : undefined)
     return () => {
       socket.off('flasher.device', onFlasherDevice)
     }
