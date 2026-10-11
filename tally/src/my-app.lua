@@ -39,7 +39,8 @@ if bootreason == bootreasons.HW_WATCHDOG_RESET or bootreason == bootreasons.SW_W
     fn = MyLog.error
 end
 
-fn("booted because of " .. humanReadable)
+-- the free memory shows how close the program is to the board's limit (it ran out once, in 0.9.12)
+fn("booted because of " .. humanReadable .. ", " .. node.heap() .. " bytes of memory free")
 
 -- log more error reports in case an exception caused the tally to reboot
 for _, thing in pairs({exccause, epc1, epc2, epc3, excvaddr, depc}) do
