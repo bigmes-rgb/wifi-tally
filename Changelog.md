@@ -3,6 +3,13 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] "Install firmware" never restarted the board by itself, so every install stopped at
+  "Press the RST button". esptool-js 0.7.0's restart only releases the reset line and never pulls
+  it; the hub now does what esptool.py does.
+* [BUGFIX] A board that "keeps crashing and restarting" was told to install the firmware again,
+  which wrote only the firmware and left the rest of the board as it was, so it crashed again: an
+  endless loop. The install now erases the whole board first (up to a minute), as NodeMCU's own
+  instructions do. The light's files and settings go with it; Build a light puts them back.
 * [BUGFIX] After 0.9.12's "Install now", saving to a light stopped at "Rebooting Tally to apply
   settings", and the light never stayed on the hub. The light program had grown too big for the
   board's small memory (from 19.8 to 22.8 kB). It is now 19.4 kB, smaller than in 0.9.11: the code

@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { createHash } from 'crypto'
 import NodeSerialTransport, { UNPLUGGED } from './NodeSerialTransport'
 
-export type FirmwarePhase = "connecting" | "writing" | "restarting" | "done" | "error"
+export type FirmwarePhase = "connecting" | "erasing" | "writing" | "restarting" | "done" | "error"
 export type FirmwareProgressType = {
   phase: FirmwarePhase
   percent: number // 0..100 over the whole job
@@ -10,6 +10,20 @@ export type FirmwareProgressType = {
   // the board did not restart by itself after the install: someone has to press its RST button
   pressReset?: boolean
 }
+
+// esptool-js 0.7.0's HardReset only releases RTS (sleep, setRTS(false)) and never asserts it. After the
+// connect sequence RTS is already released, so its "Hard resetting via RTS pin" reset nothing and every
+// board was left sitting in the flasher, waiting for someone to press RST. esptool.py pulls EN low first:
+// RTS asserted, 100 ms, released. DTR has to be released meanwhile: with both asserted the board's
+// two-transistor reset circuit keeps EN high.
+export const hardResetBoard = (transport: any, sleep: (ms: number) => Promise<void>) => ({
+  reset: async () => {
+    await transport.setDTR(false)
+    await transport.setRTS(true)
+    await sleep(100)
+    await transport.setRTS(false)
+  },
+})
 
 // After the install the board is restarted through the RTS line. Boards whose auto-reset does not
 // work (the ones that need FLASH and RST to install) stay in the flasher, silent. A board that did
@@ -103,7 +117,10 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       writeLine: (line: string) => console.info(`[esptool ${path}] ${line}`),
       write: (_: string) => {},
     }
-    const loader = new esptool.ESPLoader({ transport, baudrate: 115200, romBaudrate: 115200, terminal })
+    const loader = new esptool.ESPLoader({
+      transport, baudrate: 115200, romBaudrate: 115200, terminal,
+      resetConstructors: { hardReset: (t: any) => hardResetBoard(t, sleep) },
+    })
 
     // apply the register fix the moment the chip is known, before main() first reads the flash ID
     const detectChip = loader.detectChip.bind(loader)
@@ -126,13 +143,21 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       console.info(`[esptool ${path}] flash size ${flashSize === "keep" ? "not readable, keeping the image's own setting" : flashSize}`)
     }
 
+    // Wipe the whole chip first. Writing only the image left the rest of the flash as it was: another
+    // firmware's system and RF settings near the end, old files. With those the new NodeMCU can crash
+    // and restart over and over, and installing it again changed nothing (the operator went round that
+    // loop). NodeMCU's own instructions erase first. The light's files and settings go too; Build a
+    // light puts them back.
+    report("erasing", 4, "Erasing everything on the board first. This takes up to a minute.")
+    await loader.eraseFlash()
+
     report("writing", 5, `Writing ${Math.round(image.length / 1024)} kB to the board`)
     await loader.writeFlash({
       fileArray: [{ data: image, address: NODEMCU_FLASH.address }],
       flashMode: NODEMCU_FLASH.flashMode,
       flashFreq: NODEMCU_FLASH.flashFreq,
       flashSize,
-      eraseAll: false,
+      eraseAll: false, // erased above, with its own progress message
       compress: true,
       // read back what landed on the chip and compare: a bad write is reported as one
       calculateMD5Hash: (written: Uint8Array) => createHash("md5").update(Buffer.from(written)).digest("hex"),

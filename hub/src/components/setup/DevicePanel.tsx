@@ -137,6 +137,7 @@ function DevicePanel({ device, onReload }: Props) {
           <LinearProgress variant="determinate" value={shownFirmware.percent} className={classes.block} />
           <Typography paragraph data-testid="firmware-phase">
             {shownFirmware.phase === "connecting" && "Connecting to the board…"}
+            {shownFirmware.phase === "erasing" && "Erasing the board…"}
             {shownFirmware.phase === "writing" && `Writing… ${shownFirmware.percent}%`}
             {shownFirmware.phase === "restarting" && "Restarting the board…"}
             {shownFirmware.phase === "done" && "Firmware installed."}
