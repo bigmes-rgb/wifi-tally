@@ -24,3 +24,9 @@ test("the D4 advice names the strip's power and the VU pin", () => {
 test("the parse reports the restart cause and whether the firmware was loaded", () => {
   expect(parseBootMessage(boot("3,6", loads))).toEqual({ rstCause: 2, bootMode: 3, starts: 1, loads: true, waitingForHost: false })
 })
+
+test("no start-up advice says to install the firmware again: after an install that was read back, that is a circle", () => {
+  for (const text of Object.values(BOOT_ADVICE)) {
+    expect(text).not.toMatch(/install it again|install the firmware again|damaged/i)
+  }
+})

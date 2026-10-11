@@ -19,6 +19,7 @@ class AppConfigurationPersistence {
                 this.scheduleSave()
             }
         })
+        this.emitter.on("config.changed.firmwareInstall", () => this.scheduleSave())
     }
 
     getConfiguration() : AppConfiguration {

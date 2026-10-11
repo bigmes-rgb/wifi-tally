@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { portClosedReason, warnRarely } from './HubLog'
 
 // The slice of node-serialport 8 this transport uses. Kept narrow so tests can pass a fake.
 export interface SerialPortLike extends EventEmitter {
@@ -73,12 +74,15 @@ class NodeSerialTransport {
       next.set(chunk, this.buffer.length)
       this.buffer = next
     })
-    port.on('error', (e: Error) => this.trace(`port error: ${e.message}`))
+    port.on('error', (e: Error) => warnRarely(`[serial ${this.path}] port error: ${e.message}`))
     // node-serialport closes the port itself when the board is unplugged. Writing to a closed port
     // then waits for an 'open' that never comes, and the install would hang with its dialog locked.
-    port.on('close', () => {
-      this.trace("port closed")
-      if (this.port === port) { this.port = null }
+    port.on('close', (err?: any) => {
+      // disconnect() lets go of the port before closing it; any other close happened to the hub
+      if (this.port === port) {
+        warnRarely(`[serial ${this.path}] port closed${portClosedReason(err)}`)
+        this.port = null
+      }
     })
     await this.call(cb => port.open(cb))
     this.port = port
@@ -117,6 +121,8 @@ class NodeSerialTransport {
     await this.call(cb => this.openPortOrFail().drain(cb))
   }
 
+  // false once the port closed: unplugged, or dropped by Windows
+  isOpen() { return !!this.port && this.port.isOpen }
   flushInput() { this.buffer = new Uint8Array(0) }
   inWaiting() { return this.buffer.length }
   peek() { return this.buffer }

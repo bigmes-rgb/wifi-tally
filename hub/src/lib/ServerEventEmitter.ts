@@ -32,6 +32,7 @@ export interface EventHandlersDataMap {
     'config.changed.channels': (channels: Channel[]) => void
     'config.changed.tallies': (tallies: Tally[]) => void
     'config.changed.mixer': (mixerName: string) => void
+    'config.changed.firmwareInstall': () => void
     'mixer.connected': () => void
     'mixer.disconnected': (problem: string | null) => void
     'program.changed': (data: {programs: ChannelList, previews: ChannelList}) => void

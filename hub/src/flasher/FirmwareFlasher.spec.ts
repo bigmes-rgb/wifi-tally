@@ -3,14 +3,15 @@
  */
 import { promises as fs } from 'fs'
 import tmp from 'tmp'
-import { describeFlashError, fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, hardResetBoard, NODEMCU_FLASH } from './FirmwareFlasher'
+import { EventEmitter } from 'events'
+import { describeFlashError, fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, hardResetBoard, NODEMCU_FLASH, RESET_BUTTON_WAIT_MS, RESTART_GRACE_MS } from './FirmwareFlasher'
 import NodeSerialTransport from './NodeSerialTransport'
 
 tmp.setGracefulCleanup()
 
 // an ESPLoader that remembers what it was asked to do. Like the real one, main() runs
 // detectChip() to create this.chip and then reads the flash ID with it.
-const fakeEsptool = (chip = "ESP8266EX", failWrite = false, detectedSize: string | null = "4MB", failErase = false) => {
+const fakeEsptool = (chip = "ESP8266EX", failWrite = false, detectedSize: string | null = "4MB", failErase = false, failReset = false) => {
   const calls: any = { options: null, mainCalled: false, after: null, writeOptions: null, chipAtFlashIdRead: null, order: [] as string[] }
   class ESPLoader {
     chip: any = null
@@ -39,6 +40,7 @@ const fakeEsptool = (chip = "ESP8266EX", failWrite = false, detectedSize: string
     async after(mode: string) {
       calls.order.push("after")
       calls.after = mode
+      if (failReset) { throw new Error("The board was unplugged.") }
       await calls.options.resetConstructors?.hardReset?.(calls.options.transport, false).reset()
     }
   }
@@ -243,39 +245,141 @@ describe("describeFlashError()", () => {
 })
 
 describe("after the install the board has to restart", () => {
-  // a transport whose board sends bytes once it has restarted
-  const listeningTransport = (restartsAfterChecks: number | null) => {
+  // a clock that moves only when the flasher sleeps; stretch: how long each 100 ms sleep really takes
+  const fakeClock = (stretch = 1) => {
+    let t = 0
+    return { now: () => t, sleep: async (ms: number) => { t += ms * stretch } }
+  }
+  // a transport whose board sends bytes once it has restarted, or whose port closes
+  const listeningTransport = ({ restartsAfterChecks = null, closesAfterChecks = null }: { restartsAfterChecks?: number | null, closesAfterChecks?: number | null } = {}) => {
     let checks = 0
     return {
       disconnected: 0,
       disconnect: async function () { this.disconnected++ },
       flushInput: () => { checks = 0 },
-      inWaiting: () => { checks++; return restartsAfterChecks !== null && checks > restartsAfterChecks ? 42 : 0 },
+      inWaiting: () => { checks++; return restartsAfterChecks !== null && checks > restartsAfterChecks ? 500 : 0 },
+      isOpen: () => closesAfterChecks === null || checks <= closesAfterChecks,
+      peek: () => new Uint8Array(Buffer.from("\x80\x81Formatting file system. Please wait...\r\n")),
       setDTR: async () => {},
       setRTS: async () => {},
     }
   }
-  const run = async (transport: any) => {
+  const run = async (transport: any, options: any = {}) => {
+    const clock = fakeClock(options.stretch)
     const progress: FirmwareProgressType[] = []
-    const ok = await flashNodeMcuFirmware({ path: "COM7", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: fakeEsptool().load, makeTransport: () => transport, sleep: async () => {} })
-    return { ok, progress }
+    const esptool = options.esptool || fakeEsptool()
+    const ok = await flashNodeMcuFirmware({ path: "COM7", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: esptool.load, makeTransport: () => transport, now: clock.now, sleep: clock.sleep, stopWaiting: options.stopWaiting })
+    return { ok, progress, last: progress[progress.length - 1], waited: clock.now() }
   }
+
   test("a board that restarts by itself is not asked about", async () => {
-    const { ok, progress } = await run(listeningTransport(2))
+    const { ok, progress, last } = await run(listeningTransport({ restartsAfterChecks: 2 }))
     expect(ok).toBe(true)
     expect(progress.some(p => p.pressReset)).toBe(false)
+    expect(last).toMatchObject({ phase: "done", written: true, restart: "restarted" })
   })
-  test("a silent board gets 'press RST', and the install finishes once it restarts", async () => {
-    const { ok, progress } = await run(listeningTransport(100))
+  test("a silent board gets the RST card: press RST once, not FLASH, or unplug it and plug it back in", async () => {
+    const { ok, progress, last } = await run(listeningTransport({ restartsAfterChecks: 100 }))
     expect(ok).toBe(true)
     const ask = progress.find(p => p.pressReset)
-    expect(ask?.message).toContain("RST")
-    expect(progress[progress.length - 1].phase).toBe("done")
+    expect(ask?.message).toContain("Press its RST button once (do not hold FLASH)")
+    expect(ask?.message).toContain("unplug it and plug it back in")
+    expect(last).toMatchObject({ phase: "done", restart: "restarted" })
   })
-  test("a board that never restarts ends in an error that says what to do", async () => {
-    const { ok, progress } = await run(listeningTransport(null))
+  test("a board that never restarts: the firmware is still installed, and the hub says it did not see the restart", async () => {
+    const { ok, last, waited } = await run(listeningTransport())
+    expect(ok).toBe(true)
+    expect(last).toMatchObject({ phase: "done", percent: 100, written: true, restart: "timeout" })
+    expect(waited).toBe(100 + RESTART_GRACE_MS + RESET_BUTTON_WAIT_MS) // after the reset pulse's 100 ms
+  })
+  test("the waits are measured by the clock, not by loop turns (Windows stretches every sleep)", async () => {
+    const { waited } = await run(listeningTransport(), { stretch: 1.094 })
+    const pulse = 109.4 // the reset pulse's own 100 ms sleep
+    expect(waited - pulse).toBeGreaterThanOrEqual(RESTART_GRACE_MS + RESET_BUTTON_WAIT_MS)
+    expect(waited - pulse).toBeLessThan(RESTART_GRACE_MS + RESET_BUTTON_WAIT_MS + 2 * 110) // one stretched turn per wait at most
+  })
+  test("the hub holds the USB port for at most about half a minute waiting on a person", () => {
+    expect(RESTART_GRACE_MS + RESET_BUTTON_WAIT_MS).toBeLessThanOrEqual(35000)
+  })
+  test("unplugging the board ends the wait at once, and counts as a restart", async () => {
+    const { ok, last, waited } = await run(listeningTransport({ closesAfterChecks: 40 }))
+    expect(ok).toBe(true)
+    expect(last).toMatchObject({ phase: "done", written: true, restart: "portClosed" })
+    expect(waited).toBeLessThan(5000)
+  })
+  test("the operator's Done ends the wait", async () => {
+    let asked = 0
+    const { last, waited } = await run(listeningTransport(), { stopWaiting: () => ++asked > 40 })
+    expect(last).toMatchObject({ phase: "done", written: true, restart: "operator" })
+    expect(waited).toBeLessThan(5000)
+  })
+  test("a restart that fails because the board was unplugged is a restart too, not a failed install", async () => {
+    const transport = { ...listeningTransport(), isOpen: () => false }
+    const { ok, last } = await run(transport, { esptool: fakeEsptool("ESP8266EX", false, "4MB", false, true) })
+    expect(ok).toBe(true)
+    expect(last).toMatchObject({ phase: "done", written: true, restart: "portClosed" })
+  })
+  test("only progress after the read-back says the firmware is written", async () => {
+    const { progress } = await run(listeningTransport({ restartsAfterChecks: 2 }))
+    const firstWritten = progress.findIndex(p => p.written)
+    expect(progress[firstWritten].phase).toBe("restarting")
+    expect(progress.slice(0, firstWritten).every(p => !p.written)).toBe(true)
+  })
+  test("a failure before the read-back is still an error, and does not say written", async () => {
+    const { ok, progress, last } = await run(listeningTransport(), { esptool: fakeEsptool("ESP8266EX", true) })
     expect(ok).toBe(false)
-    expect(progress[progress.length - 1].message).toContain("RST")
+    expect(last.phase).toBe("error")
+    expect(progress.some(p => p.written)).toBe(false)
+  })
+  test("the hub log gets one line per step, how the restart was seen, and what the board printed first", async () => {
+    const info = jest.spyOn(console, "info").mockImplementation(() => {})
+    try {
+      await run(listeningTransport({ restartsAfterChecks: 100 }))
+      const lines = info.mock.calls.map(c => String(c[0])).filter(l => l.startsWith("[firmware COM7]"))
+      expect(lines.filter(l => l.includes(" writing after "))).toHaveLength(1) // three writing reports, one line
+      expect(lines.filter(l => l.includes("restarting (asking for RST) after"))).toHaveLength(1)
+      expect(lines.join("\n")).toMatch(/restart: the board printed \d+\.\d s after the reset/)
+      expect(lines.find(l => l.includes("printed after the restart"))).toContain("Formatting file system")
+      expect(lines[lines.length - 1]).toContain("done after")
+    } finally {
+      info.mockRestore()
+    }
+  })
+
+  // the real transport over a port that behaves like node-serialport 8's when a board is unplugged: a read
+  // fails, the port closes itself and says why
+  class UnpluggablePort extends EventEmitter {
+    isOpen = false
+    signals: any[] = []
+    open(cb: any) { this.isOpen = true; cb(null) }
+    close(cb: any) { this.isOpen = false; this.emit('close', null); cb(null) }
+    write(_data: any, cb: any) { cb(null) }
+    drain(cb: any) { cb(null) }
+    set(options: any, cb: any) { this.signals.push({ ...options }); cb(null) }
+    update(_options: any, cb: any) { cb(null) }
+    unplug() { this.isOpen = false; this.emit('close', Object.assign(new Error("Operation aborted"), { disconnected: true })) }
+  }
+  test("with the real transport, a port that closes during the wait ends it at once, and the log says why", async () => {
+    const port = new UnpluggablePort()
+    const transport = new NodeSerialTransport("COM8", () => port as any)
+    await transport.connect(115200)
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      let sleeps = 0
+      const progress: FirmwareProgressType[] = []
+      let t = 0
+      const ok = await flashNodeMcuFirmware({
+        path: "COM8", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: fakeEsptool().load, makeTransport: () => transport,
+        now: () => t, sleep: async ms => { t += ms; if (++sleeps === 50) port.unplug() },
+      })
+      expect(ok).toBe(true)
+      expect(progress[progress.length - 1]).toMatchObject({ phase: "done", written: true, restart: "portClosed" })
+      expect(sleeps).toBeLessThan(55)
+      expect(port.signals).toContainEqual({ dtr: false, rts: true }) // the hard reset reached the port
+      expect(warn.mock.calls.map(c => String(c[0])).join("\n")).toContain("[serial COM8] port closed: Operation aborted (the board is gone")
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 

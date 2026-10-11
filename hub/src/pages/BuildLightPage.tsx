@@ -1,6 +1,6 @@
 import { Button, makeStyles, Step, StepContent, StepLabel, Stepper, Typography } from '@material-ui/core'
 import { Alert } from '@material-ui/lab'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import MiniPage from '../components/layout/MiniPage'
@@ -11,9 +11,11 @@ import NameWifiForm from '../components/setup/NameWifiForm'
 import ProfileChooser from '../components/setup/ProfileChooser'
 import WiringTest from '../components/setup/WiringTest'
 import BoardPicker from '../components/setup/BoardPicker'
-import { defaultHardwareProfile, HardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
+import { defaultHardwareProfile, HardwareProfile, isHardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
 import useTallyDevice from '../hooks/useTallyDevice'
+import useFirmwareJob from '../hooks/useFirmwareJob'
+import useSessionState from '../hooks/useSessionState'
 import { rememberFromDevice, RememberedLight, shouldReadProfile } from '../components/setup/rememberedLight'
 
 const useStyles = makeStyles(theme => ({
@@ -43,20 +45,29 @@ const steps = [
 const BuildLightPage = () => {
   const classes = useStyles()
   const [active, setActive] = useState(0)
-  const [profile, setProfile] = useState<HardwareProfile>(defaultHardwareProfile())
+  // Step 1's choices outlive a page reload: a page reloaded during an install goes on at "Plug it in", and the wiring
+  // test after it must test what is on the board, not the default
+  const [profile, setProfile] = useSessionState<HardwareProfile>("buildLight.profile", defaultHardwareProfile, isHardwareProfile)
   // the chip id of the board whose stored profile was applied, or that was just finished
   const [profileReadFor, setProfileReadFor] = useState<string | null | undefined>(undefined)
-  const [wiringChecked, setWiringChecked] = useState(false)
+  const [wiringChecked, setWiringChecked] = useSessionState<boolean>("buildLight.wiringChecked", () => false, v => typeof v === "boolean")
   const [refresh, setRefresh] = useState(1)
-  // right after a firmware install the hub listens longer: the board formats its storage on first start
-  const [listenMs, setListenMs] = useState<number | undefined>(undefined)
+  // the next check is of another board than the one the hub last installed
+  const [newBoard, setNewBoard] = useState(false)
   // the board picked when several are plugged in
   const [boardPath, setBoardPath] = useState<string | undefined>(undefined)
-  const device = useTallyDevice(refresh, listenMs, boardPath)
+  const device = useTallyDevice(refresh, boardPath, newBoard)
   const [wiringPassed, setWiringPassed] = useState(false)
   const [saved, setSaved] = useState<{ name: string, ssid: string } | null>(null)
   const [saveCount, setSaveCount] = useState(0) // every save restarts the light's Wi-Fi report
   const tallies = useTallies()
+  // A page reloaded during a firmware install, or during the board's first start after it, goes back to
+  // "Plug it in", which shows it. Otherwise it would open on step 1 and show nothing of it.
+  const firmwareJob = useFirmwareJob()
+  const rejoined = useRef(false)
+  useEffect(() => {
+    if (!rejoined.current && (firmwareJob?.running || firmwareJob?.firstStart)) { rejoined.current = true; setActive(1) }
+  }, [firmwareJob])
 
   // a light's settings: read from it, or saved to it at "Name and Wi-Fi"; see rememberedLight.ts
   const [remembered, setRemembered] = useState<RememberedLight | undefined>(undefined)
@@ -69,10 +80,10 @@ const BuildLightPage = () => {
       setProfile(readProfileFromIni(device.tallySettings))
       setProfileReadFor(device.chipId)
     }
-  }, [device, profileReadFor])
+  }, [device, profileReadFor, setProfile])
 
-  const reload = (options?: { afterFirmware?: boolean }) => {
-    setListenMs(options?.afterFirmware ? 150000 : undefined)
+  const reload = (options?: { newBoard?: boolean }) => {
+    setNewBoard(!!options?.newBoard)
     setRefresh(r => r + 1)
   }
   const connected = saved && (tallies || []).find(t => t.name === saved.name && t.isConnected())
@@ -84,7 +95,8 @@ const BuildLightPage = () => {
 
   const canContinue = [
     wiringChecked,
-    deviceIsReady(device),
+    // step 1 is skipped when a page opened during an install jumps to "Plug it in": the wiring test needs it
+    deviceIsReady(device) && wiringChecked,
     wiringPassed,
     saved !== null,
     true,
@@ -114,6 +126,9 @@ const BuildLightPage = () => {
           <StepContent>
             <BoardPicker device={device} onPick={path => { setBoardPath(path); reload() }} className={classes.block} />
             <DevicePanel device={device} onReload={reload} />
+            {deviceIsReady(device) && !wiringChecked && <Alert severity="info" className={classes.block} data-testid="build-step1-unchecked">
+              Step 1 is not ticked yet: press Back, choose what is on the board and tick the box there. The wiring test after this step tests exactly that.
+            </Alert>}
             {nav()}
           </StepContent>
         </Step>
@@ -141,11 +156,11 @@ const BuildLightPage = () => {
             {saved && (reachedHub
               ? <Alert severity="success" className={classes.block} data-testid="build-connected"><strong>{saved.name}</strong> joined the Wi-Fi and reached the hub. Unplug it and mount it on its camera; pick its switcher input below.</Alert>
               : <Alert severity="info" className={classes.block} data-testid="build-waiting">Waiting for <strong>{saved.name}</strong> to show up at the hub. Its own report follows.</Alert>)}
-            {/* only while this step shows: hidden steps stay mounted, and the watch holds the USB port */}
+            {/* only while this step shows: the watch holds the USB port (StepContent unmounts hidden steps anyway) */}
             {active === 4 && saved && !reachedHub && <NetworkCheck key={saveCount} path={device?.path} />}
             <ConnectedLights highlight={saved?.name} />
             {nav(<>
-              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setReachedHub(false); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
+              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setReachedHub(false); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload({ newBoard: true }) }} data-testid="build-another">Build another light</Button>
               <Button component={RouterLink} to="/">Done</Button>
             </>)}
           </StepContent>

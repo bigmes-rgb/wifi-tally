@@ -31,9 +31,10 @@ export class SocketAwareEvent<EventName> {
 
     }
 
+    // Says nothing in the log: these lines were a third of the operator's log, 16 for every page opened and
+    // 16 for every page closed. The hub logs "[page] opened" and "[page] closed" once each instead.
     register() {
         if (!this.isRegistered) {
-            console.debug(`Connecting event ${this.eventName} to socket ${this.socket.id}`)
             this.eventEmitter.on(this.eventName, this.eventListener)
             this.socket.on("disconnect", () => this.unregister())
             this.isRegistered = true
@@ -41,9 +42,6 @@ export class SocketAwareEvent<EventName> {
     }
 
     unregister() {
-        if (this.isRegistered) {
-            console.debug(`Detatching event ${this.eventName} from socket ${this.socket.id}`)
-        }
         this.eventEmitter.off(this.eventName, this.eventListener)
         this.isRegistered = false
     }

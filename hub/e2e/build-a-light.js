@@ -33,6 +33,11 @@ async function run() {
     await page.waitForSelector('[data-testid=device-state-otherFirmware]', { timeout: 30000 })
     log(2, 'a board from the box is recognised as needing the firmware')
     await page.click('[data-testid=device-firmware]')
+    await page.waitForSelector('[data-testid=firmware-phase]', { timeout: 10000 })
+    // the install belongs to the hub: a page reloaded in the middle of it comes back to it, not to a bare spinner
+    await page.reload()
+    await page.waitForSelector('[data-testid=firmware-phase], [data-testid=device-install-running], [data-testid=device-first-start]', { timeout: 30000 })
+    log(2, 'a page reloaded during the install comes back to it')
     await page.waitForSelector('[data-testid=device-first-start]', { timeout: 30000 })
     log(2, 'after the install the page waits for the first start')
     await page.waitForSelector('[data-testid=device-install]', { timeout: 60000 })
@@ -41,7 +46,10 @@ async function run() {
     await page.waitForFunction(() => document.querySelector('[data-testid=device-panel]')?.textContent?.includes('is current'), null, { timeout: 60000 })
     log(2, 'tally software installed')
     await shot('2-installed')
+
+    // step 1's choices outlived the reload: the wiring test below announces the 5-pixel strip
     await page.click('[data-testid=build-next]')
+    await page.waitForSelector('[data-testid=wiring-testing]', { timeout: 10000 })
 
     // 3 Wiring test: it says what it tests, then everything lights as it should
     const testing = await page.$eval('[data-testid=wiring-testing]', e => e.textContent)

@@ -1,4 +1,4 @@
-import { defaultHardwareProfile, endTestLua, HardwareProfile, Off, profileToIniValues, profileToLuaCommands, readProfileFromIni, showColorLua, tallyNotRunning, writeProfileToIni } from './HardwareProfile'
+import { defaultHardwareProfile, endTestLua, HardwareProfile, isHardwareProfile, Off, profileToIniValues, profileToLuaCommands, readProfileFromIni, showColorLua, tallyNotRunning, writeProfileToIni } from './HardwareProfile'
 import TallySettingsIni from './TallySettingsIni'
 
 describe("profileToIniValues()", () => {
@@ -98,4 +98,12 @@ describe("tallyNotRunning()", () => {
     expect(tallyNotRunning("Timed out running a command")).toBe(false)
     expect(tallyNotRunning("stdin:1: attempt to call field 'static' (a nil value)")).toBe(false)
   })
+})
+
+test("isHardwareProfile() takes a whole profile and nothing else", () => {
+  expect(isHardwareProfile(defaultHardwareProfile())).toBe(true)
+  expect(isHardwareProfile({ ...defaultHardwareProfile(), stage: { kind: "ws2812", polarity: "anode", pixels: 11, order: "grb" } })).toBe(false)
+  expect(isHardwareProfile({ operator: { kind: "rgb" } })).toBe(false)
+  expect(isHardwareProfile(null)).toBe(false)
+  expect(isHardwareProfile("rgb")).toBe(false)
 })
