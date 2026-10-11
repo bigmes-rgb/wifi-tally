@@ -1,3 +1,6 @@
+import os from 'os'
+import path from 'path'
+import { promises as fs } from 'fs'
 import NodeMcuConnector from './NodeMcuConnector'
 import TallyDevice from './TallyDevice'
 
@@ -17,6 +20,14 @@ describe("getLocalFiles()", () => {
     const files = await NodeMcuConnector.getLocalFiles(["/does/not/exist", __dirname + "/../../../tally/src"])
     expect(files.length).toBeGreaterThan(0)
     expect(files.every(f => f.fileName.endsWith(".lua"))).toBe(true)
+  })
+  test("the program for the board's flash and its stamp go to the board with the .lc files", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tally-out-"))
+    for (const name of ["my-app.lc", "init.lua", "lfs.img", "lfs.stamp", "tally-settings.ini.example", "nodemcu.bin"]) {
+      await fs.writeFile(path.join(dir, name), "x")
+    }
+    const files = await NodeMcuConnector.getLocalFiles([dir])
+    expect(files.map(f => f.fileName).sort()).toEqual(["init.lua", "lfs.img", "lfs.stamp", "my-app.lc"])
   })
 })
 

@@ -285,7 +285,8 @@ class NodeMcuConnector {
       return []
     }
 
-    const filteredFiles = files.filter(file => file.endsWith(".lc") || file.endsWith(".lua"))
+    // the .lc files, init.lua, and the program for the board's flash with its stamp (see tally/src/init.lua)
+    const filteredFiles = files.filter(file => file.endsWith(".lc") || file.endsWith(".lua") || file === "lfs.img" || file === "lfs.stamp")
     return Promise.all(filteredFiles.map(async file => {
       const stats = await fs.stat(dirName + "/" + file)
       return {

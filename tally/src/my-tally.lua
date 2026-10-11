@@ -52,12 +52,16 @@ local otherHubsWarned = {}
 
 -- "wifi <ssid in hex> <password in hex>": the hub hands every light a new Wi-Fi before the router
 -- is switched over. Taken only from the hub this light follows; answered so the hub can show it.
--- The code that saves it is loaded only now (my-wifi-handover.lua): the light has little memory.
+-- The code that saves it is loaded only now (my-wifi-handover.lua), from the flash or its file, and dropped after.
 local handleWifi = function(data, ip)
     local ourHub = MySettings:hubIp() or learnedHubIp
     if ip == nil or ourHub == nil or ip ~= ourHub then return end
     -- a failed load (no memory, say) must not restart the light: it answers "wifi-failed"
-    local ran, saved = pcall(function() return dofile("my-wifi-handover.lc")(data) end)
+    local ran, saved = pcall(function()
+        local save = require("my-wifi-handover")
+        package.loaded["my-wifi-handover"] = nil
+        return save(data)
+    end)
     if not ran then print("Could not save the new Wi-Fi: " .. tostring(saved)) end
     local ok = ran and saved == true
     MyTally:send(string.format('%s "%s"', ok and "wifi-saved" or "wifi-failed", MySettings:name()))

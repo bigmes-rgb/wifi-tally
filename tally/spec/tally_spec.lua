@@ -231,10 +231,9 @@ insulate("hub discovery", function()
                 return { on = function() end, listen = function() end, send = function(_, port, ip, data) table.insert(packets, data) end }
             end
             useSettings(nil)
-            -- my-wifi-handover.lc, loaded only when the message arrives
-            local realDofile = dofile
-            _G.dofile = function(name)
-                if name ~= "my-wifi-handover.lc" then return realDofile(name) end
+            -- my-wifi-handover, loaded only when the message arrives (from the flash, or its .lc file)
+            package.loaded["my-wifi-handover"] = nil
+            package.preload["my-wifi-handover"] = function()
                 return function(data)
                     local ssid, pw = data:match("^wifi (%x+) (%x*)%s*$")
                     if not ssid or #ssid % 2 == 1 or #pw % 2 == 1 then return false end
@@ -262,7 +261,7 @@ insulate("hub discovery", function()
         end)
         it("answers wifi-failed, and keeps running, when the code to save it cannot be loaded", function()
             setupWifi()
-            _G.dofile = function() error("not enough memory") end
+            package.preload["my-wifi-handover"] = function() error("not enough memory") end
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
             assert.is_nil(saved)
             assert.truthy(packets[#packets]:find('wifi-failed "Doe"', 1, true))

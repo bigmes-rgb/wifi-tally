@@ -45,6 +45,8 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
      not seen the board restart, the box says so: press RST once, or unplug the board and plug it
      back in. If Windows gives it another COM port when it comes back, the hub finds it there.
    - *Found a light … not set up yet* or *named …*: press **Install now** for the tally software.
+     The light restarts twice: once after the files arrive, and once more after it has loaded the
+     program into its flash, where it runs from then on.
    - *This light runs NodeMCU …* or *lacks the module …*: its firmware cannot run the tally
      software. Install the firmware first. Its name and Wi-Fi come back at step 4.
    - *Starts, but something restarts it over and over*: the NodeMCU firmware works, and the light
