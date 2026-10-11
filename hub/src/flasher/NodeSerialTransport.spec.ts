@@ -90,3 +90,30 @@ test("once node-serialport has closed an unplugged board's port, writes fail at 
   await expect(transport.setDTR(false)).rejects.toThrow(UNPLUGGED)
   await expect(transport.changeBaudrate(460800)).rejects.toThrow(UNPLUGGED)
 })
+
+describe("a port that closes by itself", () => {
+  test("isOpen() says so, and the log says why: node-serialport passes an error with disconnected=true", async () => {
+    const { port, transport } = await setup()
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      expect(transport.isOpen()).toBe(true)
+      port.isOpen = false
+      port.emit('close', Object.assign(new Error("Reading from COM9 failed"), { disconnected: true }))
+      expect(transport.isOpen()).toBe(false)
+      expect(warn).toHaveBeenCalledWith("[serial COM9] port closed: Reading from COM9 failed (the board is gone: unplugged, or Windows dropped the port)")
+    } finally {
+      warn.mockRestore()
+    }
+  })
+  test("the hub closing its own port is not logged as a problem", async () => {
+    const { transport } = await setup()
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      await transport.disconnect()
+      expect(transport.isOpen()).toBe(false)
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})

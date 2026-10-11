@@ -29,6 +29,7 @@ import NodeMcuConnector from './flasher/NodeMcuConnector'
 import TallyDevice from './flasher/TallyDevice'
 import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
 import { getHubInfo } from './lib/HubInfo'
+import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
 const argv = yargs.argv
 if (argv.env !== undefined) {
@@ -65,8 +66,12 @@ const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
 const myNodeMcuConnector = (() => {
   if (!myConfiguration.isTest()) { return new NodeMcuConnector() }
   const fake = new FakeNodemcu()
-  return new NodeMcuConnector(fake, fakeFlashFirmware(fake), { listen: fakeListen(fake), poke: async () => {}, purge: async () => {}, stream: fakeStream(fake) })
+  return new NodeMcuConnector(fake, fakeFlashFirmware(fake), { listen: fakeListen(fake), poke: async () => {}, purge: async () => {}, release: async () => {}, stream: fakeStream(fake) })
 })()
+
+// A firmware install belongs to the hub, not to the page that started it: every page hears each step, so a page
+// reloaded in the middle (or a second window) shows the install that runs instead of waiting on a spinner.
+myNodeMcuConnector.onFirmwareJob(job => io.emit('flasher.firmware.job', job))
 
 // log stuff
 myEmitter.on('tally.logged', ({tally, log}) => {
@@ -85,6 +90,9 @@ myEmitter.on('program.changed', ({programs, previews}) => {
 // socket.io server
 io.on('connection', (socket: ServerSideSocket) => {
   (socket as socketIo.Socket).setMaxListeners(99)
+  const page = pagePath((socket as socketIo.Socket).handshake?.headers?.referer)
+  const openedAt = Date.now()
+  console.info(pageOpenedLine(page, Object.keys(io.sockets.sockets).length))
   const mixerEvents = [
     // @TODO: use event objects instead of repeating the same structure again and again
     new SocketAwareEvent(myEmitter, 'mixer.connected', socket, (socket) => {
@@ -345,10 +353,12 @@ io.on('connection', (socket: ServerSideSocket) => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort()))
   })
 
-  socket.on('flasher.device.get', (options?: { listenMs?: number, path?: string }) => {
+  socket.on('flasher.device.get', (options?: { listenMs?: number, path?: string, newBoard?: boolean }) => {
     const listenMs = Math.max(1000, Math.min(180000, Number(options?.listenMs) || 6000))
     const path = typeof options?.path === "string" ? options.path : undefined
-    myNodeMcuConnector.getDevice(listenMs, path).then(device => {
+    if (options?.newBoard === true) myNodeMcuConnector.forgetInstall()
+    // a check still queued when this page closes (reloaded, say) leaves the port to the page that asks next
+    myNodeMcuConnector.getDevice(listenMs, path, () => (socket as socketIo.Socket).connected).then(device => {
       socket.emit('flasher.device', device.toJson())
     }).catch(e => {
       // the page waits for an answer: always give one
@@ -383,11 +393,12 @@ io.on('connection', (socket: ServerSideSocket) => {
     }).catch(e => console.error("Installing the tally software failed:", e))
   })
 
+  // every page hears the install through 'flasher.firmware.job' (see onFirmwareJob above)
   socket.on('flasher.firmware', (path) => {
-    myNodeMcuConnector.flashFirmware(path, (progress) => {
-      socket.emit('flasher.firmware.progress', progress)
-    }).catch(e => socket.emit('flasher.firmware.progress', { phase: "error", percent: 0, message: `${e?.message || e}` }))
+    myNodeMcuConnector.flashFirmware(path).catch(e => console.error("Installing the firmware failed:", e))
   })
+  socket.on('flasher.firmware.job.get', () => socket.emit('flasher.firmware.job', myNodeMcuConnector.getFirmwareJob()))
+  socket.on('flasher.firmware.restarted', () => myNodeMcuConnector.confirmRestart())
 
   socket.on('flasher.wiring.start', (path, profile) => {
     myNodeMcuConnector.startWiringTest(path, profile).then(state => socket.emit('flasher.wiring.state', state))
@@ -401,7 +412,8 @@ io.on('connection', (socket: ServerSideSocket) => {
     myNodeMcuConnector.stopWiringTest().then(state => socket.emit('flasher.wiring.state', state))
       .catch(e => socket.emit('flasher.wiring.state', { active: false, error: `${e?.message || e}` }))
   })
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason?: string) => {
+    console.info(pageClosedLine(page, Date.now() - openedAt, reason, myNodeMcuConnector.getFirmwareJob()))
     // the person closed the page in the middle of a wiring test
     if (myNodeMcuConnector.getWiringTestState().active) {
       myNodeMcuConnector.stopWiringTest().catch(e => console.error(e))

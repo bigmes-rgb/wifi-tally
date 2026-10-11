@@ -11,6 +11,8 @@ import TallySettingsIni from '../flasher/TallySettingsIni';
 import RefreshIcon from '@material-ui/icons/Refresh';
 import { socket } from '../hooks/useSocket';
 import useTallyDevice from '../hooks/useTallyDevice';
+import useFirmwareJob from '../hooks/useFirmwareJob';
+import { InstallRunning } from '../components/setup/DevicePanel';
 import BoardPicker from '../components/setup/BoardPicker';
 import Help from '../components/flasher/Help';
 import ProgramProgress from '../components/flasher/ProgramProgress';
@@ -43,7 +45,9 @@ const FlasherPage = () => {
   const [uploadProgress, setUploadProgress] = useState<TallySettingsIniProgressType>(undefined)
   const [programProgress, setProgramProgress] = useState<TallyProgramProgressType>(undefined)
   const [boardPath, setBoardPath] = useState<string | undefined>(undefined)
-  const tallyDevice = useTallyDevice(increment, undefined, boardPath)
+  const tallyDevice = useTallyDevice(increment, boardPath)
+  // while the hub installs the firmware, its board check waits: say why instead of a bare spinner
+  const firmwareJob = useFirmwareJob()
   const isLoading = tallyDevice === undefined
 
   const classes = useStyles()
@@ -109,7 +113,7 @@ const FlasherPage = () => {
         </Typography>
         <BoardPicker device={tallyDevice} onPick={path => { setBoardPath(path); handleReload() }} className={classes.picker} />
         { tallyDevice === undefined ? (
-          <Spinner />
+          firmwareJob?.running ? <InstallRunning job={firmwareJob} /> : <Spinner />
         ) : (
           <Help tallyDevice={tallyDevice} onReload={handleReload} />
         )}

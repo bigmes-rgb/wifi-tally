@@ -1,5 +1,6 @@
 import TallySettingsIni from "./TallySettingsIni"
 import type { BoardState } from "./BoardListener"
+import type { RestartOutcome } from "./FirmwareFlasher"
 
 export type UpdateType = "not-available" | "up-to-date" | "updateable"
 
@@ -17,6 +18,14 @@ const CHIP_NAMES: Record<string, string> = { "1A86": "CH340", "10C4": "CP2102", 
 export const KNOWN_VENDOR_IDS = Object.keys(CHIP_NAMES)
 
 const vendorOf = (port: SerialPortInfo) => (port.vendorId || "").toUpperCase()
+
+// The firmware install this hub finished shortly before a board check, and was read back correctly. A board that
+// still does not answer after it needs another remedy than the same install.
+export interface RecentInstall {
+  path: string // where it was installed; the board may have come back on another port since
+  restart: RestartOutcome // how its restart after the install was noticed
+  checks: number // board checks since the install that reached a page, this one included
+}
 
 // the ports that could be a NodeMCU, the most likely first. A port without a vendor id is
 // on-board or Bluetooth and never a NodeMCU.
@@ -49,6 +58,7 @@ export interface TallyDeviceObjectType {
   boardState?: BoardState
   // the firmware cannot run the tally software, in words; the firmware has to be installed first
   firmwareProblem?: string
+  recentInstall?: RecentInstall
 }
 
 class TallyDevice{
@@ -67,6 +77,7 @@ class TallyDevice{
   boardOutput?: string
   boardState?: BoardState
   firmwareProblem?: string
+  recentInstall?: RecentInstall
 
   toJson(): TallyDeviceObjectType {
     return {
@@ -85,6 +96,7 @@ class TallyDevice{
       boardOutput: this.boardOutput,
       boardState: this.boardState,
       firmwareProblem: this.firmwareProblem,
+      recentInstall: this.recentInstall,
     }
   }
 
@@ -105,6 +117,7 @@ class TallyDevice{
     device.boardOutput = data.boardOutput
     device.boardState = data.boardState
     device.firmwareProblem = data.firmwareProblem
+    device.recentInstall = data.recentInstall
 
     return device
   }

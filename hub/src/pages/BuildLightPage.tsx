@@ -1,6 +1,6 @@
 import { Button, makeStyles, Step, StepContent, StepLabel, Stepper, Typography } from '@material-ui/core'
 import { Alert } from '@material-ui/lab'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import MiniPage from '../components/layout/MiniPage'
@@ -14,6 +14,7 @@ import BoardPicker from '../components/setup/BoardPicker'
 import { defaultHardwareProfile, HardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
 import useTallyDevice from '../hooks/useTallyDevice'
+import useFirmwareJob from '../hooks/useFirmwareJob'
 import { rememberFromDevice, RememberedLight, shouldReadProfile } from '../components/setup/rememberedLight'
 
 const useStyles = makeStyles(theme => ({
@@ -48,15 +49,22 @@ const BuildLightPage = () => {
   const [profileReadFor, setProfileReadFor] = useState<string | null | undefined>(undefined)
   const [wiringChecked, setWiringChecked] = useState(false)
   const [refresh, setRefresh] = useState(1)
-  // right after a firmware install the hub listens longer: the board formats its storage on first start
-  const [listenMs, setListenMs] = useState<number | undefined>(undefined)
+  // the next check is of another board than the one the hub last installed
+  const [newBoard, setNewBoard] = useState(false)
   // the board picked when several are plugged in
   const [boardPath, setBoardPath] = useState<string | undefined>(undefined)
-  const device = useTallyDevice(refresh, listenMs, boardPath)
+  const device = useTallyDevice(refresh, boardPath, newBoard)
   const [wiringPassed, setWiringPassed] = useState(false)
   const [saved, setSaved] = useState<{ name: string, ssid: string } | null>(null)
   const [saveCount, setSaveCount] = useState(0) // every save restarts the light's Wi-Fi report
   const tallies = useTallies()
+  // A page reloaded during a firmware install, or during the board's first start after it, goes back to
+  // "Plug it in", which shows it. Otherwise it would open on step 1 and show nothing of it.
+  const firmwareJob = useFirmwareJob()
+  const rejoined = useRef(false)
+  useEffect(() => {
+    if (!rejoined.current && (firmwareJob?.running || firmwareJob?.firstStart)) { rejoined.current = true; setActive(1) }
+  }, [firmwareJob])
 
   // a light's settings: read from it, or saved to it at "Name and Wi-Fi"; see rememberedLight.ts
   const [remembered, setRemembered] = useState<RememberedLight | undefined>(undefined)
@@ -71,8 +79,8 @@ const BuildLightPage = () => {
     }
   }, [device, profileReadFor])
 
-  const reload = (options?: { afterFirmware?: boolean }) => {
-    setListenMs(options?.afterFirmware ? 150000 : undefined)
+  const reload = (options?: { newBoard?: boolean }) => {
+    setNewBoard(!!options?.newBoard)
     setRefresh(r => r + 1)
   }
   const connected = saved && (tallies || []).find(t => t.name === saved.name && t.isConnected())
@@ -141,7 +149,7 @@ const BuildLightPage = () => {
             {saved && (reachedHub
               ? <Alert severity="success" className={classes.block} data-testid="build-connected"><strong>{saved.name}</strong> joined the Wi-Fi and reached the hub. Unplug it and mount it on its camera; pick its switcher input below.</Alert>
               : <Alert severity="info" className={classes.block} data-testid="build-waiting">Waiting for <strong>{saved.name}</strong> to show up at the hub. Its own report follows.</Alert>)}
-            {/* only while this step shows: hidden steps stay mounted, and the watch holds the USB port */}
+            {/* only while this step shows: the watch holds the USB port (StepContent unmounts hidden steps anyway) */}
             {active === 4 && saved && !reachedHub && <NetworkCheck key={saveCount} path={device?.path} />}
             <ConnectedLights highlight={saved?.name} />
             {nav(<>

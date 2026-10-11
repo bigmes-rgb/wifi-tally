@@ -1,4 +1,5 @@
 import NodeMcuConnector from './NodeMcuConnector'
+import TallyDevice from './TallyDevice'
 
 const fakeNodemcu = () => ({
   onError: () => {},
@@ -440,4 +441,262 @@ describe("a board that was unplugged", () => {
     expect(state.active).toBe(false)
     expect(Date.now() - started).toBeLessThan(9000)
   }, 15000)
+})
+
+describe("the firmware install belongs to the hub, not to a page", () => {
+  jest.setTimeout(20000)
+  const restartLoop = (from = 0) => "NodeMCU 3.0.0.0 \r\n\tbranch: HEAD\r\nPANIC: unprotected error in call to Lua API (not enough memory)\r\n".repeat(30).slice(from)
+  // a board that does not answer Lua; listDevices answers from the list of port lists, the last one repeating
+  const silentBoard = (portLists: any[][] = [[{ path: "COM6", vendorId: "1a86", productId: "7523" }]]) => {
+    let call = 0
+    return {
+      onError: () => {}, isConnected: () => false, disconnect: async () => {},
+      connect: async () => { throw new Error("No response detected") },
+      listDevices: async () => portLists[Math.min(call++, portLists.length - 1)],
+    }
+  }
+  // a flasher that stops where the real one waits for RST, until told how the restart went
+  const heldFlasher = () => {
+    const calls: any[] = []
+    let finish: (restart: string) => void = () => {}
+    let reached: () => void = () => {}
+    const waiting = new Promise<void>(r => { reached = r }) // resolves once it asks for RST
+    const fn = async (options: any) => {
+      calls.push(options)
+      options.onProgress({ phase: "writing", percent: 50 })
+      options.onProgress({ phase: "restarting", percent: 97, pressReset: true, written: true })
+      const restart = await new Promise<string>(resolve => {
+        const poll = setInterval(() => { if (options.stopWaiting()) { clearInterval(poll); resolve("operator") } }, 10)
+        finish = r => { clearInterval(poll); resolve(r) }
+        reached()
+      })
+      options.onProgress({ phase: "done", percent: 100, written: true, restart })
+      return true
+    }
+    return { fn, calls, waiting, finish: (restart = "timeout") => finish(restart) }
+  }
+  const listening = (text = restartLoop()) => {
+    const asked: any[] = []
+    const listen = async (o: any) => { asked.push(o); return { text, sawPrompt: false, bytes: text.length } }
+    return { asked, listen }
+  }
+  // an install that finished, with the given restart
+  const installed = async (connector: NodeMcuConnector, flasher: ReturnType<typeof heldFlasher>, restart = "restarted") => {
+    const install = connector.flashFirmware("COM6")
+    await flasher.waiting
+    flasher.finish(restart)
+    await install
+  }
+  let dirs: string[]
+  beforeEach(() => { dirs = NodeMcuConnector.localFileDirs; NodeMcuConnector.localFileDirs = [__dirname + "/../../../firmware/prebuilt"] })
+  afterEach(() => { NodeMcuConnector.localFileDirs = dirs })
+
+  test("a page that asks while an install runs gets it at once, with its live state", async () => {
+    const flasher = heldFlasher()
+    const connector = new NodeMcuConnector(silentBoard(), flasher.fn)
+    const seen: any[] = []
+    connector.onFirmwareJob(job => seen.push(job))
+    const install = connector.flashFirmware("COM6") // nobody listens to its progress: the job carries on regardless
+    await flasher.waiting
+    expect(connector.getFirmwareJob()).toMatchObject({ path: "COM6", running: true, progress: { phase: "restarting", pressReset: true, written: true } })
+    flasher.finish()
+    expect(await install).toBe(true)
+    expect(connector.getFirmwareJob()).toMatchObject({ running: false, firstStart: true, progress: { phase: "done", written: true, restart: "timeout" } })
+    expect(seen.map(j => j.progress.phase)).toEqual(["connecting", "writing", "restarting", "done"])
+  })
+
+  test("asking for a second install while one runs joins it instead of queuing another", async () => {
+    const flasher = heldFlasher()
+    const connector = new NodeMcuConnector(silentBoard(), flasher.fn)
+    const first = connector.flashFirmware("COM6")
+    await flasher.waiting
+    const joined: any[] = []
+    expect(await connector.flashFirmware("COM6", p => joined.push(p))).toBe(false)
+    expect(joined[0]).toMatchObject({ phase: "restarting", pressReset: true })
+    flasher.finish()
+    await first
+    expect(flasher.calls.length).toBe(1)
+  })
+
+  test("the operator's Done reaches the flasher's wait", async () => {
+    const flasher = heldFlasher()
+    const connector = new NodeMcuConnector(silentBoard(), flasher.fn)
+    const install = connector.flashFirmware("COM6")
+    await flasher.waiting
+    connector.confirmRestart()
+    await install
+    expect(connector.getFirmwareJob()?.progress.restart).toBe("operator")
+  })
+
+  test("a firmware that was read back is installed, even if the job then runs out of time", async () => {
+    const deadline = NodeMcuConnector.jobDeadlineMs
+    NodeMcuConnector.jobDeadlineMs = 200
+    try {
+      const stuck = async (options: any) => {
+        options.onProgress({ phase: "restarting", percent: 96, written: true })
+        return new Promise<boolean>(() => { /* a restart wait that never ends */ })
+      }
+      const progress: any[] = []
+      expect(await new NodeMcuConnector(silentBoard(), stuck).flashFirmware("COM6", p => progress.push(p))).toBe(true)
+      expect(progress[progress.length - 1]).toMatchObject({ phase: "done", written: true, restart: "timeout" })
+      // before the read-back it is a failure, and says so
+      const failing = async (options: any) => { options.onProgress({ phase: "writing", percent: 40 }); return new Promise<boolean>(() => {}) }
+      const before: any[] = []
+      expect(await new NodeMcuConnector(silentBoard(), failing).flashFirmware("COM6", p => before.push(p))).toBe(false)
+      expect(before[before.length - 1]).toMatchObject({ phase: "error" })
+      expect(before[before.length - 1].written).toBeUndefined()
+    } finally {
+      NodeMcuConnector.jobDeadlineMs = deadline
+    }
+  })
+
+  test("the first check after an install listens for the first start, whatever the page asked", async () => {
+    const flasher = heldFlasher()
+    const { asked, listen } = listening()
+    const connector = new NodeMcuConnector(silentBoard(), flasher.fn, { listen, poke: async () => {}, purge: async () => {} })
+    const install = connector.flashFirmware("COM6")
+    await flasher.waiting
+    // a page reloaded during the install asks with the default 6 s: it does not know an install ran
+    const read = connector.getDevice(6000)
+    flasher.finish("restarted")
+    await install
+    const device = await read
+    expect(asked[0].ms).toBe(NodeMcuConnector.firstStartListenMs)
+    expect(device.boardState).toBe("restarting")
+    expect(device.recentInstall).toEqual({ path: "COM6", restart: "restarted", checks: 1 })
+    expect(TallyDevice.fromJson(device.toJson()).recentInstall).toEqual(device.recentInstall)
+    expect(connector.getFirmwareJob()?.firstStart).toBe(false)
+    const again = await connector.getDevice(6000)
+    expect(asked[1].ms).toBe(6000)
+    expect(again.recentInstall?.checks).toBe(2)
+  })
+
+  test("a check for a page that closed meanwhile does not count: the next one is still the first start", async () => {
+    const flasher = heldFlasher()
+    const { asked, listen } = listening()
+    const connector = new NodeMcuConnector(silentBoard(), flasher.fn, { listen, poke: async () => {}, purge: async () => {} })
+    await installed(connector, flasher)
+    let pageOpen = true
+    const listenAndClose = async (o: any) => { pageOpen = false; return listen(o) }
+    ;(connector as any).listen = listenAndClose
+    await connector.getDevice(6000, undefined, () => pageOpen)
+    ;(connector as any).listen = listen
+    const device = await connector.getDevice(6000)
+    expect(asked.map(o => o.ms)).toEqual([150000, 150000])
+    expect(device.recentInstall?.checks).toBe(1)
+  })
+
+  test("a check queued for a page that has closed does not take the port", async () => {
+    const flasher = heldFlasher()
+    let listed = 0
+    const connector = new NodeMcuConnector({ ...silentBoard(), listDevices: async () => { listed++; return [] } }, flasher.fn)
+    const install = connector.flashFirmware("COM6")
+    await flasher.waiting
+    let pageOpen = true
+    const read = connector.getDevice(6000, undefined, () => pageOpen)
+    pageOpen = false // reloaded
+    flasher.finish()
+    await install
+    await read
+    expect(listed).toBe(0)
+  })
+
+  test("the first check follows the board when it comes back on another port (COM6 became COM5)", async () => {
+    const flasher = heldFlasher()
+    const COM6 = [{ path: "COM6", vendorId: "1a86", productId: "7523" }], COM5 = [{ path: "COM5", vendorId: "1a86", productId: "7523" }]
+    const asked: string[] = []
+    const listen = async (o: any) => {
+      asked.push(o.path)
+      if (o.path === "COM6") return { text: "", sawPrompt: false, bytes: 0, closed: true } // unplugged
+      const text = restartLoop()
+      return { text, sawPrompt: false, bytes: text.length }
+    }
+    const connector = new NodeMcuConnector(silentBoard([COM6, COM6, [], COM5]), flasher.fn, { listen, poke: async () => {}, purge: async () => {} })
+    await installed(connector, flasher, "portClosed")
+    const info = jest.spyOn(console, "info").mockImplementation(() => {})
+    try {
+      const device = await connector.getDevice()
+      // Windows still lists COM6 for a moment after it closed: tried once more, then it is gone, then back as COM5
+      expect(asked).toEqual(["COM6", "COM6", "COM5"])
+      expect(device.path).toBe("COM5")
+      expect(device.boardState).toBe("restarting")
+      expect(info.mock.calls.map(c => String(c[0]))).toContain("[board] the board moved from COM6 to COM5")
+    } finally {
+      info.mockRestore()
+    }
+  })
+
+  test("the first check waits a little for a board that is being plugged back in", async () => {
+    const flasher = heldFlasher()
+    const { asked, listen } = listening()
+    const connector = new NodeMcuConnector(silentBoard([[], [], [{ path: "COM5", vendorId: "1a86" }]]), flasher.fn, { listen, poke: async () => {}, purge: async () => {} })
+    await installed(connector, flasher, "portClosed")
+    const device = await connector.getDevice()
+    expect(device.path).toBe("COM5")
+    expect(asked[0].path).toBe("COM5")
+  })
+
+  test("once the board answers, the install needs no follow-up; another board starts afresh", async () => {
+    const flasher = heldFlasher()
+    const { nodemcu, poke } = stickyBoard(true)
+    const connector = new NodeMcuConnector(nodemcu, flasher.fn, { poke, purge: async () => {} })
+    await installed(connector, flasher)
+    expect((await connector.getDevice()).recentInstall).toMatchObject({ checks: 1 })
+    expect((await connector.getDevice()).recentInstall).toBeUndefined()
+
+    const other = new NodeMcuConnector(silentBoard(), heldFlasher().fn, { listen: listening().listen, poke, purge: async () => {} })
+    const otherFlasher = heldFlasher()
+    ;(other as any).flashFirmwareFn = otherFlasher.fn
+    await installed(other, otherFlasher)
+    other.forgetInstall()
+    const next = await other.getDevice(6000)
+    expect(next.recentInstall).toBeUndefined()
+    expect(other.getFirmwareJob()?.firstStart).toBe(false)
+  })
+
+  test("the hub log has one line per check: the port, what the board did and the advice shown, then what it printed, once", async () => {
+    const info = jest.spyOn(console, "info").mockImplementation(() => {})
+    try {
+      let from = 0
+      const listen = async () => { const text = restartLoop(from += 17) + "station.password=hunter2\r\n"; return { text, sawPrompt: false, bytes: text.length } }
+      const connector = new NodeMcuConnector(silentBoard(), undefined, { listen, poke: async () => {}, purge: async () => {} })
+      await connector.getDevice(100)
+      await connector.getDevice(100)
+      const lines = info.mock.calls.map(c => String(c[0]))
+      const checks = lines.filter(l => l.startsWith("[board COM6] check"))
+      expect(checks).toHaveLength(2)
+      expect(checks[0]).toMatch(/no answer; listened \d+\.\d s, \d+ bytes → restarting; advice shown \(install\): The NodeMCU firmware is on this board and starts/)
+      const blocks = lines.filter(l => l.startsWith("[board COM6] printed (the last"))
+      expect(blocks).toHaveLength(1) // the same restart loop, cut at another place, is not written twice
+      expect(blocks[0]).toContain("  | PANIC: unprotected error")
+      expect(lines.join("\n")).not.toContain("hunter2")
+      expect(lines).toContainEqual(expect.stringMatching(/^\[board COM6\] printed the same lines as at \d\d:\d\d:\d\d$/))
+    } finally {
+      info.mockRestore()
+    }
+  })
+
+  test("a check of a board that answers is one line", async () => {
+    const info = jest.spyOn(console, "info").mockImplementation(() => {})
+    try {
+      const { nodemcu, poke } = stickyBoard(true)
+      await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).getDevice()
+      const lines = info.mock.calls.map(c => String(c[0])).filter(l => l.startsWith("[board"))
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toMatch(/^\[board COM5\] check \(\d+\.\d s\): answers, NodeMCU 3\.0\.0, tally software/)
+    } finally {
+      info.mockRestore()
+    }
+  })
+})
+
+test("after nodemcu-tool opens the port, the hub switches DTR and RTS off, before talking to the board", async () => {
+  const { nodemcu, poke } = stickyBoard(true)
+  const order: string[] = []
+  const connect = nodemcu.connect
+  nodemcu.connect = async () => { order.push("connect"); await connect() }
+  const checkConnection = nodemcu.checkConnection
+  nodemcu.checkConnection = async () => { order.push("check"); await checkConnection() }
+  await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {}, release: async () => { order.push("release") } }).getDevice()
+  expect(order.slice(0, 3)).toEqual(["connect", "release", "check"])
 })

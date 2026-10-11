@@ -3,13 +3,53 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] A firmware install that had written the firmware and checked it was still reported as
+  failed when the hub did not see the board restart ("The board did not restart"), and the page then
+  offered the same install again. Once the firmware is written and checked, the install is done. The
+  hub now notices the restart when the board prints something, when the board is unplugged and
+  plugged back in (or Windows drops its port), or when you press Done on the "Press RST" card. It
+  waits half a minute at most; it used to wait over two minutes while holding the USB port, so every
+  other page hung on a spinner. The card now says: press RST once (not FLASH), or unplug the board
+  and plug it back in.
+* [BUGFIX] Reloading the page during a firmware install, or opening Build a light in a second
+  window, showed only a spinner for minutes, and the request to press RST was lost. The install now
+  belongs to the hub, not to the page: every page shows it as it goes, a reloaded page goes back to
+  "Plug it in" and shows it, the dialog can be hidden but is never locked, and pressing Install again
+  while one runs joins it instead of queuing a second install. The Flasher page says when the hub
+  is busy installing, too.
+* [BUGFIX] The first check after an install now listens long enough for the board's first start (up
+  to two and a half minutes while it sets up its storage), even if the page was reloaded meanwhile.
+  It also finds the board when it comes back on another COM port after being unplugged (COM6 became
+  COM5).
+* [BUGFIX] "The board keeps crashing and restarting: the firmware did not install cleanly. Install it
+  again" sent you round in a circle. A board that prints NodeMCU's start-up message twice has working
+  firmware, and something keeps restarting it: the light program on it, its settings, its power, or
+  someone pressing RST. That now has its own message, and its remedy is the install, which erases the
+  program. Right after an install that was checked, the same problem leads to a different next step
+  instead of the same install: unplug the board and plug it back in, then its power, its USB cable and
+  socket and the LED wiring, then another board. Plugged in another board? "Check the other board"
+  tells the hub, so the new board is offered the install.
+* [BUGFIX] On Windows, pressing RST while the hub was listening to a board (checking it, "Read the
+  start-up message", watching it join the Wi-Fi) could start the board in flashing mode instead of
+  running NodeMCU: the hub held the board's FLASH line low through its USB chip. Ports the hub opens
+  only to listen now leave both lines alone.
+* [FEATURE] The hub log now tells what happened to a board: one line for each check (the port, what
+  the board did, the advice the page showed, then what the board printed, with Wi-Fi passwords
+  hidden and the same output not repeated), one line for each step of a firmware install, how its
+  restart was noticed and what the board printed first, ports that closed and why, and pages opened
+  and closed. The "Connecting event" lines that filled a third of the log are gone. In the Windows
+  app the log is `%APPDATA%\vtally-electron\logs\main.log`.
 * [BUGFIX] "Install firmware" never restarted the board by itself, so every install stopped at
   "Press the RST button". esptool-js 0.7.0's restart only releases the reset line and never pulls
   it; the hub now does what esptool.py does.
 * [BUGFIX] A board that "keeps crashing and restarting" was told to install the firmware again,
-  which wrote only the firmware and left the rest of the board as it was, so it crashed again: an
-  endless loop. The install now erases the whole board first (up to a minute), as NodeMCU's own
-  instructions do. The light's files and settings go with it; Build a light puts them back.
+  which wrote only the firmware and left the rest of the board as it was: the light program and its
+  settings, stored in the board's file system. When those made the board restart, they survived every
+  install, so it crashed again: an endless loop. The install now erases the whole board first (up to
+  a minute), as NodeMCU's own instructions do, which clears them. Build a light puts the program and
+  settings back. (Correction: 0.9.15's notes also blamed old system and Wi-Fi radio settings near the
+  end of the chip. On this firmware those are part of the firmware image itself, so every install
+  already renewed them.)
 * [BUGFIX] After 0.9.12's "Install now", saving to a light stopped at "Rebooting Tally to apply
   settings", and the light never stayed on the hub. The light program had grown too big for the
   board's small memory (from 19.8 to 22.8 kB). It is now 19.4 kB, smaller than in 0.9.11: the code

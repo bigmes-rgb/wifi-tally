@@ -62,11 +62,12 @@ export const fakeFlashFirmware = (fake: FakeNodemcu): FlashFirmwareFn => async (
     step("writing", percent)
     await sleep(200)
   }
-  step("restarting", 96)
-  await sleep(300)
+  // like the real install: once written and read back, nothing after it is a failure
   fake.flashed = true
+  onProgress({ phase: "restarting", percent: 96, message: "Restarting the board", written: true })
+  await sleep(300)
   fake.firstStartUntil = Date.now() + 6000
-  step("done", 100, "Firmware installed")
+  onProgress({ phase: "done", percent: 100, message: "Firmware installed and checked", written: true, restart: "restarted" })
   return true
 }
 

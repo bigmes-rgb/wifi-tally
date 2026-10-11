@@ -12,9 +12,8 @@ import { TestConfigurationSaveType } from "../mixer/test/TestConfiguration";
 import { StateCommand } from "../tally/CommandCreator";
 import { TallyConfigurationObjectType } from "../tally/TallyConfiguration";
 import { TallyDeviceObjectType } from "../flasher/TallyDevice";
-import { TallyProgramProgressType, TallySettingsIniProgressType, WiringTestState } from "../flasher/NodeMcuConnector";
+import { FirmwareJob, TallyProgramProgressType, TallySettingsIniProgressType, WiringTestState } from "../flasher/NodeMcuConnector";
 import { HardwareProfile, Rgb } from "../flasher/HardwareProfile";
-import { FirmwareProgressType } from "../flasher/FirmwareFlasher";
 import { HubInfoType } from "./HubInfo";
 
 export type SetupStateType = { completed: boolean, needed: boolean }
@@ -54,7 +53,8 @@ export interface ServerSentEvents {
     'flasher.settingsIni.progress': (state: TallySettingsIniProgressType) => void
     'flasher.program.progress': (state: TallyProgramProgressType) => void
     'flasher.wiring.state': (state: WiringTestState) => void
-    'flasher.firmware.progress': (progress: FirmwareProgressType) => void
+    // the firmware install the hub runs or ran last, to every page, at every step (null: none since it started)
+    'flasher.firmware.job': (job: FirmwareJob | null) => void
 }
 
 // events the client sends to the server
@@ -92,8 +92,9 @@ export interface ClientSentEvents {
     'config.change.setup': (completed: boolean) => void
     'hub.info.get': () => void
 
-    // listenMs: how long to listen to a board that does not answer (longer right after installing firmware)
-    'flasher.device.get': (options?: { listenMs?: number, path?: string }) => void
+    // listenMs: how long to listen to a board that does not answer (the hub listens longer right after an install)
+    // newBoard: another board was plugged in, so the install on the last one says nothing about this one
+    'flasher.device.get': (options?: { listenMs?: number, path?: string, newBoard?: boolean }) => void
     'tallies.wifi.send': (ssid: string, password: string) => void
     'flasher.watch.start': (path: string) => void
     'flasher.watch.stop': () => void
@@ -101,6 +102,9 @@ export interface ClientSentEvents {
     'flasher.settingsIni': (path: string, settingsIniString: string) => void
     'flasher.program': (path: string) => void
     'flasher.firmware': (path: string) => void
+    'flasher.firmware.job.get': () => void
+    // the operator pressed Done: the board was restarted by hand (RST, or unplugged and plugged back in)
+    'flasher.firmware.restarted': () => void
     'flasher.wiring.start': (path: string, profile: HardwareProfile) => void
     'flasher.wiring.show': (profile: HardwareProfile, operator: Rgb, stage: Rgb) => void
     'flasher.wiring.stop': () => void
@@ -118,7 +122,7 @@ export interface ServerSideSocket {
         event: EventName,
         listener: ClientSentEvents[EventName]
     ): this
-    on(event: "disconnect", listener: () => void) // @TODO: shouldn't this be defined in the parent?
+    on(event: "disconnect", listener: (reason?: string) => void) // @TODO: shouldn't this be defined in the parent?
 
     off<EventName extends keyof ClientSentEvents>(
         event: EventName,

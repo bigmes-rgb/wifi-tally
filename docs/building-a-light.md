@@ -31,16 +31,35 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
    - *Runs something other than the NodeMCU firmware* is a board from the box. Press
      **Install firmware**. If that cannot reach the board, hold FLASH, tap RST, release FLASH
      and press it again. The install erases the whole board first (up to a minute), so nothing
-     of what was on it before is left, then restarts it by itself.
+     of what was on it before is left, writes the firmware, reads it back to check it, then
+     restarts the board by itself.
+   - *Press its RST button once, or unplug the board and plug it back in*: the firmware is on
+     the board and checked, but the board did not restart by itself. Do either (not FLASH), then
+     press **Done**. If you do nothing, the install still finishes after half a minute: it is
+     never reported as failed once the firmware was checked.
+   - The install runs in the hub, not in the page. You can hide its window, or reload the page:
+     the page goes back to *Plug it in* and shows the install where it is.
    - *Firmware installed, starting for the first time.* The board is formatting its storage,
-     which takes up to two minutes. Leave it alone; the page carries on by itself.
+     which takes up to two minutes. Leave it alone; the page carries on by itself. If the hub has
+     not seen the board restart, the box says so: press RST once, or unplug the board and plug it
+     back in. If Windows gives it another COM port when it comes back, the hub finds it there.
    - *Found a light … not set up yet* or *named …*: press **Install now** for the tally software.
    - *This light runs NodeMCU …* or *lacks the module …*: its firmware cannot run the tally
      software. Install the firmware first. Its name and Wi-Fi come back at step 4.
-   - *Keeps crashing*: press **Install firmware**. Since 0.9.15 the install erases the board
-     completely, which clears what usually makes a freshly installed board crash.
-   - *Not saying anything*, *setting up its storage*: follow the advice shown. **What the board
-     printed** shows the board's own words.
+   - *Starts, but something restarts it over and over*: the NodeMCU firmware works, and the light
+     program on the board, its settings, its power or someone pressing RST restarts it. Press
+     **Install firmware**: the install erases the board, which clears the program and settings.
+   - *Keeps crashing*: what crashes is not NodeMCU. Press **Install firmware**.
+   - *Not saying anything*: unplug the board and plug it back in, or press RST once, and press
+     **Check again**. If it stays silent, install the firmware.
+   - *Setting up its storage*: wait a minute and press **Check again**.
+
+   Right after an install that was checked, the page never offers the same install again for the
+   same problem: installing again could not change anything. It asks you to unplug the board and
+   plug it back in, then to check its power, its USB cable and socket and the LED wiring, and last
+   to use another board. When you plug in another board, press **Check the other board**, so the
+   hub treats it as a new one. **What the board printed** shows the board's own words, and **Read
+   the start-up message** shows what the chip itself says when you press RST.
 3. **Wiring test.** The hub lights each colour through the USB cable and asks what you see. It
    tells you which wire to move, or fixes the common-pin and pixel settings itself.
 4. **Name and Wi-Fi.** A name (the camera's works well), the Wi-Fi name and password. No hub
@@ -54,6 +73,13 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
    - *The hub does not answer* usually means Windows Firewall is blocking vTally Hub.
 
    When it says it found the hub, unplug it and mount it.
+
+## When you ask for help
+
+The hub writes down what happened to each board: every check (the COM port, what the board
+printed, the advice the page showed), every step of a firmware install and how the board's
+restart was noticed, and pages opened and closed. In the Windows app the file is
+`%APPDATA%\vtally-electron\logs\main.log`. Send that file along with a description of what you did.
 
 ## Existing lights
 

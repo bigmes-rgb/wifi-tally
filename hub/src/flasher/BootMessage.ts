@@ -39,8 +39,10 @@ export function bootVerdict(m: BootMessage): BootVerdict {
 // What it means for someone holding the board.
 export const BOOT_ADVICE: Record<BootVerdict, string> = {
   noMessage: "No start-up message arrived. Press RST once while the hub listens; if nothing comes even then, the board is not powered or the cable carries no data.",
-  normal: "The chip starts normally and hands over to the firmware. If nothing answers after that, the firmware itself does not start: install it again.",
-  restarting: "The chip starts the firmware and then restarts, again and again. The firmware is damaged or does not suit this board: install it again.",
+  // These two say what the start-up message shows and leave the next step to the advice above it: after an
+  // install that was read back correctly, "install it again" sent the operator round in a circle.
+  normal: "The chip starts normally and hands over to the firmware, so its start-up pins and its power are fine at that moment. Follow the advice above.",
+  restarting: "The chip starts the firmware and then restarts, over and over. Something restarts it: the light program on the board or its settings, or its power dropping (the USB cable or socket, or the LEDs). Follow the advice above.",
   flashingMode: "D3 (GPIO0) was low when the board started, so it started in flashing mode instead of running the firmware. Either FLASH was held, or something wired to D3 pulls it down (a common-cathode LED leg on D3 does). Release FLASH, and if something is on D3, unplug it and press RST again.",
   d4Low: "D4 (GPIO2) was low when the board started, so the chip did not start the firmware. A NeoPixel strip on D4 pulls it low when the strip itself has no power. Check the strip's + wire: on LoLin-style boards use the VU pin, VIN may carry no 5 V from USB. Unplug the D4 wire, press RST, and the board should start.",
   d8High: "D8 (GPIO15) was high when the board started, so the chip did not start the firmware. Something wired to D8 pulls it up: unplug it and press RST.",

@@ -1,14 +1,27 @@
 import { promises as fs } from 'fs'
 import { createHash } from 'crypto'
 import NodeSerialTransport, { UNPLUGGED } from './NodeSerialTransport'
+import { printable } from './BoardListener'
+import { outputBlock, secs } from './HubLog'
 
 export type FirmwarePhase = "connecting" | "erasing" | "writing" | "restarting" | "done" | "error"
+// How the board's restart after the install was noticed. None of them is a failure: by then the firmware has
+// been read back from the board and matched.
+export type RestartOutcome =
+  | "restarted" // it printed something: it restarted by itself, or someone pressed RST
+  | "portClosed" // its port closed: unplugged and plugged back in, or dropped by Windows. Either way it lost power or moved, and started again
+  | "operator" // the operator pressed Done
+  | "timeout" // not seen in time; the first board check listens for the first start
 export type FirmwareProgressType = {
   phase: FirmwarePhase
   percent: number // 0..100 over the whole job
   message?: string
-  // the board did not restart by itself after the install: someone has to press its RST button
+  // the board did not restart by itself after the install: someone has to press RST or plug it in again
   pressReset?: boolean
+  // the firmware is on the board and was read back correctly. From here on the install cannot fail.
+  written?: boolean
+  // with phase "done": how the restart after the install was noticed
+  restart?: RestartOutcome
 }
 
 // esptool-js 0.7.0's HardReset only releases RTS (sleep, setRTS(false)) and never asserts it. After the
@@ -29,13 +42,31 @@ export const hardResetBoard = (transport: any, sleep: (ms: number) => Promise<vo
 // work (the ones that need FLASH and RST to install) stay in the flasher, silent. A board that did
 // restart always sends something: the ROM's boot line, then NodeMCU. So: wait for any byte.
 export const RESTART_GRACE_MS = 3000
-export const RESET_BUTTON_WAIT_MS = 120000
-const waitForBytes = async (transport: any, ms: number, sleep: (ms: number) => Promise<void>): Promise<boolean> => {
-  for (let waited = 0; waited < ms; waited += 100) {
-    if (transport.inWaiting() > 0) return true
+// Then someone has to press RST or plug the board in again. The hub holds the USB port while it waits, so it
+// waits only this long: every other page's board check waits behind it. The first board check after the install
+// keeps listening for the first start (150 s) and follows the board to another port, so a slower person is fine.
+export const RESET_BUTTON_WAIT_MS = 30000
+
+// Waits for a sign that the board restarted, by the clock: on Windows each 100 ms sleep runs long, and 1230 of
+// them took 134 s instead of 123 s. A port that closes means the board was unplugged or dropped by Windows,
+// which starts it again too; the wait used to sit out its time on a port that was gone.
+const waitForRestart = async (transport: any, ms: number, sleep: (ms: number) => Promise<void>, stopWaiting: () => boolean, now: () => number): Promise<RestartOutcome> => {
+  const deadline = now() + ms
+  while (true) {
+    if (transport.inWaiting() > 0) return "restarted"
+    if (typeof transport.isOpen === "function" && !transport.isOpen()) return "portClosed"
+    if (stopWaiting()) return "operator"
+    if (now() >= deadline) return "timeout"
     await sleep(100)
   }
-  return transport.inWaiting() > 0
+}
+
+// the restart's line in the hub log
+const restartLine: Record<RestartOutcome, (after: string) => string> = {
+  restarted: after => `the board printed ${after} after the reset`,
+  portClosed: after => `its port closed ${after} after the reset (unplugged, or dropped by Windows); that counts as a restart`,
+  operator: after => `the operator pressed Done ${after} after the reset`,
+  timeout: after => `not seen in the ${after} after the reset; the first board check listens for the first start`,
 }
 
 // how the NodeMCU image is written: what nodemcu-pyflasher and the NodeMCU docs use for ESP-12 boards
@@ -49,6 +80,9 @@ export type FlashFirmwareOptions = {
   loadEsptool?: () => Promise<any>
   makeTransport?: (path: string) => any
   sleep?: (ms: number) => Promise<void> // injectable for tests
+  now?: () => number // the clock the waits are measured by; injectable for tests
+  // true once the operator says the board restarted (pressed RST, or plugged it in again)
+  stopWaiting?: () => boolean
 }
 
 // esptool-js ships as an ES module. Node's ES-module loader cannot read from inside Electron's
@@ -105,8 +139,19 @@ export type FlashFirmwareFn = (options: FlashFirmwareOptions) => Promise<boolean
 
 // Puts the NodeMCU firmware on a bare ESP8266 board. Resolves true on success; every
 // outcome is also reported through onProgress.
-export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onProgress, loadEsptool = importEsptool, makeTransport = p => new NodeSerialTransport(p), sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms)) }) => {
-  const report = (phase: FirmwarePhase, percent: number, message?: string, pressReset?: boolean) => onProgress({ phase, percent, message, ...(pressReset ? { pressReset } : {}) })
+export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onProgress, loadEsptool = importEsptool, makeTransport = p => new NodeSerialTransport(p), sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms)), now = Date.now, stopWaiting = () => false }) => {
+  const started = now()
+  let written = false
+  let step = ""
+  const report = (phase: FirmwarePhase, percent: number, message?: string, extra: Partial<FirmwareProgressType> = {}) => {
+    // the log gets a line when the step changes, not one per percent
+    const next = `${phase}${extra.pressReset ? " (asking for RST)" : ""}`
+    if (next !== step) {
+      step = next
+      console.info(`[firmware ${path}] ${next} after ${secs(now() - started)}${message ? `: ${message}` : ""}`)
+    }
+    onProgress({ phase, percent, message, ...(written ? { written } : {}), ...extra })
+  }
   const transport = makeTransport(path)
   try {
     report("connecting", 0, "Reading the firmware file")
@@ -143,11 +188,12 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       console.info(`[esptool ${path}] flash size ${flashSize === "keep" ? "not readable, keeping the image's own setting" : flashSize}`)
     }
 
-    // Wipe the whole chip first. Writing only the image left the rest of the flash as it was: another
-    // firmware's system and RF settings near the end, old files. With those the new NodeMCU can crash
-    // and restart over and over, and installing it again changed nothing (the operator went round that
-    // loop). NodeMCU's own instructions erase first. The light's files and settings go too; Build a
-    // light puts them back.
+    // Wipe the whole chip first. Writing only the image left the rest of the flash as it was, and on
+    // this firmware that is the file system: the light program and its settings. A program that made
+    // the board restart survived every install, so installing again changed nothing (the operator went
+    // round that loop). The system and RF settings sit inside the image on this firmware, so every
+    // write renewed those anyway. NodeMCU's own instructions erase first. Build a light puts the
+    // light's program and settings back.
     report("erasing", 4, "Erasing everything on the board first. This takes up to a minute.")
     await loader.eraseFlash()
 
@@ -166,19 +212,36 @@ export const flashNodeMcuFirmware: FlashFirmwareFn = async ({ path, binPath, onP
       },
     })
 
+    // writeFlash returns only after the MD5 read back from the chip matched the file: the firmware is on the
+    // board. Whatever happens from here, the install did not fail.
+    written = true
     report("restarting", 96, "Restarting the board")
     const canListen = typeof transport.inWaiting === "function" && typeof transport.flushInput === "function"
     if (canListen) transport.flushInput()
-    await loader.after("hard_reset")
-    if (canListen && !(await waitForBytes(transport, RESTART_GRACE_MS, sleep))) {
-      report("restarting", 97, "The board did not restart by itself. Press the RST button on the board once (do not hold FLASH).", true)
-      if (!(await waitForBytes(transport, RESET_BUTTON_WAIT_MS, sleep))) {
-        throw new Error("The board did not restart. Press its RST button once, wait a minute, then check again.")
+    const resetAt = now()
+    let restart: RestartOutcome = "timeout"
+    try {
+      await loader.after("hard_reset")
+      if (canListen) restart = await waitForRestart(transport, RESTART_GRACE_MS, sleep, stopWaiting, now)
+      if (restart === "timeout" && canListen) {
+        report("restarting", 97, "The board did not restart by itself. Press its RST button once (do not hold FLASH), or unplug it and plug it back in.", { pressReset: true })
+        restart = await waitForRestart(transport, RESET_BUTTON_WAIT_MS, sleep, stopWaiting, now)
       }
-      report("restarting", 98, "Restarting the board")
+    } catch (e) {
+      // The restart itself failed. Usually the port went away: unplugged, which starts the board again as well.
+      console.warn(`[firmware ${path}] restarting the board failed: ${e?.message || e}`)
+      restart = transport.isOpen?.() === false ? "portClosed" : "timeout"
     }
-    await transport.disconnect()
-    report("done", 100, "Firmware installed")
+    console.info(`[firmware ${path}] restart: ${restartLine[restart](secs(now() - resetAt))}`)
+    if (restart === "restarted" && typeof transport.peek === "function") {
+      // What it prints first says how it started: NodeMCU's "Formatting file system", or only the chip's own
+      // start-up message, which reads as garbage at this speed.
+      const until = now() + 2000
+      while (transport.inWaiting() < 300 && now() < until && transport.isOpen?.() !== false) await sleep(100)
+      console.info(`[firmware ${path}] printed after the restart:\n${outputBlock(printable(Buffer.from(transport.peek())).slice(0, 300), 300)}`)
+    }
+    await transport.disconnect().catch(() => {})
+    report("done", 100, "Firmware installed and checked", { restart })
     return true
   } catch (e) {
     console.error(`Flashing the firmware on ${path} failed:`, e)
