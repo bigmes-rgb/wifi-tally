@@ -1,3 +1,6 @@
+-- Since 0.9.17 the program runs from the board's flash (see src/init.lua) and takes almost no RAM. The .lc
+-- files are the fallback when the flash holds no usable image, and this test keeps that fallback small.
+--
 -- The light has about 40 KB of RAM for Lua, and the program it loads at start-up takes a good part of
 -- it. Upstream ran into that limit once (v0.4.0 moved work to the hub because of it). 0.9.12 grew the
 -- program from 19792 to 22810 bytes of bytecode, and the light stopped answering after a restart and

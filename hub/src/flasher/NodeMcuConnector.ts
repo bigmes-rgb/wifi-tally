@@ -10,6 +10,8 @@ import { BoardOutputLog, secs } from './HubLog'
 import tmp from 'tmp-promise'
 import { promises as fs } from 'fs'
 
+// written by the light's init.lua when it tried to load the program into its flash (see tally/src/init.lua)
+const LFS_TRIED = "lfs.tried"
 const baudRate = 115200
 const fileName = "tally-settings.ini"
 
@@ -285,7 +287,8 @@ class NodeMcuConnector {
       return []
     }
 
-    const filteredFiles = files.filter(file => file.endsWith(".lc") || file.endsWith(".lua"))
+    // the .lc files, init.lua, and the program for the board's flash with its stamp (see tally/src/init.lua)
+    const filteredFiles = files.filter(file => file.endsWith(".lc") || file.endsWith(".lua") || file === "lfs.img" || file === "lfs.stamp")
     return Promise.all(filteredFiles.map(async file => {
       const stats = await fs.stat(dirName + "/" + file)
       return {
@@ -310,8 +313,13 @@ class NodeMcuConnector {
   }
 
   private static async doFilesNeedUpdate(filesOnNodemcu: {name: string, size: number}[]) : Promise<boolean> {
+    // lfs.tried: the light could not load the program into its flash and runs it from RAM; another install is
+    // another try (program() removes the marker)
+    if (filesOnNodemcu.some(file => file.name === LFS_TRIED)) return true
     const localFiles = await NodeMcuConnector.getLocalFiles()
-    return localFiles.some(localFile => {  
+    return localFiles.some(localFile => {
+      // lfs.img carries its build time, so its size can differ between builds of the same sources
+      if (localFile.fileName === "lfs.img") return false
       return filesOnNodemcu.every(nodeMcuFile => nodeMcuFile.name !== localFile.fileName || nodeMcuFile.size !== localFile.fileSize)
     })
   }
@@ -692,8 +700,12 @@ class NodeMcuConnector {
           progress.filesUploaded = progress.filesUploaded + 1
           onProgress(progress)
         }
+        // every install is a fresh try at loading the program into the flash
+        await this.removeFileIfExists(LFS_TRIED)
 
-        await this.restartBoard(path)
+        // the board restarts twice: once now, once more after loading the program into its flash, which ends
+        // in a watchdog reset that takes a few seconds on its own
+        await this.restartBoard(path, 45000)
 
         progress.rebootDone = true
         onProgress(progress)
@@ -964,12 +976,12 @@ class NodeMcuConnector {
   // node.restart() works on every board; the RTS reset line does not reset some boards (the same
   // boards that need FLASH and RST pressed to install the firmware). The command is written
   // without waiting for a reply: the board may restart before it sends one.
-  private async restartBoard(path: string) {
+  private async restartBoard(path: string, patienceMs = 20000) {
     await this.within(1000, "restarting", () => this.poke("node.restart()\r\n"))
     await this.sleep(300)
     await this.closeBoardPort()
     await this.sleep(1500)
-    await this.connect(path, 20000)
+    await this.connect(path, patienceMs)
   }
 
 
@@ -1006,11 +1018,12 @@ class NodeMcuConnector {
     try {
       await this.within(60000, `receiving ${remoteFilePath}`, () => this.nodemcu.upload(localFilePath, copyFileName, {}, () => {}))
       await this.sleep(1000)
-      const gotContent = await this.within(30000, `sending back ${remoteFilePath}`, () => this.nodemcu.download(copyFileName))
-      const localContent = await fs.readFile(localFilePath).then(buffer => buffer.toString())
+      const gotContent = Buffer.from(await this.within(30000, `sending back ${remoteFilePath}`, () => this.nodemcu.download(copyFileName)))
+      const localContent = await fs.readFile(localFilePath)
 
-      if (gotContent.toString() !== localContent) {
-        throw new Error(`Uploaded file does not match downloaded file. Expected file size of ${localContent.length}, but got ${gotContent.length}`)
+      // byte for byte: as text, every unreadable byte of a binary file would read as the same replacement character
+      if (!gotContent.equals(localContent)) {
+        throw new Error(`Uploaded file does not match downloaded file. Expected ${localContent.length} bytes, but got ${gotContent.length}`)
       }
 
       // rename file
