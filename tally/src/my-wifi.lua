@@ -35,12 +35,6 @@ _G.MyWifi = {
         -- wifi.sta.status() returns wifi.STA_GOTIP even when the tally was thrown out of wifi -> so it's no good choice
         return isConnected
     end,
-    getIp = function()
-        return wifi.sta.getip()
-    end,
-    getMac = function()
-        return wifi.sta.getmac()
-    end,
     getBroadcast = function()
         return wifi.sta.getbroadcast()
     end,

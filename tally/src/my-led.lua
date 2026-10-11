@@ -26,6 +26,18 @@ pwm2.setup_pin_hz(pinMainG, 1000, 100, 100)
 pwm2.setup_pin_hz(pinMainB, 1000, 100, 100)
 pwm2.start()
 
+-- one color for `count` LEDs of the strip, in the strip's color order; the API takes one char per
+-- color and LED
+local stripData = function(count, order, r, g, b)
+    local pixel = ""
+    if order == Ws2812Types.GRB then
+        pixel = string.char(g, r, b)
+    elseif order == Ws2812Types.RGB then
+        pixel = string.char(r, g, b)
+    end
+    return pixel:rep(count)
+end
+
 --- sets up the color as the current color the Tally should display
 --- @param operatorR number [0-255] the brightness of the RED LED for the operator  light
 --- @param operatorG number [0-255] the brightness of the GREEN LED for the operator  light
@@ -60,39 +72,10 @@ local showColor = function(operatorR, operatorG, operatorB, stageR, stageG, stag
     -- DRIVE THE WS2812 STRIP
     --
     if MySettings.operatorNumberOfWs2812Lights() + MySettings.stageNumberOfWs2812Lights() > 0 then
-        -- the API uses chars to represent brightness
-        local data = ""
-        if MySettings.operatorWs2812Type() == Ws2812Types.GRB then
-            for _=1,MySettings.operatorNumberOfWs2812Lights() do
-                data = data ..
-                    string.char(operatorG) ..
-                    string.char(operatorR) ..
-                    string.char(operatorB)
-            end
-        elseif MySettings.operatorWs2812Type() == Ws2812Types.RGB then
-            for _=1,MySettings.operatorNumberOfWs2812Lights() do
-                data = data ..
-                    string.char(operatorR) ..
-                    string.char(operatorG) ..
-                    string.char(operatorB)
-            end
-        end
-        if MySettings.stageWs2812Type() == Ws2812Types.GRB then
-            for _=1,MySettings.stageNumberOfWs2812Lights() do
-                data = data ..
-                    string.char(stageG) ..
-                    string.char(stageR) ..
-                    string.char(stageB)
-            end
-        elseif MySettings.stageWs2812Type() == Ws2812Types.RGB then
-            for _=1,MySettings.stageNumberOfWs2812Lights() do
-                data = data ..
-                    string.char(stageR) ..
-                    string.char(stageG) ..
-                    string.char(stageB)
-            end
-        end
-        ws2812.write(data)
+        ws2812.write(
+            stripData(MySettings.operatorNumberOfWs2812Lights(), MySettings.operatorWs2812Type(), operatorR, operatorG, operatorB) ..
+            stripData(MySettings.stageNumberOfWs2812Lights(), MySettings.stageWs2812Type(), stageR, stageG, stageB)
+        )
     end
 
     --
