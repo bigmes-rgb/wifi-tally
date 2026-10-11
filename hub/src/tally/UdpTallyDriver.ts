@@ -14,6 +14,8 @@ class UdpTallyDriver {
     container: TallyContainer
     configuration: AppConfiguration
     lastTallyReport: Map<string, Date> = new Map()
+    // how long the page gets to show "renamed" before the light's card changes its name
+    static renameDelayMs = 1500
     private timers: ReturnType<typeof setInterval>[] = []
 
     constructor(configuration: AppConfiguration, container: TallyContainer) {
@@ -43,14 +45,19 @@ class UdpTallyDriver {
                     this.container.emitter.emit('tally.wifi', { tallyName: command.tallyName, saved: command.saved })
                 } else if (command.command === "name-answer") {
                     this.tallyReported(command.tallyName, rinfo)
-                    // the light restarts under its new name: its channel and settings move over to it now
-                    if (command.saved && command.newName) {
-                        this.container.rename(command.tallyName, "udp", command.newName)
-                        const at = this.lastTallyReport.get(command.tallyName)
-                        if (at) this.lastTallyReport.set(command.newName, at)
-                        this.lastTallyReport.delete(command.tallyName)
-                    }
                     this.container.emitter.emit('tally.renamed', { tallyName: command.tallyName, newName: command.newName, saved: command.saved })
+                    // The light restarts under its new name: its channel and settings move over to it. A moment
+                    // after the answer, so the page can show "renamed" before the card changes its name; the
+                    // light takes seconds to come back, so nothing reports under the new name before then.
+                    if (command.saved && command.newName) {
+                        const { tallyName, newName } = command
+                        setTimeout(() => {
+                            this.container.rename(tallyName, "udp", newName)
+                            const at = this.lastTallyReport.get(tallyName)
+                            if (at) this.lastTallyReport.set(newName, at)
+                            this.lastTallyReport.delete(tallyName)
+                        }, UdpTallyDriver.renameDelayMs)
+                    }
                 } else {
                     // typescript should complain if we missed a command
                     ((_: never) => {})(command)

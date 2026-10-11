@@ -48,7 +48,7 @@ function RenameTally({ tally, open, onClose }: RenameTallyProps) {
     <TextField label="Name" value={name} onChange={e => setName(e.currentTarget.value)} className={classes.field} fullWidth autoFocus
       inputProps={{ maxLength: 26, "data-testid": `tally-${tally.name}-rename-name` }} disabled={busy} />
     {result?.outcome === "sent" && <Alert severity="info" className={classes.block} data-testid={`tally-${tally.name}-rename-sent`}>Sent to the light. Waiting for it to answer…</Alert>}
-    {result?.outcome === "saved" && <Alert severity="success" className={classes.block} data-testid={`tally-${tally.name}-rename-saved`}>The light is now called "{result.newName}" and is restarting. It comes back in a few seconds.</Alert>}
+    {result?.outcome === "saved" && <Alert severity="success" className={classes.block} data-testid={`tally-${tally.name}-rename-saved`}>Renamed to "{result.newName}". The light is restarting and comes back under its new name in a few seconds.</Alert>}
     {result?.outcome === "failed" && <Alert severity="error" className={classes.block} data-testid={`tally-${tally.name}-rename-failed`}>{result.problem || "The light could not save the name. Try again; if that fails, name it over USB in Build a light."}</Alert>}
   </FormDialog>
 }
