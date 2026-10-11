@@ -371,10 +371,15 @@ describe("the firmware is checked before the tally software goes on", () => {
   })
   test("a light that could not load the program into its flash is offered the install again", async () => {
     const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
-    const sizes = (await NodeMcuConnector.getLocalFiles()).map(f => ({ name: f.fileName, size: f.fileSize }))
-    ;(nodemcu as any).fsinfo = async () => ({ files: [...sizes, { name: "lfs.tried", size: 16 }] })
-    const device = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).getDevice()
-    expect(device.update).toBe("updateable")
+    // the files on the light match what this hub has: current, except for the marker
+    jest.spyOn(NodeMcuConnector, "getLocalFiles").mockResolvedValue([{ fileName: "my-app.lc", filePath: "/x/my-app.lc", fileSize: 1152 }])
+    ;(nodemcu as any).fsinfo = async () => ({ files: [{ name: "my-app.lc", size: 1152 }, { name: "lfs.tried", size: 16 }] })
+    try {
+      const device = await new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {} }).getDevice()
+      expect(device.update).toBe("updateable")
+    } finally {
+      jest.restoreAllMocks()
+    }
   })
   test("program() refuses to upload to a light that could not run it", async () => {
     const { nodemcu, poke } = board({ version: "2.2.1", modules: null }, "0.5")
