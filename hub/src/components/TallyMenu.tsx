@@ -7,9 +7,11 @@ import HighlightIcon from '@material-ui/icons/Highlight'
 import MoreIcon from '@material-ui/icons/MoreVert'
 import LinkIcon from '@material-ui/icons/Link'
 import TuneIcon from '@material-ui/icons/Tune'
+import EditIcon from '@material-ui/icons/Edit'
 import { socket } from '../hooks/useSocket'
 import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom'
 import TallySettings from './TallySettings';
+import RenameTally from './RenameTally'
 
 type TallyMenuProps = {
   tally: Tally
@@ -44,6 +46,9 @@ function MenuItemLink(props: MenuItemLinkProps) {
 function TallyMenu({ tally, className }: TallyMenuProps) {
   const [anchorEl, setAnchorEl] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  // a light is renamed over the network, so it has to be on it; web tallies are named when they are created
+  const allowRename = !tally.isWebTally() && tally.isConnected()
   const allowHighlight = tally.isActive()
   const allowRemove = !tally.isConnected()
 
@@ -93,6 +98,15 @@ function TallyMenu({ tally, className }: TallyMenuProps) {
         <ListItemText>Settings</ListItemText>
       </MenuItem>
       <TallySettings tally={tally} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {!tally.isWebTally() && (
+        <Tooltip data-testid={`tally-${tally.name}-rename-item`} title={!allowRename ? "The light has to be on the network to be renamed" : ""}><div>
+          <MenuItem component="div" disabled={!allowRename} onClick={() => {handleClose(); setRenameOpen(true)}}>
+            <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Rename</ListItemText>
+          </MenuItem>
+        </div></Tooltip>
+      )}
+      {!tally.isWebTally() && <RenameTally tally={tally} open={renameOpen} onClose={() => setRenameOpen(false)} />}
       <MenuItemLink testid={`tally-${tally.name}-logs`} to={`/tally/${tally.getId()}/log`}>
         <ListItemIcon><SubjectIcon fontSize="small" /></ListItemIcon>
         <ListItemText>Logs</ListItemText>

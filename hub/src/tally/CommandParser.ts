@@ -18,7 +18,15 @@ export type WifiAnswerCommand = {
   saved: boolean // "wifi-saved"; "wifi-failed" when the light could not save it
 }
 
-export type TallySentCommand = TallyHoCommand | LogCommand | WifiAnswerCommand
+// a light's answer to a new name sent by the hub: it answers under its old name, then restarts under the new one
+export type NameAnswerCommand = {
+  command: "name-answer"
+  tallyName: string
+  newName: string
+  saved: boolean // "name-saved"; "name-failed" when the light could not save it
+}
+
+export type TallySentCommand = TallyHoCommand | LogCommand | WifiAnswerCommand | NameAnswerCommand
 
 export class InvalidCommandError extends Error {
   constructor(...args) {
@@ -38,6 +46,11 @@ class TallyCommandParser {
         const result = msg.match(/^(wifi-saved|wifi-failed) "(.+)"$/)
         if (result === null) { throw new InvalidCommandError(msg) }
         return { command: "wifi-answer", tallyName: result[2], saved: result[1] === "wifi-saved" }
+    } else if (msg.startsWith("name-saved ") || msg.startsWith("name-failed ")) {
+        // the new name is left out when the light could not even load the code that saves it
+        const result = msg.match(/^(name-saved|name-failed) "([^"]+)"(?: "([^"]*)")?$/)
+        if (result === null) { throw new InvalidCommandError(msg) }
+        return { command: "name-answer", tallyName: result[2], newName: result[3] || "", saved: result[1] === "name-saved" }
     } else {
         throw new InvalidCommandError(msg)
     }

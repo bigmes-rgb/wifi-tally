@@ -78,6 +78,25 @@ class TallyContainer {
     }
   }
 
+  // A light took a new name (it restarts and comes back under it): its channel, settings and address move with it,
+  // so it does not show up as a new, unpatched light next to the old one.
+  rename(tallyName: string, tallyType: TallyType, newName: string) {
+    const tally = this.get(tallyName, tallyType)
+    if (!tally || tallyName === newName) return
+    if (this.get(newName, tallyType)) {
+      console.warn(`Can not rename "${tallyName}" to "${newName}": that name is taken`)
+      return
+    }
+    this.tallies.delete(this.key(tallyName, tallyType))
+    tally.name = newName
+    this.set(tally)
+    this.updateTallyState(tally)
+    this.configuration.setTallies(Array.from(this.tallies.values()))
+    console.info(`Tally "${tallyName}" renamed to "${newName}"`)
+    this.emitter.emit('tally.removed', new UdpTally(tallyName))
+    this.emitter.emit('tally.changed', tally)
+  }
+
   getOrCreate(tallyName: string, tallyType: TallyType) {
     let tally = this.get(tallyName, tallyType)
     if (!tally) {

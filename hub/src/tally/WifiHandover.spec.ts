@@ -66,3 +66,40 @@ test("the hub sends a new Wi-Fi to every light on the network, as hex, and passe
     driver.close()
   }
 })
+
+test("the hub renames one light over the network, and moves its channel to the new name once the light answers", async () => {
+  const emitter = new EventEmitter() as any
+  const configuration = new AppConfiguration(emitter)
+  configuration.tallyPort = 42000 + Math.floor(Math.random() * 900)
+  const container = new TallyContainer(configuration, emitter)
+  const driver = new UdpTallyDriver(configuration, container)
+  const light = dgram.createSocket('udp4')
+  const received: string[] = []
+  const answers: any[] = []
+  emitter.on('tally.renamed', (a: any) => answers.push(a))
+  try {
+    await new Promise<void>(resolve => light.bind(0, "127.0.0.1", () => resolve()))
+    light.on('message', msg => {
+      const text = msg.toString()
+      if (text.startsWith("name ")) {
+        received.push(text)
+        light.send('name-saved "Cam 1" "Stage left"', configuration.tallyPort, "127.0.0.1")
+      }
+    })
+    expect(driver.sendName("Cam 1", "Stage left")).toBe(false) // not on the network yet
+    await new Promise(resolve => setTimeout(resolve, 100))
+    light.send('tally-ho "Cam 1"', configuration.tallyPort, "127.0.0.1")
+    await new Promise(resolve => setTimeout(resolve, 200))
+    container.patch("Cam 1", "udp", "3")
+
+    expect(driver.sendName("Cam 1", "Stage left")).toBe(true)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(Buffer.from(received[0].split(" ")[1], "hex").toString()).toEqual("Stage left")
+    expect(answers).toEqual([{ tallyName: "Cam 1", newName: "Stage left", saved: true }])
+    expect(container.get("Cam 1", "udp")).toBeUndefined()
+    expect(container.get("Stage left", "udp")?.channelId).toBe("3")
+  } finally {
+    light.close()
+    driver.close()
+  }
+})

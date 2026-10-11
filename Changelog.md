@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Lights can be renamed over the network: on the Tallies page, open a light's menu and
+  choose "Rename". The light saves the name, restarts, and comes back under it; its channel and
+  settings stay with it. Lights need "Install now" once to understand it; until then the page says
+  the light could not save the name.
 * [BUGFIX] Lights went quiet a few minutes after "Install now" and only came back after a reset. The light
   program filled the board's working memory (under 6 kB was left, the hub log shows it), so the Wi-Fi ran
   out of room. The program now runs from the board's flash instead: "Install now" puts it there as well,

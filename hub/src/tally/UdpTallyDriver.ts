@@ -41,6 +41,16 @@ class UdpTallyDriver {
                 } else if (command.command === "wifi-answer") {
                     this.tallyReported(command.tallyName, rinfo)
                     this.container.emitter.emit('tally.wifi', { tallyName: command.tallyName, saved: command.saved })
+                } else if (command.command === "name-answer") {
+                    this.tallyReported(command.tallyName, rinfo)
+                    // the light restarts under its new name: its channel and settings move over to it now
+                    if (command.saved && command.newName) {
+                        this.container.rename(command.tallyName, "udp", command.newName)
+                        const at = this.lastTallyReport.get(command.tallyName)
+                        if (at) this.lastTallyReport.set(command.newName, at)
+                        this.lastTallyReport.delete(command.tallyName)
+                    }
+                    this.container.emitter.emit('tally.renamed', { tallyName: command.tallyName, newName: command.newName, saved: command.saved })
                 } else {
                     // typescript should complain if we missed a command
                     ((_: never) => {})(command)
@@ -135,6 +145,15 @@ class UdpTallyDriver {
             }
         })
         return sentTo
+    }
+
+    // Sends one light a new name (see the tally's handleSetting). It answers "name-saved" and restarts under the new
+    // name, or "name-failed". Returns false when the light is not on the network now.
+    sendName(tallyName: string, newName: string): boolean {
+        const tally = this.container.get(tallyName, "udp")
+        if (!(tally instanceof UdpTally) || !tally.isConnected()) return false
+        this.io.send(`name ${Buffer.from(newName, "utf8").toString("hex")}`, tally.port, tally.address)
+        return true
     }
 
     updateTallyState(tally: UdpTally, programs: ChannelList, previews: ChannelList) {

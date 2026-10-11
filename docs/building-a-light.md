@@ -94,6 +94,13 @@ Run each through the same steps, between services. Step 2 reads the light's name
 hardware, and checks that its firmware can run the current tally software before installing
 anything.
 
+## Renaming a light
+
+On the Tallies page, open the light's menu (the three dots) and choose **Rename**. The light has to be
+on the network. It saves the new name, restarts, and comes back under it within a few seconds; its
+channel and settings stay as they are. A light that is off is named over USB, in Build a light, step 4.
+Lights need "Install now" once (0.9.18 or later) to understand the rename.
+
 ## Changing the church's Wi-Fi
 
 Before you change the router's network name or password, open **Configuration → Wi-Fi of the

@@ -33,6 +33,8 @@ export interface ServerSentEvents {
     'config.state.atem': (atemConfiguration: AtemConfigurationSaveType) => void
     'tallies.wifi.sent': (result: { sentTo: string[], problem?: string }) => void
     'tallies.wifi.answer': (answer: { tallyName: string, saved: boolean }) => void
+    // a rename over the network: "sent" (the light has not answered yet), "saved", "failed", or what is wrong with the name
+    'tally.rename.result': (result: { tallyName: string, newName: string, outcome: "sent" | "saved" | "failed", problem?: string }) => void
     'config.state.mock': (mockConfiguration: MockConfigurationSaveType) => void
     'config.state.obs': (obsConfiguration: ObsConfigurationSaveType) => void
     'config.state.rolandV8HD': (rolandV8HDConfiguration: RolandV8HDConfigurationSaveType) => void
@@ -96,6 +98,7 @@ export interface ClientSentEvents {
     // newBoard: another board was plugged in, so the install on the last one says nothing about this one
     'flasher.device.get': (options?: { listenMs?: number, path?: string, newBoard?: boolean }) => void
     'tallies.wifi.send': (ssid: string, password: string) => void
+    'tally.rename': (tallyName: string, newName: string) => void
     'flasher.watch.start': (path: string) => void
     'flasher.watch.stop': () => void
     'flasher.bootmessage.start': (path: string) => void

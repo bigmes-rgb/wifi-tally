@@ -28,3 +28,30 @@ test('it writes changes to configuration', () => {
     container.remove(tally.name, "web")
     expect(configuration.getTallies()).toEqual([])
 })
+test('a renamed light keeps its channel and settings under the new name, and the old name goes', () => {
+    const emitter = new ServerEventEmitter()
+    const configuration = new AppConfiguration(emitter)
+    const container = new TallyContainer(configuration, emitter)
+    const removed: string[] = []
+    emitter.on('tally.removed', t => removed.push(t.name))
+    const tally = container.getOrCreate("Cam 1", "udp")
+    tally.channelId = "3"
+    container.update(tally)
+
+    container.rename("Cam 1", "udp", "Stage left")
+
+    expect(container.get("Cam 1", "udp")).toBeUndefined()
+    expect(container.get("Stage left", "udp")?.channelId).toBe("3")
+    expect(configuration.getTallies().map(t => t.name)).toEqual(["Stage left"])
+    expect(removed).toEqual(["Cam 1"])
+})
+
+test('a light is not renamed onto a name another light has', () => {
+    const emitter = new ServerEventEmitter()
+    const configuration = new AppConfiguration(emitter)
+    const container = new TallyContainer(configuration, emitter)
+    container.getOrCreate("Cam 1", "udp")
+    container.getOrCreate("Cam 2", "udp")
+    container.rename("Cam 1", "udp", "Cam 2")
+    expect(container.getTallies().map(t => t.name).sort()).toEqual(["Cam 1", "Cam 2"])
+})
