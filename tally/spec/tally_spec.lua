@@ -69,6 +69,18 @@ insulate("myHandleReceive", function()
         myHandleReceive("this is a very much too long message")
         assert.is_same(1, #warnings)
     end)
+    it("should log a warning on a package of the right length that is garbled", function()
+        local warnings = {}
+        _G.MyLog = {
+            warning = function(warning) table.insert(warnings, warning) end,
+            getWarnings = function() return warnings end,
+        }
+        currentOpR = nil
+        myHandleReceive("O000-000/000 S000/000/000")
+        myHandleReceive("O000/000/000 S000/000/000 0xAA 3x0")
+        assert.is_same(2, #warnings)
+        assert.is_nil(currentOpR)
+    end)
     it("should log a warning on too short package", function()
         local warnings = {}
         _G.MyLog = {
@@ -219,7 +231,18 @@ insulate("hub discovery", function()
                 return { on = function() end, listen = function() end, send = function(_, port, ip, data) table.insert(packets, data) end }
             end
             useSettings(nil)
-            MySettings.saveWifi = function(ssid, pw) saved = { ssid, pw }; return true end
+            -- my-wifi-handover.lc, loaded only when the message arrives
+            local realDofile = dofile
+            _G.dofile = function(name)
+                if name ~= "my-wifi-handover.lc" then return realDofile(name) end
+                return function(data)
+                    local ssid, pw = data:match("^wifi (%x+) (%x*)%s*$")
+                    if not ssid or #ssid % 2 == 1 or #pw % 2 == 1 then return false end
+                    local unhex = function(h) return (h:gsub("%x%x", function(x) return string.char(tonumber(x, 16)) end)) end
+                    saved = { unhex(ssid), unhex(pw) }
+                    return true
+                end
+            end
             MySettings.staSsid = function() return saved and saved[1] end
             myHandleReceive("O000/000/000 S000/000/000", "192.168.1.35") -- its hub
         end
@@ -236,6 +259,13 @@ insulate("hub discovery", function()
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.66")
             assert.is_nil(saved)
             assert.is_same(before, #packets)
+        end)
+        it("answers wifi-failed, and keeps running, when the code to save it cannot be loaded", function()
+            setupWifi()
+            _G.dofile = function() error("not enough memory") end
+            myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
+            assert.is_nil(saved)
+            assert.truthy(packets[#packets]:find('wifi-failed "Doe"', 1, true))
         end)
         it("is refused when garbled, and answered so", function()
             setupWifi()

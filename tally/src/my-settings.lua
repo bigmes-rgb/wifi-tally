@@ -100,50 +100,46 @@ _G.MySettings = {
     isValid = function()
         return staSsid ~= nil
     end,
-    -- Saves a new Wi-Fi sent by the hub, keeping the current one as the one to go back to. The light
-    -- stays on its current network until that goes away. Written to a new file first, the old one
-    -- kept as .bak until the new one is in place, so a power cut never leaves it without settings.
-    saveWifi = function(newSsid, newPw)
-        local lines = {}
-        local f = file.open(fileName, "r")
-        if f then
-            while true do
-                local line = f:readline()
-                if not line then break end
-                local k = line:match("^%s*([^=]-)%s*=")
-                if k ~= "station.ssid" and k ~= "station.password" and k ~= "station.previous.ssid" and k ~= "station.previous.password" then
-                    table.insert(lines, (line:gsub("[\r\n]+$", "")))
-                end
-            end
-            f:close()
-        end
-        local keepPrevious = staSsid ~= nil and staSsid ~= newSsid
-        table.insert(lines, "station.ssid=" .. newSsid)
-        table.insert(lines, "station.password=" .. newPw)
-        if keepPrevious then
-            table.insert(lines, "station.previous.ssid=" .. staSsid)
-            table.insert(lines, "station.previous.password=" .. (staPw or ""))
-        end
-        local out = file.open(fileName .. ".new", "w+")
-        if not out then return false end
-        for _, line in ipairs(lines) do out:writeline(line) end
-        out:close()
-        file.remove(fileName .. ".bak")
-        if file.exists(fileName) and not file.rename(fileName, fileName .. ".bak") then return false end
-        if not file.rename(fileName .. ".new", fileName) then
-            file.rename(fileName .. ".bak", fileName)
-            return false
-        end
-        file.remove(fileName .. ".bak")
-        if keepPrevious then staPrevSsid, staPrevPw = staSsid, staPw end
-        staSsid, staPw = newSsid, newPw
-        return true
+    -- after my-wifi-handover.lua saved a new Wi-Fi from the hub: used from the next connect on
+    useWifi = function(ssid, pw, prevSsid, prevPw)
+        staSsid, staPw, staPrevSsid, staPrevPw = ssid, pw, prevSsid, prevPw
     end,
 }
 
 -- a save that was cut off between the two renames left only the backup
 if not file.exists(fileName) and file.exists(fileName .. ".bak") then
     file.rename(fileName .. ".bak", fileName)
+end
+
+-- "grb+" or "grb-"; the current type and a warning for anything else
+local parseLightType = function(k, v, current)
+    local value = v:lower()
+    if isValueInTable(value, LightTypes) then return value end
+    MyLog.warning("Invalid " .. k .. " \"" .. v .. "\"")
+    return current
+end
+
+-- "5" or "5 grb": how many LEDs (0 to 10) and, optionally, their color order
+local parseWs2812 = function(k, v, lights, order)
+    local value, type = v, nil
+    local idx = v:find(" ", 1, true)
+    if idx ~= nil then
+        value, type = v:sub(1, idx-1), v:sub(idx+1)
+    end
+    value = tonumber(value)
+    if value ~= nil and value >= 0 and value <= 10 then
+        lights = value
+    else
+        MyLog.warning(k .. " needs to be number between 0 and 10, but got \"" .. v .. "\"")
+    end
+    if type ~= nil then
+        if isValueInTable(type, Ws2812Types) then
+            order = type
+        else
+            MyLog.warning(k .. " should have a supported light type, but got \"" .. type .. "\"")
+        end
+    end
+    return lights, order
 end
 
 --
@@ -193,65 +189,13 @@ if file.exists(fileName) then
                     elseif k == "tally.name" then
                         name = v:sub(0, 26)
                     elseif k == "operator.type" then
-                        local value = v:lower()
-                        if isValueInTable(value, LightTypes) then
-                            operatorType = value
-                        else
-                            MyLog.warning("Invalid operator.type \"" .. v .. "\"")
-                        end
+                        operatorType = parseLightType(k, v, operatorType)
                     elseif k == "operator.ws2812" then
-                        local value, type
-                        local idx = v:find(" ", 1, true)
-                        if idx ~= nil then
-                            value = v:sub(1, idx-1)
-                            type = v:sub(idx+1)
-                        else
-                            value = v
-                            type = nil
-                        end
-                        value = tonumber(value)
-                        if value ~= nil and value >= 0 and value <= 10 then
-                            operatorWs2812Lights = value
-                        else
-                            MyLog.warning("operator.ws2812 needs to be number between 0 and 10, but got \"" .. v .. "\"")
-                        end
-                        if type ~= nil then
-                            if isValueInTable(type, Ws2812Types) then
-                                operatorWs2812Type = type
-                            else
-                                MyLog.warning("operator.ws2812 should have a supported light type, but got \"" .. type .. "\"")
-                            end
-                        end
+                        operatorWs2812Lights, operatorWs2812Type = parseWs2812(k, v, operatorWs2812Lights, operatorWs2812Type)
                     elseif k == "stage.type" then
-                        local value = v:lower()
-                        if isValueInTable(value, LightTypes) then
-                            stageType = value
-                        else
-                            MyLog.warning("Invalid stage.type \"" .. v .. "\"")
-                        end
+                        stageType = parseLightType(k, v, stageType)
                     elseif k == "stage.ws2812" then
-                        local value, type
-                        local idx = v:find(" ", 1, true)
-                        if idx ~= nil then
-                            value = v:sub(1, idx-1)
-                            type = v:sub(idx+1)
-                        else
-                            value = v
-                            type = nil
-                        end
-                        value = tonumber(value)
-                        if value ~= nil and value >= 0 and value <= 10 then
-                            stageWs2812Lights = value
-                        else
-                            MyLog.warning("stage.ws2812 needs to be number between 0 and 10, but got \"" .. v .. "\"")
-                        end
-                        if type ~= nil then
-                            if isValueInTable(type, Ws2812Types) then
-                                stageWs2812Type = type
-                            else
-                                MyLog.warning("stage.ws2812 should have a supported light type, but got \"" .. type .. "\"")
-                            end
-                        end
+                        stageWs2812Lights, stageWs2812Type = parseWs2812(k, v, stageWs2812Lights, stageWs2812Type)
                     else
                         MyLog.warning("Unknown key " .. k .. " in configuration file. Did you mistype it?")
                     end

@@ -1,7 +1,7 @@
 -- "Change Wi-Fi on all lights": the hub sends a new Wi-Fi, the light saves it safely, keeps the
 -- old one to go back to, and tries the new one once the current network goes away.
 
--- an in-memory SPIFFS with the calls my-settings.lua makes; readline keeps the line ending, as NodeMCU's does
+-- an in-memory SPIFFS with the calls my-settings.lua and my-wifi-handover.lua make; readline keeps the line ending, as NodeMCU's does
 local function memoryFiles(initial)
     local files = {}
     for name, content in pairs(initial or {}) do files[name] = content end
@@ -41,6 +41,11 @@ end
 local ini = "/FLASH/tally-settings.ini"
 local base = "station.ssid=Church\nstation.password=old-pass\ntally.name=Cam 1\noperator.ws2812=5 grb\n"
 
+-- what the hub sends: "wifi <ssid in hex> <password in hex>"
+local hex = function(s) return (s:gsub(".", function(c) return string.format("%02x", c:byte()) end)) end
+-- my-wifi-handover.lua is loaded only when that message arrives, as my-tally.lua does
+local saveWifi = function(ssid, pw) return dofile("src/my-wifi-handover.lua")("wifi " .. hex(ssid) .. " " .. hex(pw)) end
+
 describe("saving a Wi-Fi sent by the hub", function()
     require "spec.nodemcu-mock"
     local realIt = it
@@ -50,7 +55,7 @@ describe("saving a Wi-Fi sent by the hub", function()
     it("saves the new network, keeps the old one to go back to, and keeps every other setting", function()
         local files = memoryFiles({ [ini] = base })
         require "src.my-settings"
-        assert.is_true(MySettings.saveWifi("Church-New", "new=pass"))
+        assert.is_true(saveWifi("Church-New", "new=pass"))
         assert.is_same("Church-New", MySettings.staSsid())
         assert.is_same("new=pass", MySettings.staPw())
         assert.is_same("Church", MySettings.staPrevSsid())
@@ -64,7 +69,7 @@ describe("saving a Wi-Fi sent by the hub", function()
     it("reads the saved file back the same way after a restart", function()
         local files = memoryFiles({ [ini] = base })
         require "src.my-settings"
-        MySettings.saveWifi("Church-New", "new-pass")
+        assert.is_true(saveWifi("Church-New", "new-pass"))
         local saved = files[ini]
         package.loaded["src.my-settings"] = nil
         memoryFiles({ [ini] = saved })
@@ -72,6 +77,14 @@ describe("saving a Wi-Fi sent by the hub", function()
         assert.is_same("Church-New", MySettings.staSsid())
         assert.is_same("Church", MySettings.staPrevSsid())
         assert.is_same("old-pass", MySettings.staPrevPw())
+    end)
+
+    it("refuses a garbled message and leaves the settings alone", function()
+        local files = memoryFiles({ [ini] = base })
+        require "src.my-settings"
+        assert.is_false(dofile("src/my-wifi-handover.lua")("wifi 4368757 zz"))
+        assert.is_same(base, files[ini])
+        assert.is_same("Church", MySettings.staSsid())
     end)
 
     it("starts from the backup when a save was cut off between its two renames", function()

@@ -41,6 +41,24 @@ describe("Led", function()
             end
         end)
     end)
+    insulate("a strip with several LEDs per light, in both color orders", function()
+        require "spec.nodemcu-mock"
+        require "src.my-settings"
+        MySettings.operatorNumberOfWs2812Lights = function() return 2 end -- mock
+        MySettings.operatorWs2812Type = function() return Ws2812Types.RGB end -- mock
+        MySettings.stageNumberOfWs2812Lights = function() return 3 end -- mock
+        MySettings.stageWs2812Type = function() return Ws2812Types.GRB end -- mock
+
+        require "src.my-led"
+        _G.MyLed.static(10, 20, 30, 40, 50, 60)
+
+        it("sends every LED its color in the strip's order", function()
+            assert.is_same({
+                10, 20, 30,  10, 20, 30, -- operator, r g b
+                50, 40, 60,  50, 40, 60,  50, 40, 60, -- stage, g r b
+            }, _G.ws2812:getDataAt(0))
+        end)
+    end)
     insulate("waitForWifiConnection()", function()
         require "spec.nodemcu-mock"
         require "src.my-settings"

@@ -19,29 +19,22 @@ local learnedHubIp = nil
 -- give up on a learned address after this long without a packet and search again
 local searchAgainAfterMicroSeconds = 10000000
 
+-- "O255/000/000 S000/000/000", optionally followed by " 0xAA 300" (flash pattern, step in ms):
+-- exactly what the hub's CommandCreator sends. One pattern, not a check per character: less code
+-- for a board with little memory.
 local parseMessage = function(data)
     data = data:match("^%s*(.-)%s*$") -- trim
-    local len = string.len(data)
-    if len ~= 25 and len ~=34 then
-        return
-    end
-    if data:sub(1, 1) ~= "O" or data:sub(5,5) ~= "/" or data:sub(9,9) ~= "/" or data:sub(13,14) ~= " S" or data:sub(18,18) ~= "/" or data:sub(22,22) ~= "/" then
-        return
-    end
-    local opR = tonumber(data:sub(2, 4), 10)
-    local opG = tonumber(data:sub(6, 8), 10)
-    local opB = tonumber(data:sub(10, 12), 10)
-    local stR = tonumber(data:sub(15, 17), 10)
-    local stG = tonumber(data:sub(19, 21), 10)
-    local stB = tonumber(data:sub(23, 25), 10)
+    local opR, opG, opB, stR, stG, stB, rest = data:match("^O(%d%d%d)/(%d%d%d)/(%d%d%d) S(%d%d%d)/(%d%d%d)/(%d%d%d)(.*)$")
+    if not opR then return end
     local pattern
     local duration
-    if len == 34 then
-        if data:sub(26,28) ~= " 0x" or data:sub(31, 31) ~= " " then return end
-        local patternNumber = tonumber(data:sub(29, 30), 16)
+    if rest ~= "" then
+        local hex, ms = rest:match("^ 0x(%x%x) (%d%d%d)$")
+        if not hex then return end
+        local patternNumber = tonumber(hex, 16)
         pattern = {}
         -- @TODO: Lua 5.3 comes with bit operators, but 5.1 does not yet
-        for _, num in pairs({128,64,32,16,8,4,2,1}) do
+        for _, num in ipairs({128,64,32,16,8,4,2,1}) do
             if patternNumber >= num then
                 patternNumber = patternNumber - num
                 table.insert(pattern, true)
@@ -49,28 +42,24 @@ local parseMessage = function(data)
                 table.insert(pattern, false)
             end
         end
-        duration = tonumber(data:sub(32, 34), 10)
+        duration = tonumber(ms, 10)
     end
-    return opR, opG, opB, stR, stG, stB, pattern, duration
+    return tonumber(opR, 10), tonumber(opG, 10), tonumber(opB, 10), tonumber(stR, 10), tonumber(stG, 10), tonumber(stB, 10), pattern, duration
 end
 
 -- hubs other than ours that were already reported, so each is logged once
 local otherHubsWarned = {}
 
-local fromHex = function(hex)
-    return (hex:gsub("%x%x", function(h) return string.char(tonumber(h, 16)) end))
-end
-
 -- "wifi <ssid in hex> <password in hex>": the hub hands every light a new Wi-Fi before the router
 -- is switched over. Taken only from the hub this light follows; answered so the hub can show it.
+-- The code that saves it is loaded only now (my-wifi-handover.lua): the light has little memory.
 local handleWifi = function(data, ip)
     local ourHub = MySettings:hubIp() or learnedHubIp
     if ip == nil or ourHub == nil or ip ~= ourHub then return end
-    local hexSsid, hexPw = data:match("^wifi (%x+) (%x*)%s*$")
-    local ok = false
-    if hexSsid and #hexSsid % 2 == 0 and #hexPw % 2 == 0 then
-        ok = MySettings.saveWifi(fromHex(hexSsid), fromHex(hexPw))
-    end
+    -- a failed load (no memory, say) must not restart the light: it answers "wifi-failed"
+    local ran, saved = pcall(function() return dofile("my-wifi-handover.lc")(data) end)
+    if not ran then print("Could not save the new Wi-Fi: " .. tostring(saved)) end
+    local ok = ran and saved == true
     MyTally:send(string.format('%s "%s"', ok and "wifi-saved" or "wifi-failed", MySettings:name()))
     if ok then MyLog.info("Saved the new Wi-Fi " .. MySettings:staSsid() .. ". Using it once the current one goes away.") end
 end
