@@ -54,6 +54,10 @@ export const fakeFlashFirmware = (fake: FakeNodemcu): FlashFirmwareFn => async (
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
   step("connecting", 2, "Looking for the board")
   await sleep(500)
+  // like the real install, the whole chip is erased first: the light's files and settings go
+  step("erasing", 4, "Erasing everything on the board first")
+  fake.files = {}
+  await sleep(500)
   for (let percent = 5; percent <= 95; percent += 15) {
     step("writing", percent)
     await sleep(200)

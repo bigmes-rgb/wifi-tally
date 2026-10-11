@@ -3,38 +3,54 @@
  */
 import { promises as fs } from 'fs'
 import tmp from 'tmp'
-import { describeFlashError, fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, NODEMCU_FLASH } from './FirmwareFlasher'
+import { describeFlashError, fixEsp8266SpiRegisters, flashNodeMcuFirmware, FirmwareProgressType, hardResetBoard, NODEMCU_FLASH } from './FirmwareFlasher'
 import NodeSerialTransport from './NodeSerialTransport'
 
 tmp.setGracefulCleanup()
 
 // an ESPLoader that remembers what it was asked to do. Like the real one, main() runs
 // detectChip() to create this.chip and then reads the flash ID with it.
-const fakeEsptool = (chip = "ESP8266EX", failWrite = false, detectedSize: string | null = "4MB") => {
-  const calls: any = { options: null, mainCalled: false, after: null, writeOptions: null, chipAtFlashIdRead: null }
+const fakeEsptool = (chip = "ESP8266EX", failWrite = false, detectedSize: string | null = "4MB", failErase = false) => {
+  const calls: any = { options: null, mainCalled: false, after: null, writeOptions: null, chipAtFlashIdRead: null, order: [] as string[] }
   class ESPLoader {
     chip: any = null
     constructor(options: any) { calls.options = options }
     async detectChip() { this.chip = { CHIP_NAME: /ESP8266/.test(chip) ? "ESP8266" : "ESP32", SPI_MOSI_DLEN_OFFS: 0, SPI_MISO_DLEN_OFFS: 0 } }
     async main() {
       calls.mainCalled = true
+      calls.order.push("main")
       await this.detectChip()
       calls.chipAtFlashIdRead = { ...this.chip }
       return chip
     }
     async detectFlashSize() { return detectedSize }
+    async eraseFlash() {
+      calls.order.push("erase")
+      if (failErase) { throw new Error("Timed out waiting for packet header") }
+    }
     async writeFlash(options: any) {
+      calls.order.push("write")
       calls.writeOptions = options
       if (failWrite) { throw new Error("Timed out waiting for packet header") }
       options.reportProgress(0, 50, 100)
       options.reportProgress(0, 100, 100)
     }
-    async after(mode: string) { calls.after = mode }
+    // like esptool-js: "hard_reset" runs the reset strategy it was given, on its transport
+    async after(mode: string) {
+      calls.order.push("after")
+      calls.after = mode
+      await calls.options.resetConstructors?.hardReset?.(calls.options.transport, false).reset()
+    }
   }
   return { calls, load: async () => ({ ESPLoader }) }
 }
 const fakeTransport = () => {
-  const t = { disconnected: 0, disconnect: async () => { t.disconnected++ } }
+  const t = {
+    disconnected: 0, disconnect: async () => { t.disconnected++ },
+    signals: [] as string[],
+    setDTR: async (on: boolean) => { t.signals.push(`DTR ${on}`) },
+    setRTS: async (on: boolean) => { t.signals.push(`RTS ${on}`) },
+  }
   return t
 }
 
@@ -59,8 +75,50 @@ test("it writes the image at address 0 with the NodeMCU flash settings and resta
   expect(esptool.calls.writeOptions.flashSize).toBe("4MB")
   expect(esptool.calls.after).toBe("hard_reset")
   expect(transport.disconnected).toBe(1)
-  expect(progress.map(p => p.phase)).toEqual(["connecting", "connecting", "writing", "writing", "writing", "restarting", "done"])
+  expect(progress.map(p => p.phase)).toEqual(["connecting", "connecting", "erasing", "writing", "writing", "writing", "restarting", "done"])
   expect(progress[progress.length - 1].percent).toBe(100)
+})
+
+test("the whole chip is erased before the image is written, so nothing of an earlier firmware is left", async () => {
+  const esptool = fakeEsptool()
+  const progress: FirmwareProgressType[] = []
+  await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: esptool.load, makeTransport: fakeTransport })
+  expect(esptool.calls.order).toEqual(["main", "erase", "write", "after"])
+  expect(progress.find(p => p.phase === "erasing")?.message).toContain("Erasing everything")
+})
+
+test("a board that stops answering while being erased is reported, and nothing is written", async () => {
+  const esptool = fakeEsptool("ESP8266EX", false, "4MB", true)
+  const transport = fakeTransport()
+  const progress: FirmwareProgressType[] = []
+  const ok = await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: p => progress.push(p), loadEsptool: esptool.load, makeTransport: () => transport })
+  expect(ok).toBe(false)
+  expect(esptool.calls.order).toEqual(["main", "erase"])
+  expect(progress[progress.length - 1].phase).toBe("error")
+  expect(transport.disconnected).toBe(1)
+})
+
+describe("restarting the board after the install", () => {
+  test("pulls EN low through RTS, with DTR released, the way esptool.py does", async () => {
+    const transport = fakeTransport()
+    const waits: number[] = []
+    await hardResetBoard(transport, async ms => { waits.push(ms); transport.signals.push(`wait ${ms}`) }).reset()
+    expect(transport.signals).toEqual(["DTR false", "RTS true", "wait 100", "RTS false"])
+  })
+  test("the installer hands that reset to esptool-js, which on its own only releases RTS", async () => {
+    const esptool = fakeEsptool()
+    const transport = fakeTransport()
+    await flashNodeMcuFirmware({ path: "COM9", binPath: await withBin(), onProgress: () => {}, loadEsptool: esptool.load, makeTransport: () => transport, sleep: async () => {} })
+    expect(esptool.calls.after).toBe("hard_reset")
+    expect(transport.signals).toEqual(["DTR false", "RTS true", "RTS false"])
+  })
+  test("esptool-js 0.7.0's own hard reset never asserts RTS (why the hub brings its own)", () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const source = require('fs').readFileSync(require.resolve('esptool-js/lib/reset.js'), 'utf8')
+    const hardReset = source.slice(source.indexOf("class HardReset"), source.indexOf("class", source.indexOf("class HardReset") + 5))
+    expect(hardReset).toContain("setRTS(false)")
+    expect(hardReset).not.toContain("setRTS(true)")
+  })
 })
 
 test("a board that is not an ESP8266 is refused before anything is written", async () => {
@@ -193,6 +251,8 @@ describe("after the install the board has to restart", () => {
       disconnect: async function () { this.disconnected++ },
       flushInput: () => { checks = 0 },
       inWaiting: () => { checks++; return restartsAfterChecks !== null && checks > restartsAfterChecks ? 42 : 0 },
+      setDTR: async () => {},
+      setRTS: async () => {},
     }
   }
   const run = async (transport: any) => {

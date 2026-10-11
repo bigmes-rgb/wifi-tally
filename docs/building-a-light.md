@@ -30,14 +30,17 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 2. **Plug it in.** The hub finds the board and says what it found:
    - *Runs something other than the NodeMCU firmware* is a board from the box. Press
      **Install firmware**. If that cannot reach the board, hold FLASH, tap RST, release FLASH
-     and press it again.
+     and press it again. The install erases the whole board first (up to a minute), so nothing
+     of what was on it before is left, then restarts it by itself.
    - *Firmware installed, starting for the first time.* The board is formatting its storage,
      which takes up to two minutes. Leave it alone; the page carries on by itself.
    - *Found a light … not set up yet* or *named …*: press **Install now** for the tally software.
    - *This light runs NodeMCU …* or *lacks the module …*: its firmware cannot run the tally
      software. Install the firmware first. Its name and Wi-Fi come back at step 4.
-   - *Keeps crashing*, *not saying anything*, *setting up its storage*: follow the advice
-     shown. **What the board printed** shows the board's own words.
+   - *Keeps crashing*: press **Install firmware**. Since 0.9.15 the install erases the board
+     completely, which clears what usually makes a freshly installed board crash.
+   - *Not saying anything*, *setting up its storage*: follow the advice shown. **What the board
+     printed** shows the board's own words.
 3. **Wiring test.** The hub lights each colour through the USB cable and asks what you see. It
    tells you which wire to move, or fixes the common-pin and pixel settings itself.
 4. **Name and Wi-Fi.** A name (the camera's works well), the Wi-Fi name and password. No hub
