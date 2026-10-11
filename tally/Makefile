@@ -23,8 +23,11 @@ out/tally-settings.ini.example: tally-settings.ini.example out
 out/init.lua: src/init.lua out
 	cp $< $@
 
+# -s: no debug info (local names, line numbers). NodeMCU keeps whatever a .lc carries in RAM, and the
+# light has little of it: 0.9.12 grew too big and the light stopped answering. spec/memory_spec.lua
+# keeps an eye on the size. Errors on the light show "?" instead of a line number.
 out/%.lc: src/%.lua out
-	$(LUAC) -o $@ $<
+	$(LUAC) -s -o $@ $<
 
 build: $(TARGETS) out/init.lua out/tally-settings.ini.example
 

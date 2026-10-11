@@ -3,6 +3,12 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] After 0.9.12's "Install now", saving to a light stopped at "Rebooting Tally to apply
+  settings", and the light never showed up on the hub again. The light program had grown too big for
+  the board's memory. The light's files are now built without debugging details (variable names and
+  line numbers), which the board kept in memory. That frees about a quarter of what the program took.
+  The light also says how much memory is free when it starts; the hub log shows it. Lights need
+  "Install now" once to get this.
 * [FEATURE] Configuration → "Wi-Fi of the lights": changing the church's Wi-Fi name or password no
   longer means plugging every light in by USB. Send the new network to every light on the network
   first. Each saves it and keeps using the current network until that goes away, then joins the new
