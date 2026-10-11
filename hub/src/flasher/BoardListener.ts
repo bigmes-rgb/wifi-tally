@@ -56,8 +56,9 @@ export const releaseResetLines = (port: SerialPortLike) => port.set({ dtr: false
 // had the port open (checks that connect, "Install now", the wiring test, saving the name and Wi-Fi) left no reason
 // in the log. This writes the same line for every port, nodemcu-tool's included; the same line twice is written once.
 export function logEveryPortClose(SerialPort: any = require('serialport')) { // the class nodemcu-tool opens its port with
-  const proto = SerialPort.prototype
-  if (proto._hubLogsClose) return
+  const proto = SerialPort?.prototype
+  // only a log line: a serialport version without this method keeps working as it is, unlogged
+  if (!proto || proto._hubLogsClose || typeof proto._disconnected !== "function") return
   const disconnected = proto._disconnected
   proto._disconnected = function (this: any, err: any) {
     if (this.isOpen) warnRarely(`[serial ${this.path}] port closed${portClosedReason({ message: err?.message || String(err), disconnected: true })}`)

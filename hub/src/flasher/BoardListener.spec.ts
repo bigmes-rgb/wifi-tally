@@ -224,3 +224,9 @@ test("streaming opens the port at the baud rate asked for", async () => {
   await s.done
   expect(opened).toEqual([74880])
 })
+
+test("logging port closes leaves a serialport without _disconnected alone", () => {
+  class Old {}
+  expect(() => logEveryPortClose(Old)).not.toThrow()
+  expect((Old.prototype as any)._hubLogsClose).toBeUndefined()
+})
