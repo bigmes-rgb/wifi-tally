@@ -4,6 +4,7 @@ import yargs from 'yargs'
 import TallyContainer from './tally/TallyContainer'
 import UdpTallyDriver from './tally/UdpTallyDriver'
 import { wifiProblem } from './tally/WifiHandover'
+import { nameProblem } from './tally/TallyName'
 import { AppConfiguration } from './lib/AppConfiguration'
 import { MixerDriver } from './lib/MixerDriver'
 import express from 'express'
@@ -234,6 +235,25 @@ io.on('connection', (socket: ServerSideSocket) => {
     myEmitter.on('tally.wifi', onAnswer)
     setTimeout(() => myEmitter.off('tally.wifi', onAnswer), 30000)
     socket.emit('tallies.wifi.sent', { sentTo: myUdpTallyDriver.sendWifi(ssid, password) })
+  })
+  // Rename a light over the network: the light saves the name, answers, and restarts under it
+  socket.on('tally.rename', (tallyName: string, newName: string) => {
+    const taken = myTallyContainer.getTallies().filter(t => t.type === "udp").map(t => t.name)
+    const problem = nameProblem(newName, taken, tallyName)
+    if (problem) { socket.emit('tally.rename.result', { tallyName, newName, outcome: "failed", problem }); return }
+    const onAnswer = (answer: { tallyName: string, newName: string, saved: boolean }) => {
+      if (answer.tallyName !== tallyName) return
+      socket.emit('tally.rename.result', { tallyName, newName, outcome: answer.saved ? "saved" : "failed" })
+    }
+    myEmitter.on('tally.renamed', onAnswer)
+    setTimeout(() => myEmitter.off('tally.renamed', onAnswer), 30000)
+    if (!myUdpTallyDriver.sendName(tallyName, newName)) {
+      myEmitter.off('tally.renamed', onAnswer)
+      socket.emit('tally.rename.result', { tallyName, newName, outcome: "failed", problem: "This light is not on the network right now." })
+      return
+    }
+    console.info(`[tally] "${tallyName}" is being renamed to "${newName}"`)
+    socket.emit('tally.rename.result', { tallyName, newName, outcome: "sent" })
   })
   socket.on('tally.settings', (tallyName, tallyType, settings) => {
     const configuration = new TallyConfiguration()

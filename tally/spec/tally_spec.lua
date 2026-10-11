@@ -223,65 +223,106 @@ insulate("hub discovery", function()
         myHandleReceive("O255/000/000 S000/000/000", "10.10.1.1")
         assert.is_same(1, shown)
     end)
-    describe("a new Wi-Fi from the hub", function()
-        local packets, saved
-        local function setupWifi()
-            packets, saved = {}, nil
-            _G.net.createUDPSocket = function()
-                return { on = function() end, listen = function() end, send = function(_, port, ip, data) table.insert(packets, data) end }
-            end
-            useSettings(nil)
-            -- my-wifi-handover, loaded only when the message arrives (from the flash, or its .lc file)
-            package.loaded["my-wifi-handover"] = nil
-            package.preload["my-wifi-handover"] = function()
-                return function(data)
-                    local ssid, pw = data:match("^wifi (%x+) (%x*)%s*$")
-                    if not ssid or #ssid % 2 == 1 or #pw % 2 == 1 then return false end
-                    local unhex = function(h) return (h:gsub("%x%x", function(x) return string.char(tonumber(x, 16)) end)) end
-                    saved = { unhex(ssid), unhex(pw) }
-                    return true
-                end
-            end
-            MySettings.staSsid = function() return saved and saved[1] end
-            myHandleReceive("O000/000/000 S000/000/000", "192.168.1.35") -- its hub
+    -- Settings the hub sends over the network go through the real my-wifi-handover.lua (loaded on demand, as on
+    -- the board) and an in-memory settings file, so these tests cover the whole path.
+    local memoryFiles = require "spec.memory_files"
+    local ini = "/FLASH/tally-settings.ini"
+    local function setupSetting()
+        local packets, restarts, scheduled = {}, 0, nil
+        local files = memoryFiles({ [ini] = "station.ssid=Old\nstation.password=old-pass\ntally.name=Doe\n" })
+        _G.net.createUDPSocket = function()
+            return { on = function() end, listen = function() end, send = function(_, port, ip, data) table.insert(packets, data) end }
         end
+        _G.tmr = { ALARM_SINGLE = "single", ALARM_AUTO = "auto", now = function() return 0 end,
+            -- the restart is a one-shot timer; the program's own repeating timers are not it
+            create = function() return { alarm = function(_, _, kind, func) if kind == "single" then scheduled = func end end } end }
+        _G.node = { chipid = function() return 1 end, restart = function() restarts = restarts + 1 end }
+        useSettings(nil)
+        local wifi = { ssid = "Old", pw = "old-pass" }
+        MySettings.staSsid = function() return wifi.ssid end
+        MySettings.staPw = function() return wifi.pw end
+        MySettings.staPrevSsid = function() return wifi.prevSsid end
+        MySettings.staPrevPw = function() return wifi.prevPw end
+        MySettings.useWifi = function(ssid, pw, prevSsid, prevPw) wifi = { ssid = ssid, pw = pw, prevSsid = prevSsid, prevPw = prevPw } end
+        package.loaded["my-wifi-handover"] = nil
+        package.preload["my-wifi-handover"] = function() return dofile("src/my-wifi-handover.lua") end
+        myHandleReceive("O000/000/000 S000/000/000", "192.168.1.35") -- its hub
+        return { packets = packets, files = files, wifi = function() return wifi end, restarts = function() return restarts end, scheduled = function() return scheduled end }
+    end
+    describe("a new Wi-Fi from the hub", function()
         it("is saved when it comes from the light's own hub, and answered", function()
-            setupWifi()
+            local t = setupSetting()
             -- "Church" and "new=pass" in hex
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
-            assert.is_same({ "Church", "new=pass" }, saved)
-            assert.truthy(packets[#packets]:find('wifi-saved "Doe"', 1, true))
+            assert.is_same("Church", t.wifi().ssid)
+            assert.is_same("new=pass", t.wifi().pw)
+            assert.truthy(t.files[ini]:find("station.ssid=Church", 1, true))
+            assert.truthy(t.packets[#t.packets]:find('wifi-saved "Doe"', 1, true))
         end)
         it("is ignored from any other address", function()
-            setupWifi()
-            local before = #packets
+            local t = setupSetting()
+            local before = #t.packets
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.66")
-            assert.is_nil(saved)
-            assert.is_same(before, #packets)
+            assert.is_same("Old", t.wifi().ssid)
+            assert.is_same(before, #t.packets)
         end)
         it("answers wifi-failed, and keeps running, when the code to save it cannot be loaded", function()
-            setupWifi()
+            local t = setupSetting()
             package.preload["my-wifi-handover"] = function() error("not enough memory") end
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
-            assert.is_nil(saved)
-            assert.truthy(packets[#packets]:find('wifi-failed "Doe"', 1, true))
+            assert.is_same("Old", t.wifi().ssid)
+            assert.truthy(t.packets[#t.packets]:find('wifi-failed "Doe"', 1, true))
         end)
         it("saves a later message after one whose code failed to load", function()
-            setupWifi()
+            local t = setupSetting()
             local attempts = 0
-            local good = package.preload["my-wifi-handover"]
-            package.preload["my-wifi-handover"] = function() attempts = attempts + 1; if attempts == 1 then error("not enough memory") end; return good() end
+            package.preload["my-wifi-handover"] = function()
+                attempts = attempts + 1
+                if attempts == 1 then error("not enough memory") end
+                return dofile("src/my-wifi-handover.lua")
+            end
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
-            assert.is_nil(saved)
+            assert.is_same("Old", t.wifi().ssid)
             myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
-            assert.is_same({ "Church", "new=pass" }, saved)
+            assert.is_same("Church", t.wifi().ssid)
             assert.is_nil(package.loaded["my-wifi-handover"])
         end)
         it("is refused when garbled, and answered so", function()
-            setupWifi()
+            local t = setupSetting()
             myHandleReceive("wifi 4368757 zz", "192.168.1.35")
-            assert.is_nil(saved)
-            assert.truthy(packets[#packets]:find('wifi-failed "Doe"', 1, true))
+            assert.is_same("Old", t.wifi().ssid)
+            assert.truthy(t.packets[#t.packets]:find('wifi-failed "Doe"', 1, true))
+        end)
+    end)
+    describe("a new name from the hub", function()
+        it("is saved, answered under the old name with the new one, and the light restarts", function()
+            local t = setupSetting()
+            myHandleReceive("name 43616d2032", "192.168.1.35") -- "Cam 2"
+            assert.truthy(t.files[ini]:find("tally.name=Cam 2", 1, true))
+            assert.truthy(t.packets[#t.packets]:find('name-saved "Doe" "Cam 2"', 1, true))
+            assert.is_same(0, t.restarts()) -- the answer leaves first
+            t.scheduled()()
+            assert.is_same(1, t.restarts())
+        end)
+        it("is answered as failed, without a restart, when the name is one the light cannot use", function()
+            local t = setupSetting()
+            myHandleReceive("name " .. string.rep("78", 27), "192.168.1.35") -- 27 characters
+            assert.truthy(t.files[ini]:find("tally.name=Doe", 1, true))
+            assert.truthy(t.packets[#t.packets]:find('name-failed "Doe" ""', 1, true))
+            assert.is_nil(t.scheduled())
+        end)
+        it("is answered as failed when the code to save it cannot be loaded", function()
+            local t = setupSetting()
+            package.preload["my-wifi-handover"] = function() error("not enough memory") end
+            myHandleReceive("name 43616d2032", "192.168.1.35")
+            assert.truthy(t.packets[#t.packets]:find('name-failed "Doe"', 1, true))
+            assert.is_same(0, t.restarts())
+        end)
+        it("is ignored from any other address", function()
+            local t = setupSetting()
+            local before = #t.packets
+            myHandleReceive("name 43616d2032", "192.168.1.66")
+            assert.is_same(before, #t.packets)
         end)
     end)
     it("ignores other tallies' broadcasts without logging", function()

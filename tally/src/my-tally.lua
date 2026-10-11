@@ -50,20 +50,21 @@ end
 -- hubs other than ours that were already reported, so each is logged once
 local otherHubsWarned = {}
 
--- "wifi <ssid in hex> <password in hex>": the hub hands every light a new Wi-Fi before the router
--- is switched over. Taken only from the hub this light follows; answered so the hub can show it.
--- The code that saves it is loaded only now (my-wifi-handover.lua), from the flash or its file, and dropped after.
-local handleWifi = function(data, ip)
+-- Settings sent by the hub over the network, taken only from the hub this light follows and answered so
+-- the hub can show it. "wifi <ssid in hex> <password in hex>": a new Wi-Fi before the router is switched
+-- over. "name <name in hex>": a new name; the light restarts to take it, and comes back under it.
+-- The code that saves them is loaded only now (my-wifi-handover.lua), from the flash or its file, and dropped after.
+local handleSetting = function(data, ip)
     local ourHub = MySettings:hubIp() or learnedHubIp
     if ip == nil or ourHub == nil or ip ~= ourHub then return end
-    -- a failed load (no memory, say) must not restart the light: it answers "wifi-failed"
-    local ran, saved = pcall(function() return require("my-wifi-handover")(data) end)
+    -- a failed load (no memory, say) must not restart the light: it answers "...-failed" itself
+    local ran, err = pcall(function() return require("my-wifi-handover")(data) end)
     -- dropped whatever happened: a failed load would otherwise block every later require
     package.loaded["my-wifi-handover"] = nil
-    if not ran then print("Could not save the new Wi-Fi: " .. tostring(saved)) end
-    local ok = ran and saved == true
-    MyTally:send(string.format('%s "%s"', ok and "wifi-saved" or "wifi-failed", MySettings:name()))
-    if ok then MyLog.info("Saved the new Wi-Fi " .. MySettings:staSsid() .. ". Using it once the current one goes away.") end
+    if not ran then
+        print("Could not save the " .. data:sub(1, 4) .. ": " .. tostring(err))
+        MyTally:send(string.format('%s-failed "%s"', data:sub(1, 4), MySettings:name()))
+    end
 end
 
 _G.myHandleReceive = function(data, ip)
@@ -71,8 +72,8 @@ _G.myHandleReceive = function(data, ip)
         -- another tally searching for the hub by broadcast. Not for us.
         return
     end
-    if data:sub(1, 5) == "wifi " then
-        handleWifi(data, ip)
+    if data:sub(1, 5) == "wifi " or data:sub(1, 5) == "name " then
+        handleSetting(data, ip)
         return
     end
     if _G.testMode then

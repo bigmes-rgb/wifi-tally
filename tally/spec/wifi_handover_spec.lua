@@ -1,42 +1,7 @@
 -- "Change Wi-Fi on all lights": the hub sends a new Wi-Fi, the light saves it safely, keeps the
 -- old one to go back to, and tries the new one once the current network goes away.
 
--- an in-memory SPIFFS with the calls my-settings.lua and my-wifi-handover.lua make; readline keeps the line ending, as NodeMCU's does
-local function memoryFiles(initial)
-    local files = {}
-    for name, content in pairs(initial or {}) do files[name] = content end
-    _G.file = {
-        exists = function(name) return files[name] ~= nil end,
-        remove = function(name) files[name] = nil end,
-        rename = function(from, to)
-            if files[from] == nil or files[to] ~= nil then return false end
-            files[to] = files[from]; files[from] = nil
-            return true
-        end,
-        open = function(name, mode)
-            if mode == "r" then
-                if files[name] == nil then return nil end
-                local pos = 1
-                return {
-                    readline = function()
-                        if pos > #files[name] then return nil end
-                        local e = files[name]:find("\n", pos, true) or #files[name]
-                        local line = files[name]:sub(pos, e)
-                        pos = e + 1
-                        return line
-                    end,
-                    close = function() end,
-                }
-            end
-            files[name] = ""
-            return {
-                writeline = function(_, s) files[name] = files[name] .. s .. "\n" end,
-                close = function() end,
-            }
-        end,
-    }
-    return files
-end
+local memoryFiles = require "spec.memory_files"
 
 local ini = "/FLASH/tally-settings.ini"
 local base = "station.ssid=Church\nstation.password=old-pass\ntally.name=Cam 1\noperator.ws2812=5 grb\n"
@@ -51,6 +16,9 @@ describe("saving a Wi-Fi sent by the hub", function()
     local realIt = it
     it = function(name, func) insulate(function() realIt(name, func) end) end
     _G.MyLog = { warning = function() end, info = function() end, error = function() end }
+    -- the module answers the hub itself; here only the saving is under test
+    _G.MyTally = { send = function() end }
+    _G.tmr = { ALARM_SINGLE = "single", create = function() return { alarm = function() end } end }
 
     it("saves the new network, keeps the old one to go back to, and keeps every other setting", function()
         local files = memoryFiles({ [ini] = base })
@@ -77,6 +45,27 @@ describe("saving a Wi-Fi sent by the hub", function()
         assert.is_same("Church-New", MySettings.staSsid())
         assert.is_same("Church", MySettings.staPrevSsid())
         assert.is_same("old-pass", MySettings.staPrevPw())
+    end)
+
+    it("saves a new name sent by the hub and keeps every other setting", function()
+        local files = memoryFiles({ [ini] = base })
+        require "src.my-settings"
+        assert.is_true(dofile("src/my-wifi-handover.lua")("name " .. hex("Stage left")))
+        assert.truthy(files[ini]:find("tally.name=Stage left\n", 1, true))
+        assert.is_nil(files[ini]:find("tally.name=Cam 1", 1, true))
+        assert.truthy(files[ini]:find("station.ssid=Church", 1, true))
+        assert.truthy(files[ini]:find("operator.ws2812=5 grb", 1, true))
+        assert.is_nil(files[ini .. ".bak"])
+    end)
+
+    it("refuses a name the light could not use", function()
+        local files = memoryFiles({ [ini] = base })
+        require "src.my-settings"
+        local rename = dofile("src/my-wifi-handover.lua")
+        assert.is_false(rename("name " .. hex("")))
+        assert.is_false(rename("name " .. hex(string.rep("x", 27))))
+        assert.is_false(rename("name " .. hex('a"b')))
+        assert.is_same(base, files[ini])
     end)
 
     it("refuses a garbled message and leaves the settings alone", function()
