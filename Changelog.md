@@ -3,6 +3,17 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Configuration → "Wi-Fi of the lights": changing the church's Wi-Fi name or password no
+  longer means plugging every light in by USB. Send the new network to every light on the network
+  first. Each saves it and keeps using the current network until that goes away, then joins the new
+  one by itself; if it cannot (a typo, say), it goes back to the old one. The page shows which
+  lights saved it and which were not reached. Lights need "Install now" once to get this.
+* [FEATURE] With more than one board plugged in, Build a light and the Flasher page ask which one to
+  use instead of silently taking the first.
+* [BUGFIX] Build a light, step 5 restarted the light over and over. The check showed only while the
+  light was away from the hub; when it dropped off (releasing the USB port can restart the board)
+  the check came back and restarted it again. Step 5 now stays done once the light has reached the
+  hub after a save.
 * [BUGFIX] "Build another light" carried the last light's name, Wi-Fi and password over to the
   next board, with that name exempt from the "already used" check. Step 5 could then show success
   because the other light was the one online. What the wizard remembers is now tied to the board's

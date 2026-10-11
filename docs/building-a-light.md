@@ -57,3 +57,12 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 Run each through the same steps, between services. Step 2 reads the light's name, Wi-Fi and
 hardware, and checks that its firmware can run the current tally software before installing
 anything.
+
+## Changing the church's Wi-Fi
+
+Before you change the router's network name or password, open **Configuration → Wi-Fi of the
+lights** with every light switched on, type the new name and password, and press **Send**. Each light
+saves it and keeps working on the current network. When you switch the router over, the lights join
+the new network by themselves, and go back to the old one if they cannot. Lights that were off at the
+time are listed as not reached: plug those into the hub's computer and save the new Wi-Fi in Build a
+light.

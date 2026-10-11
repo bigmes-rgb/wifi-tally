@@ -211,6 +211,39 @@ insulate("hub discovery", function()
         myHandleReceive("O255/000/000 S000/000/000", "10.10.1.1")
         assert.is_same(1, shown)
     end)
+    describe("a new Wi-Fi from the hub", function()
+        local packets, saved
+        local function setupWifi()
+            packets, saved = {}, nil
+            _G.net.createUDPSocket = function()
+                return { on = function() end, listen = function() end, send = function(_, port, ip, data) table.insert(packets, data) end }
+            end
+            useSettings(nil)
+            MySettings.saveWifi = function(ssid, pw) saved = { ssid, pw }; return true end
+            MySettings.staSsid = function() return saved and saved[1] end
+            myHandleReceive("O000/000/000 S000/000/000", "192.168.1.35") -- its hub
+        end
+        it("is saved when it comes from the light's own hub, and answered", function()
+            setupWifi()
+            -- "Church" and "new=pass" in hex
+            myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.35")
+            assert.is_same({ "Church", "new=pass" }, saved)
+            assert.truthy(packets[#packets]:find('wifi-saved "Doe"', 1, true))
+        end)
+        it("is ignored from any other address", function()
+            setupWifi()
+            local before = #packets
+            myHandleReceive("wifi 436875726368 6e65773d70617373", "192.168.1.66")
+            assert.is_nil(saved)
+            assert.is_same(before, #packets)
+        end)
+        it("is refused when garbled, and answered so", function()
+            setupWifi()
+            myHandleReceive("wifi 4368757 zz", "192.168.1.35")
+            assert.is_nil(saved)
+            assert.truthy(packets[#packets]:find('wifi-failed "Doe"', 1, true))
+        end)
+    end)
     it("ignores other tallies' broadcasts without logging", function()
         useSettings(nil)
         local before = #logs

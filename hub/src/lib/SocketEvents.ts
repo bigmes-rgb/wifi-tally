@@ -32,6 +32,8 @@ export interface ServerSentEvents {
     'channel.state': (data: {channels: ChannelSaveObject[]}) => void
 
     'config.state.atem': (atemConfiguration: AtemConfigurationSaveType) => void
+    'tallies.wifi.sent': (result: { sentTo: string[], problem?: string }) => void
+    'tallies.wifi.answer': (answer: { tallyName: string, saved: boolean }) => void
     'config.state.mock': (mockConfiguration: MockConfigurationSaveType) => void
     'config.state.obs': (obsConfiguration: ObsConfigurationSaveType) => void
     'config.state.rolandV8HD': (rolandV8HDConfiguration: RolandV8HDConfigurationSaveType) => void
@@ -91,7 +93,8 @@ export interface ClientSentEvents {
     'hub.info.get': () => void
 
     // listenMs: how long to listen to a board that does not answer (longer right after installing firmware)
-    'flasher.device.get': (options?: { listenMs?: number }) => void
+    'flasher.device.get': (options?: { listenMs?: number, path?: string }) => void
+    'tallies.wifi.send': (ssid: string, password: string) => void
     'flasher.watch.start': (path: string) => void
     'flasher.watch.stop': () => void
     'flasher.bootmessage.start': (path: string) => void

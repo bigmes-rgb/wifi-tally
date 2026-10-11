@@ -1,5 +1,5 @@
 import nodemcuLib from 'nodemcu-tool'
-import TallyDevice, { SerialPortInfo } from './TallyDevice'
+import TallyDevice, { boardCandidates, KNOWN_VENDOR_IDS, SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua, tallyNotRunning } from './HardwareProfile'
 import { describeFlashError, FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware } from './FirmwareFlasher'
@@ -271,20 +271,19 @@ class NodeMcuConnector {
 
   // USB-to-serial chips seen on NodeMCU boards: CH340/CH341/CH9102 (QinHeng), CP2102 (Silicon Labs),
   // FT232 (FTDI). Anything else that is a USB serial port is still tried, after these.
-  static readonly KNOWN_VENDOR_IDS = ["1A86", "10C4", "0403"]
+  static readonly KNOWN_VENDOR_IDS = KNOWN_VENDOR_IDS
 
   // Picks the port most likely to be the board. nodemcu-tool only lists known vendors, which hides a
   // board with an unexpected chip and leaves the operator with "no device" and no clue.
-  static pickBoard(ports: SerialPortInfo[]): SerialPortInfo | undefined {
-    const vendor = (port: SerialPortInfo) => (port.vendorId || "").toUpperCase()
-    return ports.find(port => NodeMcuConnector.KNOWN_VENDOR_IDS.includes(vendor(port)))
-      // any USB serial device; a port without a vendor id is on-board or Bluetooth and never a NodeMCU
-      || ports.find(port => vendor(port) !== "")
+  // preferredPath: the board the person picked when several are plugged in
+  static pickBoard(ports: SerialPortInfo[], preferredPath?: string): SerialPortInfo | undefined {
+    const candidates = boardCandidates(ports)
+    return candidates.find(port => port.path === preferredPath) || candidates[0]
   }
 
   // listenMs: how long to listen to a board that does not answer, before saying what it printed.
   // Right after installing the firmware the board formats its storage first, which takes a while.
-  async getDevice(listenMs = 6000): Promise<TallyDevice> {
+  async getDevice(listenMs = 6000, preferredPath?: string): Promise<TallyDevice> {
     const tallyDevice = new TallyDevice()
     const localFiles = await NodeMcuConnector.getLocalFiles()
     const updatePossible = localFiles.length > 0
@@ -299,7 +298,7 @@ class NodeMcuConnector {
         tallyDevice.serialPorts = list.map(port => ({
           path: port.path, manufacturer: port.manufacturer, vendorId: port.vendorId, productId: port.productId
         }))
-        const device = NodeMcuConnector.pickBoard(tallyDevice.serialPorts)
+        const device = NodeMcuConnector.pickBoard(tallyDevice.serialPorts, preferredPath)
         if (device) {
 
           tallyDevice.path = device.path

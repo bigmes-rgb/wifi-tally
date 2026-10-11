@@ -1,4 +1,4 @@
-import TallyDevice from './TallyDevice'
+import TallyDevice, { boardCandidates, describePort } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 
 
@@ -29,4 +29,18 @@ test('toJson/fromJson', () => {
   expect(object.tallySettings.toString()).toEqual("example=foo\n")
   expect(object.vendorId).toEqual("abc123")
   expect(object.update).toEqual("up-to-date")
+})
+
+describe("boardCandidates()", () => {
+  test("lists every port that could be a NodeMCU, known chips first, and nothing without a vendor id", () => {
+    const ports = [
+      { path: "COM1" },
+      { path: "COM9", vendorId: "2341", manufacturer: "Arduino" },
+      { path: "COM6", vendorId: "1a86", manufacturer: "wch.cn" },
+      { path: "COM7", vendorId: "10C4", manufacturer: "Silicon Labs" },
+    ]
+    expect(boardCandidates(ports).map(p => p.path)).toEqual(["COM6", "COM7", "COM9"])
+    expect(describePort(ports[2])).toEqual("COM6 (CH340)")
+    expect(describePort(ports[1])).toEqual("COM9 (Arduino)")
+  })
 })

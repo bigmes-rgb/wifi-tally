@@ -57,9 +57,31 @@ end
 -- hubs other than ours that were already reported, so each is logged once
 local otherHubsWarned = {}
 
+local fromHex = function(hex)
+    return (hex:gsub("%x%x", function(h) return string.char(tonumber(h, 16)) end))
+end
+
+-- "wifi <ssid in hex> <password in hex>": the hub hands every light a new Wi-Fi before the router
+-- is switched over. Taken only from the hub this light follows; answered so the hub can show it.
+local handleWifi = function(data, ip)
+    local ourHub = MySettings:hubIp() or learnedHubIp
+    if ip == nil or ourHub == nil or ip ~= ourHub then return end
+    local hexSsid, hexPw = data:match("^wifi (%x+) (%x*)%s*$")
+    local ok = false
+    if hexSsid and #hexSsid % 2 == 0 and #hexPw % 2 == 0 then
+        ok = MySettings.saveWifi(fromHex(hexSsid), fromHex(hexPw))
+    end
+    MyTally:send(string.format('%s "%s"', ok and "wifi-saved" or "wifi-failed", MySettings:name()))
+    if ok then MyLog.info("Saved the new Wi-Fi " .. MySettings:staSsid() .. ". Using it once the current one goes away.") end
+end
+
 _G.myHandleReceive = function(data, ip)
     if data:sub(1, 9) == "tally-ho " or data:sub(1, 4) == "log " then
         -- another tally searching for the hub by broadcast. Not for us.
+        return
+    end
+    if data:sub(1, 5) == "wifi " then
+        handleWifi(data, ip)
         return
     end
     if _G.testMode then

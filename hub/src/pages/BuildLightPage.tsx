@@ -10,6 +10,7 @@ import DevicePanel, { deviceIsReady } from '../components/setup/DevicePanel'
 import NameWifiForm from '../components/setup/NameWifiForm'
 import ProfileChooser from '../components/setup/ProfileChooser'
 import WiringTest from '../components/setup/WiringTest'
+import BoardPicker from '../components/setup/BoardPicker'
 import { defaultHardwareProfile, HardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
 import useTallyDevice from '../hooks/useTallyDevice'
@@ -49,7 +50,9 @@ const BuildLightPage = () => {
   const [refresh, setRefresh] = useState(1)
   // right after a firmware install the hub listens longer: the board formats its storage on first start
   const [listenMs, setListenMs] = useState<number | undefined>(undefined)
-  const device = useTallyDevice(refresh, listenMs)
+  // the board picked when several are plugged in
+  const [boardPath, setBoardPath] = useState<string | undefined>(undefined)
+  const device = useTallyDevice(refresh, listenMs, boardPath)
   const [wiringPassed, setWiringPassed] = useState(false)
   const [saved, setSaved] = useState<{ name: string, ssid: string } | null>(null)
   const [saveCount, setSaveCount] = useState(0) // every save restarts the light's Wi-Fi report
@@ -73,6 +76,11 @@ const BuildLightPage = () => {
     setRefresh(r => r + 1)
   }
   const connected = saved && (tallies || []).find(t => t.name === saved.name && t.isConnected())
+  // Once the light has reached the hub after this save, step 5 is done and stays done. Showing the
+  // check again whenever the light dropped off restarted it each time: releasing the USB port can
+  // restart the board, it drops off, the check came back and restarted it, round and round.
+  const [reachedHub, setReachedHub] = useState(false)
+  useEffect(() => { if (connected) setReachedHub(true) }, [connected])
 
   const canContinue = [
     wiringChecked,
@@ -104,6 +112,7 @@ const BuildLightPage = () => {
         <Step>
           <StepLabel>{steps[1]}</StepLabel>
           <StepContent>
+            <BoardPicker device={device} onPick={path => { setBoardPath(path); reload() }} className={classes.block} />
             <DevicePanel device={device} onReload={reload} />
             {nav()}
           </StepContent>
@@ -121,7 +130,7 @@ const BuildLightPage = () => {
           <StepLabel>{steps[3]}</StepLabel>
           <StepContent>
             {device
-              ? <NameWifiForm device={device} profile={profile} rememberedSsid={saved?.ssid} rememberedSettings={rememberedSettings} onSaved={(name, ssid, ini) => { setSaved({ name, ssid }); setRemembered({ chipId: device.chipId, settings: ini }); setSaveCount(c => c + 1); setActive(4) }} />
+              ? <NameWifiForm device={device} profile={profile} rememberedSsid={saved?.ssid} rememberedSettings={rememberedSettings} onSaved={(name, ssid, ini) => { setSaved({ name, ssid }); setRemembered({ chipId: device.chipId, settings: ini }); setReachedHub(false); setSaveCount(c => c + 1); setActive(4) }} />
               : <Alert severity="warning" className={classes.block}>The light is not plugged in any more. Go back a step.</Alert>}
             {nav()}
           </StepContent>
@@ -129,14 +138,14 @@ const BuildLightPage = () => {
         <Step>
           <StepLabel>{steps[4]}</StepLabel>
           <StepContent>
-            {saved && (connected
-              ? <Alert severity="success" className={classes.block} data-testid="build-connected"><strong>{saved.name}</strong> is on the Wi-Fi and talking to the hub. Unplug it and mount it on its camera; pick its switcher input below.</Alert>
+            {saved && (reachedHub
+              ? <Alert severity="success" className={classes.block} data-testid="build-connected"><strong>{saved.name}</strong> joined the Wi-Fi and reached the hub. Unplug it and mount it on its camera; pick its switcher input below.</Alert>
               : <Alert severity="info" className={classes.block} data-testid="build-waiting">Waiting for <strong>{saved.name}</strong> to show up at the hub. Its own report follows.</Alert>)}
             {/* only while this step shows: hidden steps stay mounted, and the watch holds the USB port */}
-            {active === 4 && saved && !connected && <NetworkCheck key={saveCount} path={device?.path} />}
+            {active === 4 && saved && !reachedHub && <NetworkCheck key={saveCount} path={device?.path} />}
             <ConnectedLights highlight={saved?.name} />
             {nav(<>
-              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
+              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setReachedHub(false); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
               <Button component={RouterLink} to="/">Done</Button>
             </>)}
           </StepContent>
