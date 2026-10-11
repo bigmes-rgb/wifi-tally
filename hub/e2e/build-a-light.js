@@ -47,13 +47,7 @@ async function run() {
     log(2, 'tally software installed')
     await shot('2-installed')
 
-    // the reload forgot step 1's choices (they live in the page): make them again
-    await page.click('[data-testid=build-back]')
-    await page.selectOption('[data-testid=profile-operator-kind] select', 'ws2812')
-    await page.fill('[data-testid=profile-operator-pixels] input', '5')
-    await page.click('[data-testid=wiring-checked]')
-    await page.click('[data-testid=build-next]')
-    await page.waitForSelector('[data-testid=device-panel]', { timeout: 10000 })
+    // step 1's choices outlived the reload: the wiring test below announces the 5-pixel strip
     await page.click('[data-testid=build-next]')
     await page.waitForSelector('[data-testid=wiring-testing]', { timeout: 10000 })
 

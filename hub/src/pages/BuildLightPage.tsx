@@ -11,10 +11,11 @@ import NameWifiForm from '../components/setup/NameWifiForm'
 import ProfileChooser from '../components/setup/ProfileChooser'
 import WiringTest from '../components/setup/WiringTest'
 import BoardPicker from '../components/setup/BoardPicker'
-import { defaultHardwareProfile, HardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
+import { defaultHardwareProfile, HardwareProfile, isHardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
 import useTallyDevice from '../hooks/useTallyDevice'
 import useFirmwareJob from '../hooks/useFirmwareJob'
+import useSessionState from '../hooks/useSessionState'
 import { rememberFromDevice, RememberedLight, shouldReadProfile } from '../components/setup/rememberedLight'
 
 const useStyles = makeStyles(theme => ({
@@ -44,10 +45,12 @@ const steps = [
 const BuildLightPage = () => {
   const classes = useStyles()
   const [active, setActive] = useState(0)
-  const [profile, setProfile] = useState<HardwareProfile>(defaultHardwareProfile())
+  // Step 1's choices outlive a page reload: a page reloaded during an install goes on at "Plug it in", and the wiring
+  // test after it must test what is on the board, not the default
+  const [profile, setProfile] = useSessionState<HardwareProfile>("buildLight.profile", defaultHardwareProfile, isHardwareProfile)
   // the chip id of the board whose stored profile was applied, or that was just finished
   const [profileReadFor, setProfileReadFor] = useState<string | null | undefined>(undefined)
-  const [wiringChecked, setWiringChecked] = useState(false)
+  const [wiringChecked, setWiringChecked] = useSessionState<boolean>("buildLight.wiringChecked", () => false, v => typeof v === "boolean")
   const [refresh, setRefresh] = useState(1)
   // the next check is of another board than the one the hub last installed
   const [newBoard, setNewBoard] = useState(false)
@@ -77,7 +80,7 @@ const BuildLightPage = () => {
       setProfile(readProfileFromIni(device.tallySettings))
       setProfileReadFor(device.chipId)
     }
-  }, [device, profileReadFor])
+  }, [device, profileReadFor, setProfile])
 
   const reload = (options?: { newBoard?: boolean }) => {
     setNewBoard(!!options?.newBoard)
@@ -92,7 +95,8 @@ const BuildLightPage = () => {
 
   const canContinue = [
     wiringChecked,
-    deviceIsReady(device),
+    // step 1 is skipped when a page opened during an install jumps to "Plug it in": the wiring test needs it
+    deviceIsReady(device) && wiringChecked,
     wiringPassed,
     saved !== null,
     true,
@@ -122,6 +126,9 @@ const BuildLightPage = () => {
           <StepContent>
             <BoardPicker device={device} onPick={path => { setBoardPath(path); reload() }} className={classes.block} />
             <DevicePanel device={device} onReload={reload} />
+            {deviceIsReady(device) && !wiringChecked && <Alert severity="info" className={classes.block} data-testid="build-step1-unchecked">
+              Step 1 is not ticked yet: press Back, choose what is on the board and tick the box there. The wiring test after this step tests exactly that.
+            </Alert>}
             {nav()}
           </StepContent>
         </Step>
@@ -153,7 +160,7 @@ const BuildLightPage = () => {
             {active === 4 && saved && !reachedHub && <NetworkCheck key={saveCount} path={device?.path} />}
             <ConnectedLights highlight={saved?.name} />
             {nav(<>
-              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setReachedHub(false); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload() }} data-testid="build-another">Build another light</Button>
+              <Button variant="outlined" color="primary" onClick={() => { setSaved(null); setReachedHub(false); setWiringPassed(false); setWiringChecked(false); setProfileReadFor(device?.chipId ?? null); setRemembered(undefined); setActive(0); reload({ newBoard: true }) }} data-testid="build-another">Build another light</Button>
               <Button component={RouterLink} to="/">Done</Button>
             </>)}
           </StepContent>

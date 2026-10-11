@@ -1,6 +1,6 @@
 import React from 'react'
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import DevicePanel, { InstallRunning, twoHubsText } from './DevicePanel'
 import TallyDevice from '../../flasher/TallyDevice'
 import { socket } from '../../hooks/useSocket'
@@ -123,24 +123,27 @@ describe("the install dialog follows the hub's install", () => {
     expect(screen.getByTestId("firmware-press-reset")).toBeInTheDocument()
   })
 
-  test("an install that ends with the firmware on the board checks the board once, for its first start", () => {
+  test("on the page that started the install, Hide can be undone, and the board's advice from before is not shown meanwhile", () => {
+    render(<DevicePanel device={board({ boardState: "otherFirmware" })} onReload={() => {}} />)
+    hubSays(waitingForRst)
+    fireEvent.click(screen.getByTestId("firmware-hide"))
+    expect(screen.getByTestId("device-install-running").textContent).toContain("press its RST button once")
+    expect(screen.queryByTestId("device-state-otherFirmware")).toBeNull()
+    expect(screen.queryByTestId("device-firmware")).toBeNull()
+    fireEvent.click(screen.getByText("Show"))
+    expect(screen.getByTestId("firmware-press-reset")).toBeInTheDocument()
+  })
+
+  test("an install that ends with the firmware on the board: the panel waits for the board's first start", () => {
+    // asking the hub again is up to whoever holds the board (useTallyDevice), so it happens on any step and once
     const reloads: any[] = []
     const { rerender } = render(<DevicePanel device={board({ boardState: "otherFirmware" })} onReload={o => reloads.push(o)} />)
     hubSays(job())
     hubSays(finished())
-    expect(reloads).toEqual([undefined])
+    expect(reloads).toEqual([])
     rerender(<DevicePanel device={undefined} onReload={o => reloads.push(o)} />)
     expect(screen.getByTestId("device-first-start").textContent).toContain("starting for the first time")
     expect(document.body.textContent).not.toContain("failed")
-  })
-
-  test("a page reloaded during the install does not start a second check when it ends: the waiting one brings the board", () => {
-    const reloads: any[] = []
-    render(<DevicePanel device={undefined} onReload={o => reloads.push(o)} />)
-    hubSays(job())
-    hubSays(finished())
-    expect(reloads).toEqual([])
-    expect(screen.getByTestId("device-first-start")).toBeInTheDocument()
   })
 
   test("a restart the hub did not see is not a failure: the first start card asks for RST or plugging it in again", () => {
@@ -165,13 +168,13 @@ describe("the install dialog follows the hub's install", () => {
     const reloads: any[] = []
     render(<DevicePanel device={board({ boardState: "restarting", recentInstall: { path: "COM6", restart: "restarted", checks: 1 } })} onReload={o => reloads.push(o)} />)
     expect(screen.queryByTestId("device-firmware")).toBeNull()
-    const text = screen.getByTestId("device-state-restarting").textContent
-    expect(text).toContain("installing it again would not change anything")
-    expect(text).toContain("use another board")
+    const alert = screen.getByTestId("device-state-restarting")
+    expect(alert.textContent).toContain("installing it again would not change anything")
+    expect(alert.textContent).toContain("plug in another board and press Check the other board")
     expect(screen.getByTestId("boot-reader")).toBeInTheDocument()
-    expect(screen.getByTestId("device-check")).toBeInTheDocument()
-    // another board is checked as a board of its own
-    fireEvent.click(screen.getByTestId("device-other-board"))
+    // both buttons the text names are on the alert, where it is read
+    expect(within(alert).getByTestId("device-check")).toBeInTheDocument()
+    fireEvent.click(within(alert).getByTestId("device-other-board"))
     expect(reloads).toEqual([{ newBoard: true }])
   })
 

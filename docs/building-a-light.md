@@ -37,8 +37,9 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
      the board and checked, but the board did not restart by itself. Do either (not FLASH), then
      press **Done**. If you do nothing, the install still finishes after half a minute: it is
      never reported as failed once the firmware was checked.
-   - The install runs in the hub, not in the page. You can hide its window, or reload the page:
-     the page goes back to *Plug it in* and shows the install where it is.
+   - The install runs in the hub, not in the page. You can hide its window (**Show** brings it back),
+     or reload the page: the page goes back to *Plug it in* and shows the install where it is, and
+     keeps what you chose at step 1.
    - *Firmware installed, starting for the first time.* The board is formatting its storage,
      which takes up to two minutes. Leave it alone; the page carries on by itself. If the hub has
      not seen the board restart, the box says so: press RST once, or unplug the board and plug it
@@ -49,16 +50,20 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
    - *Starts, but something restarts it over and over*: the NodeMCU firmware works, and the light
      program on the board, its settings, its power or someone pressing RST restarts it. Press
      **Install firmware**: the install erases the board, which clears the program and settings.
-   - *Keeps crashing*: what crashes is not NodeMCU. Press **Install firmware**.
+   - *Keeps crashing*: press **Install firmware**; it erases the board, which clears the program and
+     settings, then puts a fresh NodeMCU on it.
    - *Not saying anything*: unplug the board and plug it back in, or press RST once, and press
      **Check again**. If it stays silent, install the firmware.
    - *Setting up its storage*: wait a minute and press **Check again**.
 
-   Right after an install that was checked, the page never offers the same install again for the
-   same problem: installing again could not change anything. It asks you to unplug the board and
-   plug it back in, then to check its power, its USB cable and socket and the LED wiring, and last
-   to use another board. When you plug in another board, press **Check the other board**, so the
-   hub treats it as a new one. **What the board printed** shows the board's own words, and **Read
+   After an install that was checked, the page never offers the same install again for the same
+   problem: installing again could not change anything. If the hub did not see the board restart, it
+   asks you once to unplug the board and plug it back in; then to unplug the LED wires and try another
+   USB cable and socket; and last to plug in another board and press **Check the other board**, so
+   the hub treats it as a new one (**Build another light** does the same). A board that answered
+   after the install and starts restarting once the light program is on it usually lacks power for
+   its LEDs and Wi-Fi; the page says what to try, and does not send it round the install again. The
+   hub remembers the install for 12 hours, also when vTally is closed and opened again. **What the board printed** shows the board's own words, and **Read
    the start-up message** shows what the chip itself says when you press RST.
 3. **Wiring test.** The hub lights each colour through the USB cable and asks what you see. It
    tells you which wire to move, or fixes the common-pin and pixel settings itself.

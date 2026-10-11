@@ -28,6 +28,7 @@ import { DefaultTallyConfiguration, TallyConfiguration } from './tally/TallyConf
 import NodeMcuConnector from './flasher/NodeMcuConnector'
 import TallyDevice from './flasher/TallyDevice'
 import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
+import { logEveryPortClose } from './flasher/BoardListener'
 import { getHubInfo } from './lib/HubInfo'
 import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
@@ -62,9 +63,17 @@ const myWebTallyDriver = new WebTallyDriver(myConfiguration, myTallyContainer)
 
 const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
 
+// a board unplugged while nodemcu-tool has its port open says so in the hub log, like on the hub's own ports
+logEveryPortClose()
+
 // with --with-test a pretend board is plugged in, so the light pages can be tried without hardware
 const myNodeMcuConnector = (() => {
-  if (!myConfiguration.isTest()) { return new NodeMcuConnector() }
+  if (!myConfiguration.isTest()) {
+    // the last firmware install outlives a restart of vTally: the page must not offer it again for the same symptom
+    return new NodeMcuConnector(undefined, undefined, {
+      installStore: { load: () => myConfiguration.getFirmwareInstall(), save: record => myConfiguration.setFirmwareInstall(record) },
+    })
+  }
   const fake = new FakeNodemcu()
   return new NodeMcuConnector(fake, fakeFlashFirmware(fake), { listen: fakeListen(fake), poke: async () => {}, purge: async () => {}, release: async () => {}, stream: fakeStream(fake) })
 })()

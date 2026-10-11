@@ -19,6 +19,13 @@ export type HardwareProfile = {
 
 export const MAX_PIXELS = 10
 
+// a profile kept somewhere (the page's tab storage) that still has every field this version reads
+export const isHardwareProfile = (value: any): value is HardwareProfile => !!value && (["operator", "stage"] as const).every(role => {
+  const light = value[role]
+  return !!light && ["rgb", "ws2812", "none"].includes(light.kind) && ["anode", "cathode"].includes(light.polarity) &&
+    Number.isInteger(light.pixels) && light.pixels >= 1 && light.pixels <= MAX_PIXELS && ["grb", "rgb"].includes(light.order)
+})
+
 export const defaultHardwareProfile = (): HardwareProfile => ({
   operator: { kind: "rgb", polarity: "anode", pixels: 5, order: "grb" },
   stage: { kind: "none", polarity: "anode", pixels: 4, order: "grb" },

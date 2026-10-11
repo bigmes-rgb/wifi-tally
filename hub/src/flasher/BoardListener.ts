@@ -10,7 +10,7 @@ export type BoardState =
   | "formatting" // NodeMCU's first start after installing: it formats its storage and answers nothing meanwhile
   | "busy" // NodeMCU started but did not give a prompt yet
   | "restarting" // NodeMCU starts, then something restarts it: the program on it, its settings, its power, a person
-  | "crashing" // crash text from something that is not NodeMCU
+  | "crashing" // crash text with nothing in it that says which software crashed
   | "otherFirmware" // it prints, but not NodeMCU: a board from the box, or a damaged install
   | "tallyBusy" // the tally software is running and logging, too busy to answer in time
   | "twoHubs" // the tally software hears a hub at two addresses and keeps switching
@@ -30,7 +30,13 @@ export interface ListenOptions {
   untilPrompt?: boolean // stop as soon as the Lua prompt shows
   pokeEveryMs?: number // send a newline this often, so a running Lua answers with its prompt
   openPort?: OpenPort
+  cancelled?: () => boolean // true once nobody waits for the answer: the listen ends and gives the port back
 }
+
+// Where a listen that followed the board says its port closed and the board came back (unplugged and plugged in
+// again, or dropped by Windows). What it printed before that came from a start that is over.
+export const portCameBack = (path: string) => `\r\n--- the port closed here; the board came back on ${path} ---\r\n`
+const CAME_BACK = "--- the port closed here;"
 
 const MAX_KEEP = 8000
 
@@ -45,6 +51,21 @@ export const openToListen: OpenPort = (path, baudRate) => {
 }
 export const releaseResetLines = (port: SerialPortLike) => port.set({ dtr: false, rts: false }, () => {})
 
+// node-serialport reports a port that went away (the board unplugged, or Windows dropping it) only as a 'close' event
+// carrying the read error. The hub's own ports log it; nodemcu-tool listens for 'error' alone, so an unplug while it
+// had the port open (checks that connect, "Install now", the wiring test, saving the name and Wi-Fi) left no reason
+// in the log. This writes the same line for every port, nodemcu-tool's included; the same line twice is written once.
+export function logEveryPortClose(SerialPort: any = require('serialport')) { // the class nodemcu-tool opens its port with
+  const proto = SerialPort.prototype
+  if (proto._hubLogsClose) return
+  const disconnected = proto._disconnected
+  proto._disconnected = function (this: any, err: any) {
+    if (this.isOpen) warnRarely(`[serial ${this.path}] port closed${portClosedReason({ message: err?.message || String(err), disconnected: true })}`)
+    return disconnected.call(this, err)
+  }
+  proto._hubLogsClose = true
+}
+
 export const printable = (buf: Buffer): string => {
   let out = ""
   for (const b of buf) {
@@ -57,7 +78,7 @@ export const printable = (buf: Buffer): string => {
 // the Lua prompt: ">" at the start of a line, followed by a space or the end of what arrived
 export const hasPrompt = (text: string) => /(^|[\r\n])>( |$)/.test(text)
 
-export function listenToBoard({ path, ms, untilPrompt = true, pokeEveryMs = 3000, openPort = openToListen }: ListenOptions): Promise<HeardFromBoard> {
+export function listenToBoard({ path, ms, untilPrompt = true, pokeEveryMs = 3000, openPort = openToListen, cancelled }: ListenOptions): Promise<HeardFromBoard> {
   return new Promise(resolve => {
     const port = openPort(path, 115200)
     let raw = Buffer.alloc(0)
@@ -65,12 +86,14 @@ export function listenToBoard({ path, ms, untilPrompt = true, pokeEveryMs = 3000
     let closed = false
     let poker: ReturnType<typeof setInterval> | undefined
     let stopper: ReturnType<typeof setTimeout> | undefined
+    let watcher: ReturnType<typeof setInterval> | undefined
 
     const finish = () => {
       if (done) return
       done = true
       if (poker) clearInterval(poker)
       if (stopper) clearTimeout(stopper)
+      if (watcher) clearInterval(watcher)
       port.removeAllListeners('data')
       const text = printable(raw)
       const result: HeardFromBoard = { text, sawPrompt: hasPrompt(text), bytes: raw.length, ...(closed ? { closed } : {}) }
@@ -94,6 +117,7 @@ export function listenToBoard({ path, ms, untilPrompt = true, pokeEveryMs = 3000
       poke()
       poker = setInterval(poke, pokeEveryMs)
       stopper = setTimeout(finish, ms)
+      if (cancelled) watcher = setInterval(() => { if (cancelled()) finish() }, 250)
     })
   })
 }
@@ -111,14 +135,21 @@ export const hubAddressesIn = (text: string): string[] => {
 export function classifyBoardOutput(heard: HeardFromBoard): BoardState {
   const text = heard.text
   if (heard.sawPrompt) return "ready"
+  // NodeMCU formats its storage on its first start. Formatting twice means it restarted in the middle of it. Only the
+  // board's latest start counts: a board unplugged and plugged back in during a listen starts formatting again.
+  const back = text.lastIndexOf(CAME_BACK)
+  const latest = back < 0 ? text : text.slice(text.indexOf("\n", back) + 1)
+  if ((latest.match(/Formatting file system/gi) || []).length >= 2) return "restarting"
   if (/Formatting file system/i.test(text)) return "formatting"
   // the dots NodeMCU prints while it formats, for a listen that began after its "Formatting" line
-  if (/^[.\s]*\.{3,}[.\s]*$/.test(text)) return "formatting"
+  if (/^[.\s]*\.{3,}[.\s]*$/.test(latest)) return "formatting"
   // NodeMCU prints its banner only once it is up, file system included. Two of them mean the firmware works and
-  // something restarted the board, which installing the same firmware cannot change.
+  // something restarted the board, which installing the same firmware cannot change. So does a Lua PANIC: that is
+  // NodeMCU's own message when the program on it fails, and NodeMCU restarts the board after it.
   const starts = (text.match(/NodeMCU (\d+\.\d+|custom build)/gi) || []).length
-  const crashText = /Fatal exception|Exception \(\d+\)|stack>>>|PANIC:/i
-  if (starts >= 2 || (starts === 1 && crashText.test(text))) return "restarting"
+  const luaPanic = /PANIC:/.test(text)
+  const crashText = /Fatal exception|Exception \(\d+\)|stack>>>/i
+  if (starts >= 2 || luaPanic || (starts === 1 && crashText.test(text))) return "restarting"
   const crashes = (text.match(/Fatal exception|Exception \(\d+\)|stack>>>|wdt reset|rst cause:\s*[2-4]/gi) || []).length
   if (crashes >= 2 || crashText.test(text)) return "crashing"
   if (heard.bytes === 0) return "silent"

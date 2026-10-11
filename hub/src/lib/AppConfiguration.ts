@@ -29,6 +29,8 @@ export class AppConfiguration extends Configuration {
     mixerSelection?: string
     // the first-run wizard was finished (or dismissed) once
     setupCompleted: boolean
+    // the last NodeMCU firmware install, as NodeMcuConnector keeps it (it checks what it reads back)
+    firmwareInstall?: object
     tallyPort: number
     tallyHighlightTime: number
     tallyKeepAlivesPerSecond: number
@@ -126,11 +128,15 @@ export class AppConfiguration extends Configuration {
         }
         this.loadChannelArray("channels", this.setChannels.bind(this), data)
         this.loadTallyArray("tallies", this.setTallies.bind(this), data)
+        if (typeof data.firmwareInstall === "object" && data.firmwareInstall !== null) {
+            this.firmwareInstall = data.firmwareInstall
+        }
     }
     toJson(): object {
         return {
             mixer: this.mixerSelection,
             setupCompleted: this.setupCompleted,
+            firmwareInstall: this.firmwareInstall,
             atem: this.atemConfiguration.toJson(),
             mock: this.mockConfiguration.toJson(),
             "null": this.nullConfiguration.toJson(),
@@ -279,6 +285,16 @@ export class AppConfiguration extends Configuration {
     }
     isSetupCompleted() {
         return this.setupCompleted
+    }
+
+    // Saved, but not announced as "config.changed": nothing but the configuration file cares, and the mixer driver
+    // would check its connection (and log a line) after every board check.
+    setFirmwareInstall(record: object | null) {
+        this.firmwareInstall = record || undefined
+        this.emitter.emit("config.changed.firmwareInstall")
+    }
+    getFirmwareInstall() {
+        return this.firmwareInstall
     }
     // the wizard is pushed on the user only while nothing has been configured
     isSetupNeeded() {

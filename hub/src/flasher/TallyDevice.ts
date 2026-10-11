@@ -19,12 +19,14 @@ export const KNOWN_VENDOR_IDS = Object.keys(CHIP_NAMES)
 
 const vendorOf = (port: SerialPortInfo) => (port.vendorId || "").toUpperCase()
 
-// The firmware install this hub finished shortly before a board check, and was read back correctly. A board that
-// still does not answer after it needs another remedy than the same install.
+// The firmware install this hub did on this board, read back correctly (see NodeMcuConnector's install record). A
+// board that still does not answer after it needs another remedy than the same install.
 export interface RecentInstall {
   path: string // where it was installed; the board may have come back on another port since
   restart: RestartOutcome // how its restart after the install was noticed
-  checks: number // board checks since the install that reached a page, this one included
+  checks: number // board checks since the install that found the board and reached a page, this one included
+  answered?: boolean // the board answered the hub at a check since: the firmware works
+  programmed?: boolean // the tally software went on since
 }
 
 // the ports that could be a NodeMCU, the most likely first. A port without a vendor id is

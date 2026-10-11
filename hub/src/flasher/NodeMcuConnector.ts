@@ -1,10 +1,10 @@
 import nodemcuLib from 'nodemcu-tool'
-import TallyDevice, { boardCandidates, describePort, KNOWN_VENDOR_IDS, SerialPortInfo } from './TallyDevice'
+import TallyDevice, { boardCandidates, describePort, KNOWN_VENDOR_IDS, RecentInstall, SerialPortInfo } from './TallyDevice'
 import TallySettingsIni from './TallySettingsIni'
 import { endTestLua, HardwareProfile, profileToLuaCommands, Rgb, showColorLua, tallyNotRunning } from './HardwareProfile'
 import { describeFlashError, FirmwareProgressType, FlashFirmwareFn, flashNodeMcuFirmware, RestartOutcome } from './FirmwareFlasher'
 import { firmwareProblem, numberTypeFrom } from './FirmwareCheck'
-import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions, streamFromBoard, StreamOptions } from './BoardListener'
+import { classifyBoardOutput, HeardFromBoard, listenToBoard, ListenOptions, portCameBack, streamFromBoard, StreamOptions } from './BoardListener'
 import { nextStepFor } from './BoardAdvice'
 import { BoardOutputLog, secs } from './HubLog'
 import tmp from 'tmp-promise'
@@ -50,8 +50,41 @@ export type FirmwareJob = {
   path: string
   running: boolean
   progress: FirmwareProgressType // the last report; "written" once the firmware was read back
-  // after an install that was read back: the next board check is the board's first start, and listens for it
+  // after an install that was read back, until a check that found the board reached a page or the first-start time
+  // ran out: the next board check is the board's first start, and listens for it
   firstStart: boolean
+}
+
+// The last firmware install that was read back, for the checks after it: BoardAdvice never offers the same install
+// for the same symptom again. It lasts until another board is checked ("Check the other board", "Build another
+// light", or a board that answers with another chip), or recentInstallMs passes, and it survives a hub restart.
+export type InstallRecord = {
+  path: string // where it was installed
+  boardPath?: string // where the board was found since: a board in another USB socket gets another COM port
+  restart: RestartOutcome
+  checks: number // board checks since, that found the board and reached a page
+  at: number // when the install ended
+  answered?: boolean // the board answered at a check since
+  chipId?: string // the chip that answered
+  programmed?: boolean // the tally software went on since
+}
+
+// where the install record is kept between hub runs (the hub's configuration file)
+export type InstallStore = { load: () => unknown, save: (record: InstallRecord | null) => void }
+
+const RESTARTS: RestartOutcome[] = ["restarted", "portClosed", "operator", "timeout"]
+
+// an install record read back from the store, if it is one
+export function installRecordFrom(data: any): InstallRecord | null {
+  if (!data || typeof data !== "object") return null
+  if (typeof data.path !== "string" || typeof data.at !== "number" || !RESTARTS.includes(data.restart)) return null
+  return {
+    path: data.path, restart: data.restart, at: data.at, checks: Number.isInteger(data.checks) && data.checks >= 0 ? data.checks : 0,
+    ...(typeof data.boardPath === "string" ? { boardPath: data.boardPath } : {}),
+    ...(data.answered === true ? { answered: true } : {}),
+    ...(typeof data.chipId === "string" ? { chipId: data.chipId } : {}),
+    ...(data.programmed === true ? { programmed: true } : {}),
+  }
 }
 
 export type WiringTestState = {
@@ -94,22 +127,31 @@ class NodeMcuConnector {
 
   // the longest one board operation may take; reading a freshly flashed board listens for 150 s
   static jobDeadlineMs = 5 * 60 * 1000
-  // a board on its first start after an install formats its storage first, and answers nothing meanwhile
+  // a board on its first start after an install formats its storage first, and answers nothing meanwhile. Measured
+  // from the end of the install: a page reloaded meanwhile does not make the board's first start take longer.
   static firstStartListenMs = 150000
   // how long a board that went away (unplugged to restart it) gets to come back before a check gives up on it
   static boardReturnMs = 20000
-  // how long an install still decides what a check of a board that does not answer advises
-  static recentInstallMs = 30 * 60 * 1000
+  // How long an install still decides what a check of a board that does not answer advises. Longer than an evening
+  // of building lights, vTally restarts included; short enough that a board from the box next week is offered the
+  // install. Another board within that time: "Check the other board".
+  static recentInstallMs = 12 * 60 * 60 * 1000
 
   private firmwareJob: FirmwareJob | null = null
   private firmwareListeners = new Set<(job: FirmwareJob) => void>()
   private restartConfirmed = false
-  // the last install that was read back, for the checks after it; cleared once the board answers
-  private lastInstall: { path: string, restart: RestartOutcome, checks: number, at: number } | null = null
+  private lastInstall: InstallRecord | null = null
+  // until when the board's first start after the install is still to be heard; null once a check heard the board
+  private firstStartUntil: number | null = null
+  // changes whenever the install record is replaced or forgotten: a check asked for before does not answer after
+  private installGeneration = 0
+  private installStore: InstallStore
+  // the check running or waiting for the port; a page that asks for the same meanwhile gets its answer
+  private pendingCheck: { key: string, wanted: (() => boolean)[], result: Promise<TallyDevice> } | null = null
   private boardOutputLog = new BoardOutputLog()
 
   getFirmwareJob(): FirmwareJob | null {
-    return this.firmwareJob && { ...this.firmwareJob, progress: { ...this.firmwareJob.progress } }
+    return this.firmwareJob && { ...this.firmwareJob, progress: { ...this.firmwareJob.progress }, firstStart: this.firstStartPending() }
   }
 
   // every change of the install, for every page; returns the function that stops it
@@ -130,16 +172,30 @@ class NodeMcuConnector {
 
   // another board was plugged in: what the hub did to the last one says nothing about this one
   forgetInstall() {
+    const hadFirstStart = this.firstStartPending()
+    if (this.recentInstall()) console.info(`[board] another board: the install on ${this.lastInstall.path} no longer decides what the page advises`)
     this.lastInstall = null
-    if (this.firmwareJob?.firstStart) {
-      this.firmwareJob.firstStart = false
-      this.publishFirmwareJob()
-    }
+    this.firstStartUntil = null
+    this.installGeneration++
+    this.saveInstall()
+    if (hadFirstStart) this.publishFirmwareJob()
   }
 
-  private recentInstall() {
+  private recentInstall(): InstallRecord | null {
     const install = this.lastInstall
     return install && Date.now() - install.at < NodeMcuConnector.recentInstallMs ? install : null
+  }
+
+  private firstStartPending(): boolean {
+    return this.firstStartUntil !== null && this.recentInstall() !== null && Date.now() < this.firstStartUntil
+  }
+
+  private saveInstall() {
+    try {
+      this.installStore.save(this.lastInstall && { ...this.lastInstall })
+    } catch (e) {
+      console.warn(`The hub could not keep the firmware install for after a restart: ${e?.message || e}`)
+    }
   }
 
   // nodemcu-tool forgets its port only when closing it succeeds. After an unplug the port is already
@@ -176,8 +232,15 @@ class NodeMcuConnector {
     purge?: () => Promise<void> // drop lines nodemcu-tool has received but nobody asked for
     release?: () => Promise<void> // switch DTR and RTS off on nodemcu-tool's open port
     stream?: (options: StreamOptions) => { done: Promise<string>, stop: () => void }
+    installStore?: InstallStore
   } = {}) {
     this.nodemcu = nodemcu
+    this.installStore = extras.installStore || { load: () => null, save: () => {} }
+    try {
+      this.lastInstall = installRecordFrom(this.installStore.load())
+    } catch (e) {
+      console.warn(`The hub could not read back the last firmware install: ${e?.message || e}`)
+    }
     this.listen = extras.listen || listenToBoard
     this.stream = extras.stream || streamFromBoard
     this.poke = extras.poke || (async (data: string) => {
@@ -353,58 +416,88 @@ class NodeMcuConnector {
     return list.map(port => ({ path: port.path, manufacturer: port.manufacturer, vendorId: port.vendorId, productId: port.productId }))
   }
 
-  // Looks for the board until it is there or `until` passes: on its old port, or on whichever port it came back.
-  // Windows numbers a CH340 board's port by the USB socket, so a board plugged into another socket moves.
-  private async waitForBoard(path: string, until: number): Promise<{ ports: SerialPortInfo[], board?: SerialPortInfo }> {
+  // Looks for the board until it is there, `until` passes, or nobody waits any more: on its own port, or on a port
+  // that was not there before. Windows numbers a CH340 board's port by the USB socket, so a board plugged into
+  // another socket moves. A board that was plugged in all along (in `before`) is another board, not this one.
+  private async waitForBoard(path: string, before: SerialPortInfo[], until: number, wanted: () => boolean = () => true): Promise<{ ports: SerialPortInfo[], board?: SerialPortInfo }> {
+    const others = new Set(before.map(port => port.path).filter(p => p !== path))
     while (true) {
       const ports = await this.listPorts()
-      const board = NodeMcuConnector.pickBoard(ports, path)
-      if (board || Date.now() >= until) return { ports, board }
+      const candidates = boardCandidates(ports)
+      const board = candidates.find(port => port.path === path) || candidates.find(port => !others.has(port.path))
+      if (board || Date.now() >= until || !wanted()) return { ports, board }
       await this.sleep(1000)
     }
   }
 
   // Listens for ms until the board gives its prompt. A port that closes meanwhile was unplugged and plugged back
   // in, or dropped by Windows; either way the board starts again, maybe on another port (COM6 became COM5). So it
-  // is looked for again for a while, and the listening goes on there.
-  private async listenFollowing(board: SerialPortInfo, ms: number): Promise<{ heard: HeardFromBoard, board: SerialPortInfo }> {
+  // is looked for again for a while, and the listening goes on there. `gone`: it did not come back, and these are
+  // the ports there are now.
+  private async listenFollowing(board: SerialPortInfo, ms: number, before: SerialPortInfo[], wanted: () => boolean):
+    Promise<{ heard: HeardFromBoard, board: SerialPortInfo, gone?: SerialPortInfo[] }> {
     const deadline = Date.now() + ms
     let text = "", bytes = 0, sawPrompt = false, closed = false
     let lostAt: number | undefined
+    let gone: SerialPortInfo[] | undefined
     for (let remaining = ms; ; remaining = Math.max(0, deadline - Date.now())) {
-      const heard = await this.listen({ path: board.path, ms: remaining, untilPrompt: true })
+      const heard = await this.listen({ path: board.path, ms: remaining, untilPrompt: true, cancelled: () => !wanted() })
       text = (text + heard.text).slice(-8000)
       bytes += heard.bytes
       sawPrompt = heard.sawPrompt
       closed = !!heard.closed
       if (heard.bytes > 0) lostAt = undefined
-      if (sawPrompt || !closed || Date.now() >= deadline) break
+      if (sawPrompt || !closed || Date.now() >= deadline || !wanted()) break
       lostAt = lostAt ?? Date.now()
       await this.sleep(1000)
-      const back = (await this.waitForBoard(board.path, Math.min(deadline, lostAt + NodeMcuConnector.boardReturnMs))).board
-      if (!back) break
+      const { ports, board: back } = await this.waitForBoard(board.path, before, Math.min(deadline, lostAt + NodeMcuConnector.boardReturnMs), wanted)
+      if (!back) { if (wanted()) gone = ports; break }
       if (back.path !== board.path) console.info(`[board] the board moved from ${board.path} to ${back.path}`)
       board = back
+      if (bytes > 0) text += portCameBack(board.path)
     }
-    return { heard: { text, sawPrompt, bytes, ...(closed ? { closed } : {}) }, board }
+    return { heard: { text, sawPrompt, bytes, ...(closed ? { closed } : {}) }, board, ...(gone ? { gone } : {}) }
   }
 
-  // what a check that reached a page means for the install before it
-  private afterCheck(device: TallyDevice, delivered: boolean) {
+  // What a check means for the install before it. ofInstall: the board checked is the one the install was on, as far
+  // as the hub can tell (the same port, the port it came back on, or the only board plugged in).
+  private afterCheck(device: TallyDevice, delivered: boolean, ofInstall: boolean) {
     const install = this.recentInstall()
-    if (!install || !delivered) return
-    install.checks++
-    if (device.boardState === "ready") this.lastInstall = null // it answers: that install needs no follow-up
-    if (this.firmwareJob?.firstStart) {
-      this.firmwareJob.firstStart = false
-      this.publishFirmwareJob()
+    if (!install) return
+    const hadFirstStart = this.firstStartPending()
+    if (!device.path) {
+      // No board: it is being plugged back in, maybe into another socket. Its first start begins when it is back.
+      if (this.firstStartUntil !== null) this.firstStartUntil = Math.max(this.firstStartUntil, Date.now() + NodeMcuConnector.firstStartListenMs)
+    } else if (ofInstall && device.chipId && install.chipId && device.chipId !== install.chipId) {
+      console.info(`[board ${device.path}] another board answers (chip ${device.chipId}; the install was on chip ${install.chipId})`)
+      delete device.recentInstall
+      this.forgetInstall()
+      return
+    } else if (ofInstall) {
+      if (device.path !== (install.boardPath ?? install.path)) install.boardPath = device.path
+      if (device.boardState === "ready") {
+        // it answers: the firmware works, and its first start is over
+        install.answered = true
+        install.chipId = install.chipId ?? device.chipId
+        this.firstStartUntil = null
+      }
+      if (delivered) {
+        install.checks++
+        this.firstStartUntil = null
+      }
+      this.saveInstall()
     }
+    if (this.firstStartPending() !== hadFirstStart) this.publishFirmwareJob()
   }
 
   // One line per check in the hub log: the port, what the board did, and what the page advises. Then what the board
   // printed, written once (see BoardOutputLog).
-  private logCheck(device: TallyDevice, ms: number, heard?: HeardFromBoard, listenedMs = 0) {
+  private logCheck(device: TallyDevice, ms: number, delivered: boolean, heard?: HeardFromBoard, listenedMs = 0) {
     const took = `check (${secs(ms)})`
+    if (!delivered) {
+      console.info(`[board${device.path ? ` ${device.path}` : ""}] ${took} ended for a page that has closed: nobody was shown it`)
+      return
+    }
     if (!device.path) {
       const ports = device.serialPorts.map(describePort).join(", ") || "none"
       console.info(`[board] ${took}: no NodeMCU board; serial ports: ${ports}${device.errorMessage ? `; ${device.errorMessage}` : ""}`)
@@ -424,8 +517,29 @@ class NodeMcuConnector {
   }
 
   // listenMs: how long to listen to a board that does not answer, before saying what it printed.
-  // stillWanted: false once the page that asked has closed (reloaded, say); its check then leaves the port alone.
+  // stillWanted: false once the page that asked has closed (reloaded, say). A page that asks while a check of the
+  // same board runs or waits for the port gets that check's answer: a reloaded page does not wait for the closed
+  // page's check and then for one of its own, and two windows show the same. A check nobody waits for any more
+  // stops listening and gives the port back.
   async getDevice(listenMs = 6000, preferredPath?: string, stillWanted: () => boolean = () => true): Promise<TallyDevice> {
+    const key = `${preferredPath ?? ""}|${listenMs}|${this.installGeneration}`
+    const pending = this.pendingCheck
+    if (pending && pending.key === key) {
+      console.info("[board] a page asked while a check of the same board runs: it gets that check's answer")
+      pending.wanted.push(stillWanted)
+      return pending.result
+    }
+    const wanted = [stillWanted]
+    // Pages join until the check has settled whom it answers (what it counts for the install depends on that), or
+    // was skipped; a page that asks after that gets a check of its own, behind it.
+    const check = { key, wanted, result: undefined as Promise<TallyDevice> }
+    const settled = () => { if (this.pendingCheck === check) this.pendingCheck = null }
+    this.pendingCheck = check
+    check.result = this.checkDevice(listenMs, preferredPath, () => wanted.some(w => w()), settled).finally(settled)
+    return check.result
+  }
+
+  private async checkDevice(listenMs: number, preferredPath: string | undefined, wanted: () => boolean, settled: () => void): Promise<TallyDevice> {
     const started = Date.now()
     const tallyDevice = new TallyDevice()
     const localFiles = await NodeMcuConnector.getLocalFiles()
@@ -437,26 +551,41 @@ class NodeMcuConnector {
     let heard: HeardFromBoard | undefined
     let listened = 0
     let skipped = false
+    let delivered = true
 
     try {
       await this.withMutex(async () => {
-        if (!stillWanted()) { skipped = true; return }
+        if (!wanted()) { skipped = true; settled(); return }
         const install = this.recentInstall()
-        if (install) tallyDevice.recentInstall = { path: install.path, restart: install.restart, checks: install.checks + 1 }
-        // Right after an install the board formats its storage on its first start, which takes a while. The hub
-        // decides that, not the page: a page reloaded meanwhile does not know that an install ran.
-        const firstStart = !!install && !!this.firmwareJob?.firstStart
-        if (firstStart) {
-          listenMs = Math.max(listenMs, NodeMcuConnector.firstStartListenMs)
-          console.info(`[board] first check after the install on ${install.path}: listening up to ${secs(listenMs)} for the board's first start`)
-        }
+        const firstStart = this.firstStartPending()
+        let ofInstall = false
         try {
           let ports = await this.listPorts()
-          let device = NodeMcuConnector.pickBoard(ports, preferredPath ?? install?.path)
-          // unplugged to restart it after the install: give it a moment to come back
-          if (!device && firstStart) ({ ports, board: device } = await this.waitForBoard(install.path, Date.now() + NodeMcuConnector.boardReturnMs))
+          const installedAt = install && (install.boardPath ?? install.path)
+          const target = preferredPath ?? installedAt
+          let device = boardCandidates(ports).find(port => port.path === target)
+          let cameBack = false
+          // unplugged to restart it after the install: give it a moment to come back, on its port or a new one
+          if (!device && firstStart && target === installedAt) {
+            ({ ports, board: device } = await this.waitForBoard(target, ports, Date.now() + NodeMcuConnector.boardReturnMs, wanted))
+            cameBack = !!device
+          }
+          if (!device) device = NodeMcuConnector.pickBoard(ports, target)
           tallyDevice.serialPorts = ports
           if (!device) return
+          ofInstall = !!install && (cameBack || device.path === installedAt || device.path === install.path || boardCandidates(ports).length === 1)
+          if (ofInstall) {
+            tallyDevice.recentInstall = {
+              path: install.path, restart: install.restart, checks: install.checks + 1,
+              ...(install.answered ? { answered: true } : {}), ...(install.programmed ? { programmed: true } : {}),
+            } as RecentInstall
+          }
+          // Right after an install the board formats its storage on its first start, which takes a while. The hub
+          // decides that, not the page: a page reloaded meanwhile does not know that an install ran.
+          if (firstStart && ofInstall) {
+            listenMs = Math.max(listenMs, this.firstStartUntil - Date.now())
+            console.info(`[board] first check after the install on ${install.path}: listening up to ${secs(listenMs)} for the board's first start`)
+          }
           const found = (port: SerialPortInfo) => {
             tallyDevice.path = port.path
             tallyDevice.vendorId = port.vendorId
@@ -470,8 +599,16 @@ class NodeMcuConnector {
             // nothing answered: hear what the board prints instead, and wait for it if it is starting up
             await this.closeBoardPort()
             const listenedFrom = Date.now()
-            const followed = await this.listenFollowing(device, listenMs)
+            const followed = await this.listenFollowing(device, listenMs, ports, wanted)
             listened = Date.now() - listenedFrom
+            if (followed.gone) {
+              // its port closed and it did not come back: there is no board now, whatever it printed before
+              console.info(`[board ${device.path}] its port closed during the check and it did not come back`)
+              tallyDevice.path = tallyDevice.vendorId = tallyDevice.productId = undefined
+              tallyDevice.recentInstall = undefined
+              tallyDevice.serialPorts = followed.gone
+              return
+            }
             heard = followed.heard
             device = followed.board
             found(device)
@@ -504,7 +641,9 @@ class NodeMcuConnector {
             tallyDevice.tallySettings = new TallySettingsIni(res.toString())
           }
         } finally {
-          this.afterCheck(tallyDevice, stillWanted())
+          delivered = wanted()
+          settled()
+          this.afterCheck(tallyDevice, delivered, ofInstall)
         }
       })
     }
@@ -516,7 +655,7 @@ class NodeMcuConnector {
       await this.closeBoardPort()
     }
     if (skipped) console.info("[board] check skipped: the page that asked for it has closed")
-    else this.logCheck(tallyDevice, Date.now() - started, heard, listened)
+    else this.logCheck(tallyDevice, Date.now() - started, delivered, heard, listened)
     return tallyDevice
   }
 
@@ -558,6 +697,13 @@ class NodeMcuConnector {
 
         progress.rebootDone = true
         onProgress(progress)
+
+        // the board the install was on now runs the light program: if it stops answering from here, that came after
+        const install = this.recentInstall()
+        if (install && path === (install.boardPath ?? install.path)) {
+          install.programmed = true
+          this.saveInstall()
+        }
 
         progress.allDone = true
         onProgress(progress)
@@ -642,7 +788,7 @@ class NodeMcuConnector {
       onProgress({ ...this.firmwareJob.progress })
       return false
     }
-    const job: FirmwareJob = { path, running: true, progress: { phase: "connecting", percent: 0 }, firstStart: false }
+    const job: FirmwareJob = { path, running: true, progress: { phase: "connecting", percent: 0 }, firstStart: false } // firstStart: see getFirmwareJob
     this.firmwareJob = job
     this.restartConfirmed = false
     const update = (progress: FirmwareProgressType) => {
@@ -651,8 +797,11 @@ class NodeMcuConnector {
       if (progress.phase === "done" || progress.phase === "error") {
         job.running = false
         if (progress.written) {
-          job.firstStart = true
-          this.lastInstall = { path, restart: progress.restart || "timeout", checks: 0, at: Date.now() }
+          const at = Date.now()
+          this.lastInstall = { path, restart: progress.restart || "timeout", checks: 0, at }
+          this.firstStartUntil = at + NodeMcuConnector.firstStartListenMs
+          this.installGeneration++
+          this.saveInstall()
         }
       }
       onProgress(progress)

@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { EventEmitter } from 'events'
-import { classifyBoardOutput, hasPrompt, hubAddressesIn, listenToBoard, printable, streamFromBoard } from './BoardListener'
+import { classifyBoardOutput, hasPrompt, hubAddressesIn, listenToBoard, logEveryPortClose, portCameBack, printable, streamFromBoard } from './BoardListener'
 
 // the real node-serialport stream, on its own pretend binding that remembers how the port was opened and what
 // the lines were set to: the option names below are node-serialport 8's, not ones from memory
@@ -101,6 +101,16 @@ describe("a port that goes away while the hub listens", () => {
       warn.mockRestore()
     }
   })
+  test("a listen nobody waits for any more ends early and gives the port back", async () => {
+    const port = fakePort(() => {})
+    let wanted = true
+    setTimeout(() => { wanted = false }, 100)
+    const started = Date.now()
+    const heard = await listenToBoard({ path: "COM5", ms: 5000, openPort: () => port, cancelled: () => !wanted })
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(port.isOpen).toBe(false)
+    expect(heard.closed).toBeUndefined()
+  })
   test("a listen that runs its time is not 'closed', although the hub closes the port afterwards", async () => {
     const heard = await listenToBoard({ path: "COM5", ms: 50, openPort: () => fakePort(() => {}) })
     expect(heard.closed).toBeUndefined()
@@ -118,6 +128,35 @@ describe("a port that goes away while the hub listens", () => {
   })
 })
 
+test("a port that goes away under nodemcu-tool, which only listens for 'error', is logged with its reason too", async () => {
+  const SerialPort = jest.requireActual('@serialport/stream')
+  const MockBinding = jest.requireActual('@serialport/binding-mock')
+  // what node-serialport's Windows binding does when the board is unplugged: the pending read fails
+  class UnpluggedBinding extends MockBinding {
+    async read() {
+      await new Promise(resolve => setTimeout(resolve, 20))
+      if (!this.isOpen) throw Object.assign(new Error("Read canceled"), { canceled: true })
+      throw new Error("Reading from COM7 failed: The device does not recognize the command.")
+    }
+  }
+  MockBinding.createPort("COM7", { echo: false, record: false })
+  const warn = jest.spyOn(console, "warn").mockImplementation(() => {})
+  try {
+    logEveryPortClose(SerialPort)
+    logEveryPortClose(SerialPort) // installed once, however often it is called
+    // opened the way nodemcu-tool opens it: an 'error' listener and a parser reading from it, nothing for 'close'
+    const port = new SerialPort("COM7", { baudRate: 115200, autoOpen: false, binding: UnpluggedBinding })
+    port.on('error', () => {})
+    await new Promise(resolve => port.open(resolve))
+    const closed = new Promise(resolve => port.once('close', resolve))
+    port.on('data', () => {})
+    await closed
+    expect(warn.mock.calls.map(c => c[0])).toEqual(["[serial COM7] port closed: Reading from COM7 failed: The device does not recognize the command. (the board is gone: unplugged, or Windows dropped the port)"])
+  } finally {
+    warn.mockRestore()
+  }
+})
+
 describe("classifyBoardOutput()", () => {
   const heard = (text: string) => ({ text, sawPrompt: hasPrompt(text), bytes: text.length })
   test.each([
@@ -132,6 +171,13 @@ describe("classifyBoardOutput()", () => {
     ["NodeMCU 3.0.0.0 \r\nFatal exception 29(StoreProhibitedCause):\r\n", "restarting"],
     ["NodeMCU custom build by frightanic.com\r\n·NodeMCU custom build by frightanic.com\r\n", "restarting"],
     ["........\r\n.....", "formatting"],
+    // a Lua PANIC is NodeMCU's own message, and NodeMCU restarts after it: caught without the banner it is still NodeMCU
+    ["[INFO]  Connect to WiFi Home\r\nPANIC: unprotected error in call to Lua API (not enough memory)\r\n·ets Jan  8 2013,rst cause:2·", "restarting"],
+    // restarting in the middle of setting up its storage starts that over on every start
+    ["Formatting file system. Please wait...\r\n....·Formatting file system. Please wait...\r\n...", "restarting"],
+    // unplugged and plugged back in during the listen: it starts formatting again, which is not a restart loop
+    ["Formatting file system. Please wait...\r\n.." + portCameBack("COM5") + "Formatting file system. Please wait...\r\n", "formatting"],
+    ["Formatting file system. Please wait...\r\n" + portCameBack("COM5") + "......", "formatting"],
     ["··ready\r\n", "otherFirmware"],
     ["[INFO]  Got IP 192.168.1.50\r\n[INFO]  Searching for hub by broadcast\r\n", "tallyBusy"],
     ["[INFO]  Found hub at 192.168.1.35\r\n[INFO]  Found hub at 192.168.1.6\r\n[INFO]  Found hub at 192.168.1.35\r\n", "twoHubs"],

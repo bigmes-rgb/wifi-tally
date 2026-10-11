@@ -88,20 +88,19 @@ function DevicePanel({ device, onReload }: Props) {
   const [hidden, setHidden] = useState(false)
   // an install that failed before the firmware was on the board: the dialog stays on it until closed
   const [failed, setFailed] = useState<FirmwareProgressType | undefined>(undefined)
+  // An install that ends with the firmware on the board goes on to the board's first start: whoever holds the board
+  // asks the hub again (useTallyDevice), on whichever step the page is. A failure stays in the dialog.
   const watching = useRef(false)
   useEffect(() => {
     if (!job) return
     if (job.running) { watching.current = true; return }
     if (!watching.current) return
     watching.current = false
-    if (job.progress.phase === "done") {
-      // On to the board's first start. A page reloaded during the install has a check waiting already.
-      if (device !== undefined) onReload()
-    } else {
+    if (job.progress.phase !== "done") {
       setFailed(job.progress)
       setHidden(false)
     }
-  }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [job])
   const firmware = job?.running ? job.progress : failed
   const busy = programming || !!job?.running
   // the dialog fades out after it is closed; keep showing what it said until then
@@ -110,6 +109,8 @@ function DevicePanel({ device, onReload }: Props) {
   const shownFirmware = firmware || lastFirmware.current
 
   const isLoading = device === undefined
+  // while the hub installs, what the board said before the install is out of date: the install shows instead
+  const installing = !!job?.running
   const hasLua = device?.nodeMcuVersion !== undefined
   const needsSoftware = device?.update === "updateable"
   // a board on USB that does not run Lua: straight from the box, or wedged
@@ -179,9 +180,8 @@ function DevicePanel({ device, onReload }: Props) {
       Use a USB <em>data</em> cable into the computer the hub runs on. A brand-new board straight from the box is fine.
     </Typography>
     <div className={classes.block}>
-      {isLoading ? (job?.running
-        ? <InstallRunning job={job} action={hidden && <Button color="inherit" size="small" onClick={() => setHidden(false)}>Show</Button>} />
-        : job?.firstStart
+      {installing ? <InstallRunning job={job} action={hidden && <Button color="inherit" size="small" onClick={() => setHidden(false)}>Show</Button>} />
+      : isLoading ? (job?.firstStart
         ? <Alert severity="info" className={classes.block} data-testid="device-first-start">
             {job.progress.restart === "timeout"
               ? <>Firmware installed and checked. The hub has not seen the board restart yet: press its RST button once (do not hold FLASH), or unplug
@@ -197,8 +197,11 @@ function DevicePanel({ device, onReload }: Props) {
           const hubs = device.boardState === "twoHubs" ? hubAddressesIn(device.boardOutput || "") : []
           const install = <Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>
           const check = <Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={() => onReload()} disabled={busy} data-testid="device-check">Check again</Button>
+          // the hub keeps what it did to the last board; another board must not be told installing is pointless
+          const otherBoard = <Button color="inherit" size="small" onClick={() => onReload({ newBoard: true })} disabled={busy} data-testid="device-other-board">Check the other board</Button>
+          const action = next.action === "install" ? install : next.action === "hardware" ? <>{check}{otherBoard}</> : check
           return <>
-            <Alert severity={next.severity} className={classes.block} action={next.action === "install" ? install : check} data-testid={`device-state-${device.boardState || "unknown"}`}>
+            <Alert severity={next.severity} className={classes.block} action={action} data-testid={`device-state-${device.boardState || "unknown"}`}>
               Found a board on {device.path}, but nothing answers on it. {next.text}
               {hubs.length >= 2 && <> {twoHubsText(hubs, hub?.addresses || [])}</>}
             </Alert>
@@ -212,8 +215,6 @@ function DevicePanel({ device, onReload }: Props) {
             <Typography variant="caption" color="textSecondary">
               {next.action === "install" && <>Already installed it? Press the board's RST button once, or unplug it and plug it back in, and <Button size="small" onClick={() => onReload()} disabled={busy}>check again</Button>.</>}
               {next.action === "check" && !device.recentInstall && <>Still the same after two minutes? <Button size="small" onClick={installFirmware} disabled={busy}>Install the firmware again</Button>.</>}
-              {/* the hub keeps what it did to the last board; another board must not be told installing is pointless */}
-              {next.action === "hardware" && <>Plugged in another board? <Button size="small" onClick={() => onReload({ newBoard: true })} disabled={busy} data-testid="device-other-board">Check the other board</Button>.</>}
             </Typography>
           </>
         })() :
@@ -224,11 +225,11 @@ function DevicePanel({ device, onReload }: Props) {
         )
       )}
     </div>
-    {hasLua && device.firmwareProblem && <Alert severity="error" className={classes.block} data-testid="device-firmware-problem"
+    {!installing && hasLua && device.firmwareProblem && <Alert severity="error" className={classes.block} data-testid="device-firmware-problem"
       action={device.firmwareAvailable && <Button color="inherit" size="small" onClick={installFirmware} disabled={busy} data-testid="device-firmware">Install firmware</Button>}>
       {device.firmwareProblem} Install the NodeMCU firmware first; it takes one to two minutes. The light's name and Wi-Fi come back at "Name and Wi-Fi".
     </Alert>}
-    {hasLua && !device.firmwareProblem && <div className={classes.block}>
+    {!installing && hasLua && !device.firmwareProblem && <div className={classes.block}>
       {needsSoftware && <Alert severity="warning" action={<Button color="inherit" size="small" onClick={installSoftware} disabled={busy} data-testid="device-install">Install now</Button>}>
         This light does not have the current tally software. Installing takes about a minute.
       </Alert>}

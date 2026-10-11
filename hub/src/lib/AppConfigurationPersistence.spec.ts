@@ -169,3 +169,28 @@ test('save/load persists data', (done) => {
         done()
     })
 })
+
+test('the last firmware install is saved without the mixer hearing of it, and read back after a restart', (done) => {
+    tmp.file(async (err, path) => {
+        if (err) { throw err }
+        const emitter = new EventEmitter()
+        const config = new AppConfiguration(emitter)
+        new AppConfigurationPersistence(config, emitter, path)
+        let configChanged = 0
+        emitter.on("config.changed", () => configChanged++)
+        const record = { path: "COM6", restart: "timeout", checks: 2, at: 1760000000000, answered: true }
+        config.setFirmwareInstall(record)
+        expect(configChanged).toBe(0) // the mixer driver restarts itself on config.changed, and logs a line each time
+        await new Promise(resolve => setTimeout(resolve, 700)) // saved after the usual delay
+
+        const otherEmitter = new EventEmitter()
+        const otherConfig = new AppConfiguration(otherEmitter)
+        new AppConfigurationPersistence(otherConfig, otherEmitter, path)
+        expect(otherConfig.getFirmwareInstall()).toEqual(record)
+
+        otherConfig.setFirmwareInstall(null)
+        expect(otherConfig.getFirmwareInstall()).toBeUndefined()
+        expect(JSON.parse(JSON.stringify(otherConfig.toJson()))).not.toHaveProperty("firmwareInstall")
+        done()
+    })
+})

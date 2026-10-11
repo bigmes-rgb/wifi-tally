@@ -14,21 +14,33 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
 * [BUGFIX] Reloading the page during a firmware install, or opening Build a light in a second
   window, showed only a spinner for minutes, and the request to press RST was lost. The install now
   belongs to the hub, not to the page: every page shows it as it goes, a reloaded page goes back to
-  "Plug it in" and shows it, the dialog can be hidden but is never locked, and pressing Install again
-  while one runs joins it instead of queuing a second install. The Flasher page says when the hub
-  is busy installing, too.
+  "Plug it in" and shows it (with your choices at step 1 kept), the dialog can be hidden but is never
+  locked and can be shown again from the page, and pressing Install again while one runs joins it
+  instead of queuing a second install. When it ends, the page asks for the board again on whichever
+  step it is, so going Back during the install does not leave the advice from before it on screen.
+  The Flasher page says when the hub is busy installing, too.
 * [BUGFIX] The first check after an install now listens long enough for the board's first start (up
-  to two and a half minutes while it sets up its storage), even if the page was reloaded meanwhile.
-  It also finds the board when it comes back on another COM port after being unplugged (COM6 became
-  COM5).
+  to two and a half minutes from the end of the install, while it sets up its storage), even if the
+  page was reloaded meanwhile: a reloaded page, or a second window, gets the answer of the check
+  already under way instead of starting the wait over, and a check nobody waits for any more gives the
+  USB port back. A check that finds no board (still being plugged back in) does not use up the wait.
+  The check also finds the board when it comes back on another COM port after being unplugged (COM6
+  became COM5), without mistaking another board that was plugged in all along for it, and a board
+  that does not come back is reported as not plugged in rather than as silent.
 * [BUGFIX] "The board keeps crashing and restarting: the firmware did not install cleanly. Install it
   again" sent you round in a circle. A board that prints NodeMCU's start-up message twice has working
   firmware, and something keeps restarting it: the light program on it, its settings, its power, or
   someone pressing RST. That now has its own message, and its remedy is the install, which erases the
-  program. Right after an install that was checked, the same problem leads to a different next step
-  instead of the same install: unplug the board and plug it back in, then its power, its USB cable and
-  socket and the LED wiring, then another board. Plugged in another board? "Check the other board"
-  tells the hub, so the new board is offered the install.
+  program. So does NodeMCU's own Lua "PANIC" message, and setting up its storage over and over;
+  "keeps crashing" no longer claims that NodeMCU is not what crashes. After an install that was
+  checked, the same problem leads to a different next step instead of the same install: unplug the
+  board and plug it back in (asked once), then the LED wires, its USB cable and socket, then another
+  board. That holds after the board answered once, too: a board that starts restarting when "Install
+  now" has put the light program back is sent to its LEDs and their power, not round the install
+  again. The hub remembers the install for 12 hours, also when vTally is closed and opened again.
+  Plugged in another board? "Check the other board", now a button on the message itself, tells the
+  hub, so the new board is offered the install; "Build another light" and a board that answers with
+  another chip count as another board as well.
 * [BUGFIX] On Windows, pressing RST while the hub was listening to a board (checking it, "Read the
   start-up message", watching it join the Wi-Fi) could start the board in flashing mode instead of
   running NodeMCU: the hub held the board's FLASH line low through its USB chip. Ports the hub opens
@@ -36,8 +48,9 @@ This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this reposit
 * [FEATURE] The hub log now tells what happened to a board: one line for each check (the port, what
   the board did, the advice the page showed, then what the board printed, with Wi-Fi passwords
   hidden and the same output not repeated), one line for each step of a firmware install, how its
-  restart was noticed and what the board printed first, ports that closed and why, and pages opened
-  and closed. The "Connecting event" lines that filled a third of the log are gone. In the Windows
+  restart was noticed and what the board printed first, ports that closed and why (also the port
+  nodemcu-tool opens for "Install now", the wiring test and saving the name and Wi-Fi), and pages
+  opened and closed. The "Connecting event" lines that filled a third of the log are gone. In the Windows
   app the log is `%APPDATA%\vtally-electron\logs\main.log`.
 * [BUGFIX] "Install firmware" never restarted the board by itself, so every install stopped at
   "Press the RST button". esptool-js 0.7.0's restart only releases the reset line and never pulls
