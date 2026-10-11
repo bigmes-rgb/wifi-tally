@@ -92,10 +92,13 @@ test("the hub renames one light over the network, and moves its channel to the n
     await new Promise(resolve => setTimeout(resolve, 200))
     container.patch("Cam 1", "udp", "3")
 
+    UdpTallyDriver.renameDelayMs = 100
     expect(driver.sendName("Cam 1", "Stage left")).toBe(true)
-    await new Promise(resolve => setTimeout(resolve, 200))
+    await new Promise(resolve => setTimeout(resolve, 50))
     expect(Buffer.from(received[0].split(" ")[1], "hex").toString()).toEqual("Stage left")
     expect(answers).toEqual([{ tallyName: "Cam 1", newName: "Stage left", saved: true }])
+    expect(container.get("Cam 1", "udp")?.channelId).toBe("3") // still there: the page shows "renamed" first
+    await new Promise(resolve => setTimeout(resolve, 200))
     expect(container.get("Cam 1", "udp")).toBeUndefined()
     expect(container.get("Stage left", "udp")?.channelId).toBe("3")
   } finally {
