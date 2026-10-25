@@ -26,7 +26,7 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 1. **What is on the board.** Pick what is soldered on: an RGB LED, with common + or common −, or
    a NeoPixel strip and its number of pixels. Do the same for the optional stage light. The
    drawing and the pin table show exactly those parts and wires. *Print diagram and table* puts
-   both on paper for the bench.
+   both on paper for the bench. The common builds are drawn in [Wiring a light](wiring.md).
 2. **Plug it in.** The hub finds the board and says what it found:
    - *Runs something other than the NodeMCU firmware* is a board from the box. Press
      **Install firmware**. If that cannot reach the board, hold FLASH, tap RST, release FLASH

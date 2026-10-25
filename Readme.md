@@ -16,6 +16,11 @@ uses icons from the Noun Project by
 [Hrbon](https://thenounproject.com/browse?i=3014911) and
 [ProSymbols](https://thenounproject.com/browse/?i=1086042), all licensed [CC-BY-3.0](https://creativecommons.org/licenses/by/3.0/us/legalcode)
 
+## Building and wiring a light
+
+[Building a light](docs/building-a-light.md) walks through the five steps in the hub's Build a light page;
+[Wiring a light](docs/wiring.md) has the drawings and pin tables for the common builds.
+
 ## Features
 
 * WiFi Tally Light based on the ESP8266

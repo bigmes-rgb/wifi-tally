@@ -28,7 +28,8 @@
     "test:ci": "CI=true react-scripts test",
     "cypress:open": "cypress open",
     "cypress:backend": "ts-node --project tsconfig.server.json src/server.ts --env=development --with-test",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "wiring-docs": "ts-node-transpile-only -O '{\"module\":\"commonjs\",\"esModuleInterop\":true,\"jsx\":\"react\"}' scripts/wiring-docs.ts"
   },
   "devDependencies": {
     "@material-ui/core": "^4.12.3",
