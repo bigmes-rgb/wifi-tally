@@ -50,6 +50,15 @@ export function nextStepFor(device: { boardState?: BoardState, recentInstall?: R
   if (state && WAIT[state]) return WAIT[state]
   const install = device.recentInstall
   if (!install) return (state && BEFORE_INSTALL[state]) || FROM_THE_BOX
+  // The factory firmware ("ready", AT commands) cannot come back on a board that ran a checked NodeMCU install:
+  // this is another board, straight from the box, on the same port. The hub cannot tell boards apart until one
+  // answers, so say so and offer the install.
+  if (state === "otherFirmware") {
+    return {
+      action: "install", severity: "warning",
+      text: `This board runs something other than the NodeMCU firmware, as boards straight from the box do. The firmware installed on ${install.path} was read back correctly, so this is most likely another board. Install the firmware; it takes one to two minutes.`,
+    }
+  }
   const symptom = SYMPTOM[state] || "does not answer"
   if (install.answered) {
     return {

@@ -2,7 +2,9 @@ import { nextStepFor } from './BoardAdvice'
 import { BoardState } from './BoardListener'
 import { RestartOutcome } from './FirmwareFlasher'
 
-const STATES: BoardState[] = ["ready", "formatting", "busy", "restarting", "crashing", "otherFirmware", "tallyBusy", "twoHubs", "silent"]
+// "otherFirmware" is left out: the factory firmware cannot come back on a board that ran a checked install, so
+// that is another board, and the install is the right offer (its own test below)
+const STATES: BoardState[] = ["ready", "formatting", "busy", "restarting", "crashing", "tallyBusy", "twoHubs", "silent"]
 const RESTARTS: RestartOutcome[] = ["restarted", "portClosed", "operator", "timeout"]
 const installed = (restart: RestartOutcome = "restarted", checks = 1, more: { answered?: boolean, programmed?: boolean } = {}) => ({ path: "COM6", restart, checks, ...more })
 
@@ -31,7 +33,7 @@ describe("nextStepFor(): the same remedy is never offered twice for the same sym
     const replug = nextStepFor({ boardState: "silent", recentInstall: installed("timeout", 1) })
     expect(replug.text).toContain("Unplug the board and plug it back in")
     for (const restart of RESTARTS) {
-      for (const boardState of ["silent", "restarting", "crashing", "otherFirmware"] as BoardState[]) {
+      for (const boardState of ["silent", "restarting", "crashing"] as BoardState[]) {
         const next = nextStepFor({ boardState, recentInstall: installed(restart, 2) })
         expect(next.action).toBe("hardware")
         expect(next.text).not.toContain("plug it back in")
@@ -39,7 +41,7 @@ describe("nextStepFor(): the same remedy is never offered twice for the same sym
     }
   })
   test("a board that answered after the install and then stops: the LEDs and their power, not the install that erases the program again", () => {
-    for (const boardState of ["silent", "restarting", "crashing", "otherFirmware"] as BoardState[]) {
+    for (const boardState of ["silent", "restarting", "crashing"] as BoardState[]) {
       const next = nextStepFor({ boardState, recentInstall: installed("restarted", 3, { answered: true, programmed: true }) })
       expect(next.action).toBe("hardware")
       expect(next.text).toContain("This board answered after the firmware was installed")
@@ -94,4 +96,11 @@ test("no advice contradicts the hub's own check that the firmware was read back 
       expect(text).not.toMatch(/did not install|damaged|install it again|install the firmware/i)
     }
   }
+})
+
+test("a board from the box on the port of a finished install is taken for another board, and offered the install", () => {
+  const next = nextStepFor({ boardState: "otherFirmware", recentInstall: { path: "COM6", restart: "restarted", checks: 2, answered: true, programmed: true } })
+  expect(next.action).toBe("install")
+  expect(next.text).toContain("another board")
+  expect(next.text).not.toContain("would not change anything")
 })
