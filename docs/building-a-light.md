@@ -88,6 +88,12 @@ printed, the advice the page showed), every step of a firmware install and how t
 restart was noticed, and pages opened and closed. In the Windows app the file is
 `%APPDATA%\vtally-electron\logs\main.log`. Send that file along with a description of what you did.
 
+A light that keeps dropping off the hub can be watched: plug it into the computer, open **Build a
+light**, go to **Plug it in**, and press **Watch what the light says**. Everything the light prints
+while it runs shows on the page and goes into the same log file: why it started (a power cut, a
+crash, a watchdog), Wi-Fi drops and their reasons, and what it could not send. Leave it running until
+the light drops off, then send the file. The watch stops by itself after ten minutes.
+
 ## Existing lights
 
 Run each through the same steps, between services. Step 2 reads the light's name, Wi-Fi and

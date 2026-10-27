@@ -972,6 +972,22 @@ class NodeMcuConnector {
     if (this.stopWatch) this.stopWatch()
   }
 
+  // Passes along everything a finished light prints over USB while it runs (why it started, Wi-Fi drops, crashes),
+  // for up to maxMs or until stopNetworkWatch(). Resolves with all of it. The light is not restarted and nothing is
+  // sent to it: what it does on its own is the point. Holds the board for that long: other board work waits.
+  async watchLight(path: string, onText: (text: string) => void, maxMs = NodeMcuConnector.watchLightMs): Promise<string> {
+    return await this.withMutex(async () => {
+      const { done, stop } = this.stream({ path, ms: maxMs, onText })
+      this.stopWatch = stop
+      try {
+        return await done
+      } finally {
+        this.stopWatch = null
+      }
+    }, maxMs + 15000)
+  }
+  static watchLightMs = 10 * 60 * 1000
+
   // Restarts the board so it runs what was just uploaded, and waits until it answers again.
   // node.restart() works on every board; the RTS reset line does not reset some boards (the same
   // boards that need FLASH and RST pressed to install the firmware). The command is written

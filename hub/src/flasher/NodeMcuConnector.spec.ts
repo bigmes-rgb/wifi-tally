@@ -406,6 +406,29 @@ test("watchNetwork restarts the light and stops once it found the hub", async ()
   expect(all).toContain("Found hub")
 })
 
+test("watchLight passes along what the light prints without restarting it, until it is stopped", async () => {
+  const { nodemcu, poke } = stickyBoard(true)
+  let options: any
+  let stopped = false
+  const stream = (o: any) => {
+    options = o
+    o.onText("[INFO]  booted because of POWER_ON, 29032 bytes of memory free\r\n")
+    return { done: new Promise<string>(resolve => { options.resolve = resolve }), stop: () => { stopped = true; options.resolve("all") } }
+  }
+  const seen: string[] = []
+  const connector = new NodeMcuConnector(nodemcu, undefined, { poke, purge: async () => {}, stream })
+  const watching = connector.watchLight("COM5", t => seen.push(t))
+  await new Promise(r => setTimeout(r, 150))
+  expect(options.path).toBe("COM5")
+  expect(options.writeFirst).toBeUndefined()
+  expect(options.stopWhen).toBeUndefined()
+  expect(options.ms).toBe(NodeMcuConnector.watchLightMs)
+  expect(seen.join("")).toContain("POWER_ON")
+  connector.stopNetworkWatch()
+  expect(await watching).toBe("all")
+  expect(stopped).toBe(true)
+})
+
 test("readBootMessage listens at 74880 baud and stops shortly after the start-up line", async () => {
   const { nodemcu, poke } = stickyBoard(true)
   let options: any

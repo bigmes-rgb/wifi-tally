@@ -49,6 +49,8 @@ export interface ServerSentEvents {
     // what a light prints over USB while it joins the Wi-Fi (step 5 of Build a light)
     'flasher.watch.text': (text: string) => void
     'flasher.watch.end': () => void
+    'flasher.light.watch.text': (text: string) => void
+    'flasher.light.watch.end': () => void
     // the chip's own start-up message while someone presses RST (74880 baud)
     'flasher.bootmessage.text': (text: string) => void
     'flasher.bootmessage.end': () => void
@@ -101,6 +103,8 @@ export interface ClientSentEvents {
     'tally.rename': (tallyName: string, newName: string) => void
     'flasher.watch.start': (path: string) => void
     'flasher.watch.stop': () => void
+    'flasher.light.watch.start': (path: string) => void
+    'flasher.light.watch.stop': () => void
     'flasher.bootmessage.start': (path: string) => void
     'flasher.settingsIni': (path: string, settingsIniString: string) => void
     'flasher.program': (path: string) => void
