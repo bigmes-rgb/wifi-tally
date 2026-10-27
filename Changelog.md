@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] A finished light that keeps dropping off the hub can be watched over USB: in Build a light,
+  "Plug it in", press "Watch what the light says". Everything the light prints while it runs shows on the
+  page and goes into the hub's log file: why it started, Wi-Fi drops and their reasons, crashes. The light
+  is not restarted. The report of step 5 ("On the network") goes into the log file as well now.
 * [BUGFIX] A brand-new board plugged into the port where a light had just been built was taken for
   that light ("installing it again would not change anything") and the install was not offered. A board
   that prints the factory firmware after a checked install is another board; the page now says so and

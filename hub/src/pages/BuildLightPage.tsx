@@ -10,6 +10,7 @@ import DevicePanel, { deviceIsReady } from '../components/setup/DevicePanel'
 import NameWifiForm from '../components/setup/NameWifiForm'
 import ProfileChooser from '../components/setup/ProfileChooser'
 import WiringTest from '../components/setup/WiringTest'
+import WatchLight from '../components/setup/WatchLight'
 import BoardPicker from '../components/setup/BoardPicker'
 import { defaultHardwareProfile, HardwareProfile, isHardwareProfile, readProfileFromIni } from '../flasher/HardwareProfile'
 import useTallies from '../hooks/useTallies'
@@ -129,6 +130,7 @@ const BuildLightPage = () => {
             {deviceIsReady(device) && !wiringChecked && <Alert severity="info" className={classes.block} data-testid="build-step1-unchecked">
               Step 1 is not ticked yet: press Back, choose what is on the board and tick the box there. The wiring test after this step tests exactly that.
             </Alert>}
+            {deviceIsReady(device) && <WatchLight path={device?.path} />}
             {nav()}
           </StepContent>
         </Step>

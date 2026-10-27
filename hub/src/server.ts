@@ -30,6 +30,7 @@ import NodeMcuConnector from './flasher/NodeMcuConnector'
 import TallyDevice from './flasher/TallyDevice'
 import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
 import { logEveryPortClose } from './flasher/BoardListener'
+import { lineLogger } from './flasher/LineLogger'
 import { getHubInfo } from './lib/HubInfo'
 import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
@@ -398,12 +399,23 @@ io.on('connection', (socket: ServerSideSocket) => {
     })
   })
 
+  // what the light prints during either watch goes into the hub log too, line by line
   socket.on('flasher.watch.start', (path: string) => {
-    myNodeMcuConnector.watchNetwork(path, text => socket.emit('flasher.watch.text', text))
+    const lines = lineLogger(line => console.info(`[light ${path}] ${line}`))
+    myNodeMcuConnector.watchNetwork(path, text => { lines.add(text); socket.emit('flasher.watch.text', text) })
       .catch(e => console.error(`Watching ${path} failed:`, e))
-      .finally(() => socket.emit('flasher.watch.end'))
+      .finally(() => { lines.end(); socket.emit('flasher.watch.end') })
   })
   socket.on('flasher.watch.stop', () => myNodeMcuConnector.stopNetworkWatch())
+  // a finished light that drops off the hub: everything it prints while it runs, without restarting it
+  socket.on('flasher.light.watch.start', (path: string) => {
+    console.info(`[light ${path}] watching what it prints`)
+    const lines = lineLogger(line => console.info(`[light ${path}] ${line}`))
+    myNodeMcuConnector.watchLight(path, text => { lines.add(text); socket.emit('flasher.light.watch.text', text) })
+      .catch(e => console.error(`Watching the light on ${path} failed:`, e))
+      .finally(() => { lines.end(); console.info(`[light ${path}] watch ended`); socket.emit('flasher.light.watch.end') })
+  })
+  socket.on('flasher.light.watch.stop', () => myNodeMcuConnector.stopNetworkWatch())
   socket.on('flasher.bootmessage.start', (path: string) => {
     myNodeMcuConnector.readBootMessage(path, text => socket.emit('flasher.bootmessage.text', text))
       .catch(e => console.error(`Reading the start-up message on ${path} failed:`, e))
