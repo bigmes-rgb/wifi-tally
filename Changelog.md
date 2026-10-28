@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Two vTally hubs on one network made every light show up on one and go "missing" on the other,
+  with nothing to say why: a light follows the first hub that answers it and talks to that one only. Hubs
+  now announce themselves on the network (UDP port 7412), and the Tallies page warns in red as soon as
+  another one is heard, naming the computer to close vTally on. The hub log says so too.
 * [FEATURE] A finished light that keeps dropping off the hub can be watched over USB: in Build a light,
   "Plug it in", press "Watch what the light says". Everything the light prints while it runs shows on the
   page and goes into the hub's log file: why it started, Wi-Fi drops and their reasons, crashes. The light

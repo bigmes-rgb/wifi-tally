@@ -94,6 +94,13 @@ while it runs shows on the page and goes into the same log file: why it started 
 crash, a watchdog), Wi-Fi drops and their reasons, and what it could not send. Leave it running until
 the light drops off, then send the file. The watch stops by itself after ten minutes.
 
+## Run only one hub
+
+Each light follows the first hub that answers it and talks to that one only. With vTally running on
+two computers at once, every light shows up on one of them and goes "missing" on the other, with no
+reason it can give. The Tallies page warns as soon as another vTally is heard on the network, naming
+the computer: close vTally there. The hubs find each other on UDP port 7412.
+
 ## Existing lights
 
 Run each through the same steps, between services. Step 2 reads the light's name, Wi-Fi and
