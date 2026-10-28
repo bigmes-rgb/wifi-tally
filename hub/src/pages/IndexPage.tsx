@@ -14,6 +14,7 @@ import TallyCreate from '../components/TallyCreate'
 import { Link as RouterLink, Redirect } from 'react-router-dom'
 import AddIcon from '@material-ui/icons/Add'
 import { useSetupConfiguration } from '../hooks/useConfiguration'
+import useOtherHubs from '../hooks/useOtherHubs'
 
 
 const useStyles = makeStyles(theme => {
@@ -62,6 +63,7 @@ const IndexPage = () => {
   const mixerProblem = useMixerProblem()
   const isHubConnected = useSocketInfo()
   const setupState = useSetupConfiguration()
+  const otherHubs = useOtherHubs()
   const classes = useStyles()
 
   // a hub that has never been configured starts with the wizard
@@ -99,6 +101,14 @@ const IndexPage = () => {
           <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/light"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
         </ButtonGroup>
       </div>
+      { isHubConnected && otherHubs.length > 0 && (
+        <Alert severity="error" className={classes.alert} data-testid="other-hubs">
+          <AlertTitle>Another vTally is running on {otherHubs.map(h => `${h.hostname} (${h.address})`).join(" and ")}</AlertTitle>
+          Each light follows the first hub that answers it and talks to that one only. With two hubs running, every
+          light shows up on one of them and goes missing on the other, for no reason it can give. Close vTally on
+          the other computer and leave only this one running.
+        </Alert>
+      )}
       { isHubConnected && !isMixerConnected && mixerProblem && (
         <Alert severity="warning" className={classes.alert} data-testid="mixer-problem">
           <AlertTitle>Switcher not connected</AlertTitle>

@@ -14,7 +14,7 @@ import { TallyConfigurationObjectType } from "../tally/TallyConfiguration";
 import { TallyDeviceObjectType } from "../flasher/TallyDevice";
 import { FirmwareJob, TallyProgramProgressType, TallySettingsIniProgressType, WiringTestState } from "../flasher/NodeMcuConnector";
 import { HardwareProfile, Rgb } from "../flasher/HardwareProfile";
-import { HubInfoType } from "./HubInfo";
+import { HubInfoType, OtherHubType } from "./HubInfo";
 
 export type SetupStateType = { completed: boolean, needed: boolean }
 
@@ -44,6 +44,8 @@ export interface ServerSentEvents {
     'config.state.mixer': (data: {mixerName: string, allowedMixers: string[]}) => void
     'config.state.setup': (data: SetupStateType) => void
     'hub.info': (info: HubInfoType) => void
+    // other vTally hubs heard on the network; lights go missing with more than one
+    'hub.others': (others: OtherHubType[]) => void
 
     'flasher.device': (tallyDevice: TallyDeviceObjectType) => void
     // what a light prints over USB while it joins the Wi-Fi (step 5 of Build a light)
@@ -95,6 +97,7 @@ export interface ClientSentEvents {
     'config.change.tallyconfig': (configuration: TallyConfigurationObjectType) => void
     'config.change.setup': (completed: boolean) => void
     'hub.info.get': () => void
+    'hub.others.get': () => void
 
     // listenMs: how long to listen to a board that does not answer (the hub listens longer right after an install)
     // newBoard: another board was plugged in, so the install on the last one says nothing about this one

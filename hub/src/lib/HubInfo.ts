@@ -1,5 +1,11 @@
 import os from 'os'
 
+// another vTally hub heard on the network
+export type OtherHubType = {
+  address: string
+  hostname: string
+}
+
 export type HubInfoType = {
   hostname: string
   addresses: string[]

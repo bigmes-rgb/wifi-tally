@@ -3,6 +3,7 @@ import yargs from 'yargs'
 
 import TallyContainer from './tally/TallyContainer'
 import UdpTallyDriver from './tally/UdpTallyDriver'
+import HubBeacon from './tally/HubBeacon'
 import { wifiProblem } from './tally/WifiHandover'
 import { nameProblem } from './tally/TallyName'
 import { AppConfiguration } from './lib/AppConfiguration'
@@ -31,7 +32,7 @@ import TallyDevice from './flasher/TallyDevice'
 import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
 import { logEveryPortClose } from './flasher/BoardListener'
 import { lineLogger } from './flasher/LineLogger'
-import { getHubInfo } from './lib/HubInfo'
+import { getHubInfo, OtherHubType } from './lib/HubInfo'
 import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
 const argv = yargs.argv
@@ -61,6 +62,14 @@ if (myConfiguration.isTest()) {
 
 const myTallyContainer = new TallyContainer(myConfiguration, myEmitter)
 const myUdpTallyDriver = new UdpTallyDriver(myConfiguration, myTallyContainer)
+// a second vTally on the network makes lights go missing on one of the two; every page says so
+const myHubBeacon = new HubBeacon()
+myHubBeacon.on('change', (others: OtherHubType[]) => {
+  if (others.length > 0) console.warn(`Another vTally hub is running: ${others.map(o => `"${o.hostname}" (${o.address})`).join(", ")}. Lights follow one hub only; run only one.`)
+  else console.info("No other vTally hub on the network any more.")
+  io.emit('hub.others', others)
+})
+myHubBeacon.start()
 const myWebTallyDriver = new WebTallyDriver(myConfiguration, myTallyContainer)
 
 const myMixerDriver = new MixerDriver(myConfiguration, myEmitter)
@@ -379,6 +388,7 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('config.change.setup', completed => {
     myConfiguration.setSetupCompleted(completed === true)
   })
+  socket.on('hub.others.get', () => socket.emit('hub.others', myHubBeacon.list()))
   socket.on('hub.info.get', () => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort()))
   })
