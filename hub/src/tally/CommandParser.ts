@@ -3,6 +3,9 @@ import Log from "../domain/Log"
 export type TallyHoCommand = {
   command: "tally-ho"
   tallyName: string
+  // the build the light runs (see tally/src/init.lua): 16 hex characters, "files" when it runs from its files, and
+  // left out by lights from before 0.9.24, which cannot be updated over the network
+  program?: string
 }
 
 export type LogCommand = {
@@ -26,7 +29,15 @@ export type NameAnswerCommand = {
   saved: boolean // "name-saved"; "name-failed" when the light could not save it
 }
 
-export type TallySentCommand = TallyHoCommand | LogCommand | WifiAnswerCommand | NameAnswerCommand
+// a light's answer to a new program offered by the hub (see tally/src/my-update.lua)
+export type UpdateAnswerCommand = {
+  command: "update-answer"
+  tallyName: string
+  stamp: string
+  outcome: "saved" | "failed" | "done" // saved: fetched, restarting into it; done: already runs it
+}
+
+export type TallySentCommand = TallyHoCommand | LogCommand | WifiAnswerCommand | NameAnswerCommand | UpdateAnswerCommand
 
 export class InvalidCommandError extends Error {
   constructor(...args) {
@@ -51,22 +62,23 @@ class TallyCommandParser {
         const result = msg.match(/^(name-saved|name-failed) "([^"]+)"(?: "([^"]*)")?$/)
         if (result === null) { throw new InvalidCommandError(msg) }
         return { command: "name-answer", tallyName: result[2], newName: result[3] || "", saved: result[1] === "name-saved" }
+    } else if (msg.startsWith("update-")) {
+        const result = msg.match(/^update-(saved|failed|done) "([^"]+)"(?: "([^"]*)")?$/)
+        if (result === null) { throw new InvalidCommandError(msg) }
+        return { command: "update-answer", tallyName: result[2], stamp: result[3] || "", outcome: result[1] as "saved" | "failed" | "done" }
     } else {
         throw new InvalidCommandError(msg)
     }
   }
 
   private parseTallyHo = function(cmd: string) : TallyHoCommand {
-    const result = cmd.match(/^([^ ]+) "(.+)"/)
+    const result = cmd.match(/^tally-ho "([^"]+)"(?: "([^"]*)")?\s*$/)
     if (result === null) {
         throw new InvalidCommandError(cmd)
-    } else {
-        const [_, command, tallyName] = result
-        if (command !== "tally-ho") {
-            throw new InvalidCommandError(command)
-        }
-        return { command, tallyName }
     }
+    const command: TallyHoCommand = { command: "tally-ho", tallyName: result[1] }
+    if (result[2]) command.program = result[2]
+    return command
   }
 
   private parseLog = function(cmd: string) : LogCommand {

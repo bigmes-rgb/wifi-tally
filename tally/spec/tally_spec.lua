@@ -325,6 +325,33 @@ insulate("hub discovery", function()
             assert.is_same(before, #t.packets)
         end)
     end)
+    describe("a new program from the hub", function()
+        it("is fetched by my-update.lua, loaded only then, when the message comes from the light's own hub", function()
+            local t = setupSetting()
+            local got = {}
+            package.preload["my-update"] = function() return function(data) table.insert(got, data); return true end end
+            myHandleReceive("update 192.168.1.35 3000 0123456789abcdef", "192.168.1.66") -- not its hub
+            assert.is_same({}, got)
+            myHandleReceive("update 192.168.1.35 3000 0123456789abcdef", "192.168.1.35")
+            assert.is_same({ "update 192.168.1.35 3000 0123456789abcdef" }, got)
+            assert.is_nil(package.loaded["my-update"])
+        end)
+        it("is answered as failed when the code to fetch it cannot be loaded", function()
+            local t = setupSetting()
+            package.preload["my-update"] = function() error("not enough memory") end
+            myHandleReceive("update 192.168.1.35 3000 0123456789abcdef", "192.168.1.35")
+            assert.truthy(t.packets[#t.packets]:find('update-failed "Doe"', 1, true))
+        end)
+    end)
+    it("tells the hub which build it runs, or that it runs from its files", function()
+        local t = setupSetting()
+        _G.lfsStamp = "0123456789abcdef"
+        MyTally:sendInfo()
+        assert.is_same('tally-ho "Doe" "0123456789abcdef"\n', t.packets[#t.packets])
+        _G.lfsStamp = nil
+        MyTally:sendInfo()
+        assert.is_same('tally-ho "Doe" "files"\n', t.packets[#t.packets])
+    end)
     it("ignores other tallies' broadcasts without logging", function()
         useSettings(nil)
         local before = #logs

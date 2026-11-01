@@ -3,6 +3,12 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Lights update over the network. A light tells the hub which build of the light program it
+  runs; when the hub has a newer one, the Tallies page offers "Update lights". Each light fetches the
+  program from the hub, restarts once, and comes back in a few seconds; the page shows each light's
+  answer. A cut-off download leaves the light running what it has. Lights need "Install now" over USB
+  once (0.9.24 or later) to learn this; the page marks those with "needs USB once". The hub serves the
+  program at /tally/lfs.img.
 * [FEATURE] The Tallies page lists the lights in the order of the switcher's inputs: the light on input 1
   first, then input 2, and so on. Lights on no input come last, by name. A light that is off keeps its
   place, so the page looks the same whether or not every light is on. Before, lights that were on came

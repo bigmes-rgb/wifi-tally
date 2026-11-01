@@ -16,6 +16,7 @@ import AddIcon from '@material-ui/icons/Add'
 import { useSetupConfiguration } from '../hooks/useConfiguration'
 import useOtherHubs from '../hooks/useOtherHubs'
 import useChannels from '../hooks/useChannels'
+import UpdateLights from '../components/UpdateLights'
 import Channel from '../domain/Channel'
 import { orderTallies } from '../lib/tallyOrder'
 
@@ -106,6 +107,7 @@ const IndexPage = () => {
           the other computer and leave only this one running.
         </Alert>
       )}
+      { isHubConnected && <UpdateLights /> }
       { isHubConnected && !isMixerConnected && mixerProblem && (
         <Alert severity="warning" className={classes.alert} data-testid="mixer-problem">
           <AlertTitle>Switcher not connected</AlertTitle>

@@ -46,6 +46,11 @@ end
 -- the free memory shows how close the program is to the board's limit (it ran out once, in 0.9.12)
 fn("booted because of " .. humanReadable .. ", " .. node.heap() .. " bytes of memory free")
 
+if _G.lfsFailed then
+    MyLog.warning("The light program did not load into the flash. Running the one in the files; install it again.")
+    _G.lfsFailed = nil
+end
+
 -- log more error reports in case an exception caused the tally to reboot
 for _, thing in pairs({exccause, epc1, epc2, epc3, excvaddr, depc}) do
     if type(thing) == "string" then

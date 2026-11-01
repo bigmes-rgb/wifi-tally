@@ -10,6 +10,8 @@ export type HubInfoType = {
   hostname: string
   addresses: string[]
   tallyPort: number
+  // the build of the light program this hub ships (tally/out/lfs.stamp), which lights can fetch over the network
+  programStamp?: string
 }
 
 // private ranges first: that is where the tallies are
@@ -36,10 +38,11 @@ export function listLanAddresses(interfaces: NodeJS.Dict<os.NetworkInterfaceInfo
   return addresses.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
 }
 
-export function getHubInfo(tallyPort: number): HubInfoType {
+export function getHubInfo(tallyPort: number, programStamp?: string): HubInfoType {
   return {
     hostname: os.hostname(),
     addresses: listLanAddresses(),
     tallyPort,
+    programStamp,
   }
 }

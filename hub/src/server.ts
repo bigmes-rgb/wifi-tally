@@ -2,6 +2,7 @@
 import yargs from 'yargs'
 
 import TallyContainer from './tally/TallyContainer'
+import { UdpTally } from './domain/Tally'
 import UdpTallyDriver from './tally/UdpTallyDriver'
 import HubBeacon from './tally/HubBeacon'
 import { wifiProblem } from './tally/WifiHandover'
@@ -32,7 +33,8 @@ import TallyDevice from './flasher/TallyDevice'
 import FakeNodemcu, { fakeFlashFirmware, fakeListen, fakeStream } from './flasher/FakeNodemcu'
 import { logEveryPortClose } from './flasher/BoardListener'
 import { lineLogger } from './flasher/LineLogger'
-import { getHubInfo, OtherHubType } from './lib/HubInfo'
+import { getHubInfo, listLanAddresses, OtherHubType } from './lib/HubInfo'
+import { hubAddressFor, updatePlan } from './lib/LightUpdates'
 import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
 const argv = yargs.argv
@@ -102,6 +104,10 @@ myEmitter.on('tally.logged', ({tally, log}) => {
       fn = console.warn
     }
     fn(`${tally.name}: ${log.message}`)
+})
+myEmitter.on('tally.updated', ({tallyName, stamp, outcome}) => {
+  const said = { saved: `fetched program ${stamp} and restarts into it`, done: `already runs program ${stamp}`, failed: `could not fetch program ${stamp}; its own log line above says why` }[outcome]
+  ;(outcome === "failed" ? console.warn : console.info)(`Update lights: ${tallyName} ${said}`)
 })
 myEmitter.on('program.changed', ({programs, previews}) => {
     console.info("Program/Preview was changed to ", programs, previews)
@@ -245,6 +251,22 @@ io.on('connection', (socket: ServerSideSocket) => {
     myEmitter.on('tally.wifi', onAnswer)
     setTimeout(() => myEmitter.off('tally.wifi', onAnswer), 30000)
     socket.emit('tallies.wifi.sent', { sentTo: myUdpTallyDriver.sendWifi(ssid, password) })
+  })
+  // "Update lights": every connected light on an older build fetches the program from this hub (my-update.lua)
+  socket.on('tallies.update.send', () => {
+    const plan = updatePlan(myTallyContainer.getTallies(), programStamp)
+    const onAnswer = (answer: { tallyName: string, stamp: string, outcome: "saved" | "failed" | "done" }) => socket.emit('tallies.update.answer', answer)
+    myEmitter.on('tally.updated', onAnswer)
+    setTimeout(() => myEmitter.off('tally.updated', onAnswer), 120000)
+    const addresses = listLanAddresses()
+    const sentTo = plan.behind.filter(name => {
+      const tally = myTallyContainer.get(name, "udp") as UdpTally | undefined
+      const hubAddress = hubAddressFor(tally?.address, addresses)
+      if (!hubAddress || !programStamp) return false
+      return myUdpTallyDriver.sendUpdate(name, hubAddress, myConfiguration.getHttpPort(), programStamp)
+    })
+    console.info(`Update lights: told ${sentTo.length > 0 ? sentTo.join(", ") : "no light"} to fetch program ${programStamp}` + (plan.needUsb.length > 0 ? `; ${plan.needUsb.join(", ")} need "Install now" over USB once` : ""))
+    socket.emit('tallies.update.sent', { sentTo, needUsb: plan.needUsb })
   })
   // Rename a light over the network: the light saves the name, answers, and restarts under it
   socket.on('tally.rename', (tallyName: string, newName: string) => {
@@ -390,7 +412,7 @@ io.on('connection', (socket: ServerSideSocket) => {
   })
   socket.on('hub.others.get', () => socket.emit('hub.others', myHubBeacon.list()))
   socket.on('hub.info.get', () => {
-    socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort()))
+    socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort(), programStamp))
   })
 
   socket.on('flasher.device.get', (options?: { listenMs?: number, path?: string, newBoard?: boolean }) => {
@@ -472,6 +494,21 @@ io.on('connection', (socket: ServerSideSocket) => {
     // or while watching a light join the Wi-Fi
     myNodeMcuConnector.stopNetworkWatch()
   })
+})
+
+// the light program for lights updating over the network (see tally/src/my-update.lua). Content-Length tells
+// the light when it has everything; a hub without the file answers 404 and the light keeps what it has.
+app.get('/tally/lfs.img', async (req, res) => {
+  const path = await NodeMcuConnector.getLocalFile("lfs.img")
+  if (!path) { res.status(404).type("text/plain").send("Not Found"); return }
+  res.type("application/octet-stream")
+  res.sendFile(path, { cacheControl: false, acceptRanges: false })
+})
+// which build of the light program this hub ships; read once, it changes only with the hub
+let programStamp: string | undefined
+NodeMcuConnector.getProgramStamp().then(stamp => {
+  programStamp = stamp
+  console.info(stamp ? `Light program ${stamp} is here for lights to fetch over the network` : "No light program to give to lights over the network")
 })
 
 if (myConfiguration.isDev()) {

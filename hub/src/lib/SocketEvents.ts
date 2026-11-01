@@ -46,6 +46,9 @@ export interface ServerSentEvents {
     'hub.info': (info: HubInfoType) => void
     // other vTally hubs heard on the network; lights go missing with more than one
     'hub.others': (others: OtherHubType[]) => void
+    // "Update lights": who was told to fetch the program, and each light's answer
+    'tallies.update.sent': (data: { sentTo: string[], needUsb: string[] }) => void
+    'tallies.update.answer': (data: { tallyName: string, stamp: string, outcome: "saved" | "failed" | "done" }) => void
 
     'flasher.device': (tallyDevice: TallyDeviceObjectType) => void
     // what a light prints over USB while it joins the Wi-Fi (step 5 of Build a light)
@@ -98,6 +101,7 @@ export interface ClientSentEvents {
     'config.change.setup': (completed: boolean) => void
     'hub.info.get': () => void
     'hub.others.get': () => void
+    'tallies.update.send': () => void
 
     // listenMs: how long to listen to a board that does not answer (the hub listens longer right after an install)
     // newBoard: another board was plugged in, so the install on the last one says nothing about this one
