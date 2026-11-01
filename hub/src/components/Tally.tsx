@@ -5,8 +5,9 @@ import useChannels from '../hooks/useChannels'
 import useHubInfo from '../hooks/useHubInfo'
 import useProgramPreview from '../hooks/useProgramPreview'
 import { socket } from '../hooks/useSocket'
-import { Paper } from '@material-ui/core'
-import { makeStyles } from '@material-ui/core'
+import { fade, makeStyles, Paper } from '@material-ui/core'
+import UsbIcon from '@material-ui/icons/Usb'
+import SystemUpdateAltIcon from '@material-ui/icons/SystemUpdateAlt'
 import TallyMenu from './TallyMenu'
 
 
@@ -71,6 +72,20 @@ const useStyles = makeStyles(theme => {
             textAlign: "center",
             flexGrow: 1,
         },
+        // a slim band between body and foot: something about this light's program wants doing
+        programNote: {
+            display: "flex",
+            alignItems: "center",
+            gap: theme.spacing(1),
+            padding: theme.spacing(0.75, 2),
+            borderTop: "1px solid " + theme.palette.grey[800],
+            fontSize: "0.75rem",
+            color: theme.palette.warning.light,
+            backgroundColor: fade(theme.palette.warning.main, 0.12),
+        },
+        programNoteIcon: {
+            fontSize: "1rem",
+        },
     }
 })
 
@@ -125,13 +140,17 @@ function Tally({ tally, className }: TallyProps) {
             <div className={classes.tallyBody}>
                 <ChannelSelector value={tally.channelId} channels={channels} onChange={value => patchTally(tally, value)} />
             </div>
+            {tally.isUdpTally() && tally.isConnected() && hub?.programStamp && tally.program !== hub.programStamp && (
+                tally.program === undefined
+                    ? <div className={classes.programNote} title="This light predates updates over the network. Bring it to this computer once and press Install now in Build a light; after that it updates from here." data-testid={`tally-${tally.name}-program`}>
+                        <UsbIcon className={classes.programNoteIcon} /><span>Needs a USB install once</span>
+                      </div>
+                    : <div className={classes.programNote} title="This light runs an older program than the hub has. Press Update lights at the top of the page." data-testid={`tally-${tally.name}-program`}>
+                        <SystemUpdateAltIcon className={classes.programNoteIcon} /><span>Newer program available</span>
+                      </div>
+            )}
             <div className={classes.tallyFoot + (tally.isActive() && tally.isMissing() ? " " + classes.tallyFootMissing : "")}>
                 <div className={classes.tallyFootItem}>{ tally.isActive() ? (tally.isMissing() ? "missing": "connected") : "disconnected" }</div>
-                {tally.isUdpTally() && tally.isConnected() && hub?.programStamp && tally.program !== hub.programStamp && (
-                    <div className={classes.tallyFootItem} title={tally.program === undefined ? "This light predates updates over the network. Bring it to this computer once and press Install now in Build a light." : "This light runs an older program than the hub has. Press Update lights above."} data-testid={`tally-${tally.name}-program`}>
-                        {tally.program === undefined ? "needs USB once" : "older program"}
-                    </div>
-                )}
                 {tally.isUdpTally() && tally.address && tally.port && (<div className={classes.tallyFootItem}>{tally.address}:{tally.port}</div>)}
             </div>
         </Paper>
