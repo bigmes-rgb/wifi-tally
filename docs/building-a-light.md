@@ -6,6 +6,10 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 ## Before you start
 
 - **The computer:** the one that runs vTally Hub. The board plugs into it by USB.
+- **Power during an install:** a light with its strip wired draws a surge when the program starts and the
+  strip lights up. On some laptop ports that drops the USB connection for a moment, and the page then says
+  the light did not answer after its restart. The install is still complete; the light shows up on the
+  Tallies page by itself. If it happens every time, plug the board straight into the computer, not into a hub.
 - **The cable:** a USB *data* cable. Many micro-USB cables only charge. With one of those the
   board's LED lights but Windows never sees it. Test the cable with a phone first if in doubt.
 - **The driver:** most boards have a CH340 USB chip. Windows usually installs the driver by itself.

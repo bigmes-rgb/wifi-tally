@@ -3,6 +3,16 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] "Install now" on a light from the original vTally stuck on the first of its files: the old light
+  program runs in the board's working memory with under 6 kB left, and the upload needs room on the board. The
+  install now sets the light's start file aside and restarts the board bare before uploading, then cleans up.
+  Every install does this; it adds a few seconds. An install cut off in between leaves the light dark until
+  the next "Install now", which the page offers because files are missing.
+* [BUGFIX] An install whose files were all on the light and read back was still reported as failed when the
+  light did not answer after its restart, and the page offered the same install again. Once every file is
+  on the light, the install is done; a light that does not answer afterwards gets a warning saying where to
+  look. A light whose strip lights up at start-up can pull its USB port down for a moment, which is what
+  the hub log showed: Windows dropped the port each time the light program started.
 * [UI] The Tallies page's notices about the light program are calmer and shorter: an outlined note with the
   lights as chips and the button beside them, one line per light with a status icon once an update is on its
   way, and a separate amber note for lights that need a USB install once. A light's card shows that as a slim

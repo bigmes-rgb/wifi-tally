@@ -369,6 +369,64 @@ describe("the firmware is checked before the tally software goes on", () => {
     }
     expect(executed.some(cmd => cmd.includes('file.remove("lfs.tried")'))).toBe(true)
   })
+  test("program() sets the running program aside and restarts the board bare before uploading, and cleans up after", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
+    const log: string[] = []
+    ;(nodemcu as any).upload = async (local: string, remote: string) => { log.push("upload " + remote) }
+    ;(nodemcu as any).download = async () => Buffer.from("x")
+    ;(nodemcu as any).execute = async (cmd: string) => {
+      if (cmd.includes('file.rename("init.lua"')) { log.push("park"); return { response: "parked\nok" } }
+      if (cmd.includes('file.remove("init.lua.off")') && !cmd.includes("rename")) log.push("unpark")
+      return { response: cmd === "print(1/2)" ? "0.5" : "ok" }
+    }
+    const restarts = async (data: string) => { if (data.includes("node.restart()")) log.push("restart"); await poke(data) }
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tally-out-"))
+    await fs.writeFile(path.join(dir, "init.lua"), "x")
+    jest.spyOn(NodeMcuConnector, "getLocalFiles").mockResolvedValue([{ fileName: "init.lua", filePath: path.join(dir, "init.lua"), fileSize: 1 }])
+    try {
+      await new NodeMcuConnector(nodemcu, undefined, { poke: restarts, purge: async () => {} }).program("COM5", () => {})
+    } finally {
+      jest.restoreAllMocks()
+    }
+    // parked and restarted before the first upload; the parked file goes at the end; the final restart follows
+    expect(log).toEqual(["park", "restart", "upload init.lua.swp", "unpark", "restart"])
+  })
+  test("an install whose board does not answer after its restart is done, with a warning, not failed", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
+    let restarted = false
+    ;(nodemcu as any).upload = async () => {}
+    ;(nodemcu as any).download = async () => Buffer.from("")
+    // after the restart the board is gone from the port
+    ;(nodemcu as any).checkConnection = async () => { if (restarted) throw new Error("Timeout, no response detected") }
+    jest.spyOn(NodeMcuConnector, "getLocalFiles").mockResolvedValue([])
+    const states: any[] = []
+    const connector = new NodeMcuConnector(nodemcu, undefined, { poke: async (d: string) => { if (d.includes("node.restart()")) restarted = true; await poke(d) }, purge: async () => {} })
+    const patience = NodeMcuConnector.restartPatienceMs
+    NodeMcuConnector.restartPatienceMs = 500
+    try {
+      await connector.program("COM5", s => states.push({ ...s }))
+    } finally {
+      NodeMcuConnector.restartPatienceMs = patience
+      jest.restoreAllMocks()
+    }
+    const last = states[states.length - 1]
+    expect(last.error).toBe(false)
+    expect(last.allDone).toBe(true)
+    expect(last.warning).toContain("did not answer after its restart")
+  }, 30000)
+  test("a board without a start file (no program running) is not restarted before the upload", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
+    let restarts = 0
+    ;(nodemcu as any).upload = async () => {}
+    ;(nodemcu as any).download = async () => Buffer.from("")
+    jest.spyOn(NodeMcuConnector, "getLocalFiles").mockResolvedValue([])
+    try {
+      await new NodeMcuConnector(nodemcu, undefined, { poke: async (d: string) => { if (d.includes("node.restart()")) restarts++; await poke(d) }, purge: async () => {} }).program("COM5", () => {})
+    } finally {
+      jest.restoreAllMocks()
+    }
+    expect(restarts).toBe(1) // only the one after the upload
+  })
   test("a light that could not load the program into its flash is offered the install again", async () => {
     const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
     // the files on the light match what this hub has: current, except for the marker
