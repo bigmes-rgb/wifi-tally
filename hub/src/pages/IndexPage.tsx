@@ -15,6 +15,9 @@ import { Link as RouterLink, Redirect } from 'react-router-dom'
 import AddIcon from '@material-ui/icons/Add'
 import { useSetupConfiguration } from '../hooks/useConfiguration'
 import useOtherHubs from '../hooks/useOtherHubs'
+import useChannels from '../hooks/useChannels'
+import Channel from '../domain/Channel'
+import { orderTallies } from '../lib/tallyOrder'
 
 
 const useStyles = makeStyles(theme => {
@@ -40,19 +43,12 @@ const countConnectedTallies = tallies => {
   return tallies.reduce((count, tally) => count + (Tally.fromJson(tally).isConnected() ? 1 : 0), 0)
 }
 
-const createTallyList = (tallies: Tally[]|null, showDisconnected: boolean, showUnpatched: boolean) => {
+// in the order of the switcher's inputs (see lib/tallyOrder), so the page reads like the switcher
+const createTallyList = (tallies: Tally[]|null, channels: Channel[], showDisconnected: boolean, showUnpatched: boolean) => {
   if(!tallies) { return null }
-  return tallies.filter(
+  return orderTallies(tallies.filter(
     tally => (tally.isActive() || showDisconnected) && (tally.isPatched() || showUnpatched)
-  ).sort(
-    (one, two) => {
-      if (one.isActive() !== two.isActive()) {
-        return one.isActive() ? -1 : 1
-      } else {
-        return one.name.localeCompare(two.name)
-      }
-    }
-  )
+  ), channels)
 }
 
 const IndexPage = () => {
@@ -64,6 +60,7 @@ const IndexPage = () => {
   const isHubConnected = useSocketInfo()
   const setupState = useSetupConfiguration()
   const otherHubs = useOtherHubs()
+  const channels = useChannels()
   const classes = useStyles()
 
   // a hub that has never been configured starts with the wizard
@@ -71,7 +68,7 @@ const IndexPage = () => {
     return <Redirect to="/setup" />
   }
 
-  const tallies = createTallyList(rawTallies, showDisconnected, showUnpatched)
+  const tallies = createTallyList(rawTallies, channels || [], showDisconnected, showUnpatched)
 
   const toggleDisconnected = e => {
     setShowDisconnected(!showDisconnected)
