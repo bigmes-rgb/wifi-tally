@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [UI] The Tallies page's notices about the light program are calmer and shorter: an outlined note with the
+  lights as chips and the button beside them, one line per light with a status icon once an update is on its
+  way, and a separate amber note for lights that need a USB install once. A light's card shows that as a slim
+  band above its footer instead of squeezing it into the footer, which ran its words together.
 * [FEATURE] Lights update over the network. A light tells the hub which build of the light program it
   runs; when the hub has a newer one, the Tallies page offers "Update lights". Each light fetches the
   program from the hub, restarts once, and comes back in a few seconds; the page shows each light's
