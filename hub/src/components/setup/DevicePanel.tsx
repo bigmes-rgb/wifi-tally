@@ -130,7 +130,9 @@ function DevicePanel({ device, onReload }: Props) {
       if (p.allDone || p.error) {
         socket.off('flasher.program.progress', onProgress)
         setProgramming(false)
-        if (!p.error) { setProgress(undefined); onReload() }
+        // a warning stays on show until Close; the panel reloads underneath either way
+        if (!p.error && !p.warning) setProgress(undefined)
+        if (!p.error) onReload()
       }
     }
     socket.on('flasher.program.progress', onProgress)
@@ -138,11 +140,12 @@ function DevicePanel({ device, onReload }: Props) {
   }
 
   return <div data-testid="device-panel">
-    <Dialog open={programming || !!progress?.error}>
+    <Dialog open={programming || !!progress?.error || !!progress?.warning}>
       <DialogTitle>Installing the tally software</DialogTitle>
       <DialogContent>
         {progress && <ProgramProgress progress={progress} />}
         {progress?.error && <Alert severity="error" className={classes.block}>That did not work. Unplug the light, plug it back in and try again.</Alert>}
+        {progress?.warning && !progress.error && <Alert severity="warning" className={classes.block} data-testid="device-install-warning">{progress.warning}</Alert>}
       </DialogContent>
       <DialogActions>
         <Button disabled={busy} onClick={() => setProgress(undefined)}>Close</Button>

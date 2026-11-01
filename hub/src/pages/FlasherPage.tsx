@@ -102,6 +102,7 @@ const FlasherPage = () => {
         <DialogContent>
           { uploadProgress && <TallySettingsIniProgress progress={uploadProgress} /> }
           { programProgress && <ProgramProgress progress={programProgress} /> }
+          { programProgress?.warning && !programProgress.error && <Alert severity="warning">{programProgress.warning}</Alert> }
         </DialogContent>
         <DialogActions>
           <Button data-testid="progress-close" disabled={isUploading} onClick={() => setUploadingOpen(false)}>Close</Button>

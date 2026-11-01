@@ -391,6 +391,29 @@ describe("the firmware is checked before the tally software goes on", () => {
     // parked and restarted before the first upload; the parked file goes at the end; the final restart follows
     expect(log).toEqual(["park", "restart", "upload init.lua.swp", "unpark", "restart"])
   })
+  test("an install whose board does not answer after its restart is done, with a warning, not failed", async () => {
+    const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
+    let restarted = false
+    ;(nodemcu as any).upload = async () => {}
+    ;(nodemcu as any).download = async () => Buffer.from("")
+    // after the restart the board is gone from the port
+    ;(nodemcu as any).checkConnection = async () => { if (restarted) throw new Error("Timeout, no response detected") }
+    jest.spyOn(NodeMcuConnector, "getLocalFiles").mockResolvedValue([])
+    const states: any[] = []
+    const connector = new NodeMcuConnector(nodemcu, undefined, { poke: async (d: string) => { if (d.includes("node.restart()")) restarted = true; await poke(d) }, purge: async () => {} })
+    const patience = NodeMcuConnector.restartPatienceMs
+    NodeMcuConnector.restartPatienceMs = 500
+    try {
+      await connector.program("COM5", s => states.push({ ...s }))
+    } finally {
+      NodeMcuConnector.restartPatienceMs = patience
+      jest.restoreAllMocks()
+    }
+    const last = states[states.length - 1]
+    expect(last.error).toBe(false)
+    expect(last.allDone).toBe(true)
+    expect(last.warning).toContain("did not answer after its restart")
+  }, 30000)
   test("a board without a start file (no program running) is not restarted before the upload", async () => {
     const { nodemcu, poke } = board({ version: "3.0.0", modules: "encoder,file,gpio,net,node,pwm2,struct,tmr,uart,wifi,ws2812" }, "0.5")
     let restarts = 0

@@ -46,6 +46,8 @@ export interface TallyProgramProgressType {
   rebootDone: boolean
   allDone: boolean
   error: boolean
+  // the install is done, but something after it deserves a look: the board did not answer after its restart
+  warning?: string
 }
 
 // The firmware install the hub is running, or ran last. It belongs to the hub, not to the page that started it:
@@ -363,6 +365,13 @@ class NodeMcuConnector {
         return await this.nodemcu.checkConnection()
       } catch (e) {
         if (Date.now() >= deadline) throw e
+        // nodemcu-tool keeps waiting for an answer that never came, and refuses every command until then
+        // ("concurrency error"): only closing and reopening the port clears it
+        if (/concurren/i.test(e?.message || "")) {
+          await this.closeBoardPort()
+          await this.sleep(300)
+          await this.within(5000, "opening the port again", () => this.nodemcu.connect(path, baudRate, false)).catch(() => {})
+        }
         // a write to a port that vanished never settles: give up on it instead
         await this.within(1000, "waking it up", () => this.poke("\r\n")).catch(() => {})
         await this.sleep(300)
@@ -721,9 +730,16 @@ class NodeMcuConnector {
         await this.removeFileIfExists(LFS_TRIED)
         await this.removeFileIfExists(PARKED_INIT)
 
-        // the board restarts twice: once now, once more after loading the program into its flash, which ends
-        // in a watchdog reset that takes a few seconds on its own
-        await this.restartBoard(path, 45000)
+        // Every file is on the board and read back: the install is done from here, whatever the restart brings.
+        // The board restarts twice: once now, once more after loading the program into its flash, which ends in a
+        // watchdog reset that takes a few seconds on its own. A light whose strip lights up on that start can pull
+        // its USB port down (Windows drops the port for a moment); then it does not answer here, but it runs.
+        try {
+          await this.restartBoard(path, NodeMcuConnector.restartPatienceMs)
+        } catch (e) {
+          console.warn(`[board ${path}] the tally software is installed and read back, but the board did not answer after its restart: ${NodeMcuConnector.describeError(e)}`)
+          progress.warning = "Everything is on the light, but it did not answer after its restart. Look for it on the Tallies page; if it is not there in a minute, unplug it and plug it back in."
+        }
 
         progress.rebootDone = true
         onProgress(progress)
@@ -1005,6 +1021,8 @@ class NodeMcuConnector {
     }, maxMs + 15000)
   }
   static watchLightMs = 10 * 60 * 1000
+  // how long the board gets to answer after the restart that ends an install (it restarts twice, see program())
+  static restartPatienceMs = 45000
 
   // Restarts the board so it runs what was just uploaded, and waits until it answers again.
   // The light program running on the board is in the way of an install: an old light (before 0.9.17) runs it in
