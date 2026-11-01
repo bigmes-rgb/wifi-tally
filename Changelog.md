@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] The Tallies page lists the lights in the order of the switcher's inputs: the light on input 1
+  first, then input 2, and so on. Lights on no input come last, by name. A light that is off keeps its
+  place, so the page looks the same whether or not every light is on. Before, lights that were on came
+  first and the rest went by name, so the order changed as lights came and went.
 * [FEATURE] Two vTally hubs on one network made every light show up on one and go "missing" on the other,
   with nothing to say why: a light follows the first hub that answers it and talks to that one only. Hubs
   now announce themselves on the network (UDP port 7412), and the Tallies page warns in red as soon as
