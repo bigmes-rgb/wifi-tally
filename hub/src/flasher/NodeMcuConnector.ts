@@ -12,6 +12,8 @@ import { promises as fs } from 'fs'
 
 // written by the light's init.lua when it tried to load the program into its flash (see tally/src/init.lua)
 const LFS_TRIED = "lfs.tried"
+// where the light's start file waits while an install uploads (see parkProgram)
+const PARKED_INIT = "init.lua.off"
 const baudRate = 115200
 const fileName = "tally-settings.ini"
 
@@ -709,6 +711,7 @@ class NodeMcuConnector {
         progress.connectionDone = true
         onProgress(progress)
 
+        await this.parkProgram(path)
         for(const file of files) {
           await this.saveFileUpload(file.fileName, file.filePath)
           progress.filesUploaded = progress.filesUploaded + 1
@@ -716,6 +719,7 @@ class NodeMcuConnector {
         }
         // every install is a fresh try at loading the program into the flash
         await this.removeFileIfExists(LFS_TRIED)
+        await this.removeFileIfExists(PARKED_INIT)
 
         // the board restarts twice: once now, once more after loading the program into its flash, which ends
         // in a watchdog reset that takes a few seconds on its own
@@ -1003,6 +1007,19 @@ class NodeMcuConnector {
   static watchLightMs = 10 * 60 * 1000
 
   // Restarts the board so it runs what was just uploaded, and waits until it answers again.
+  // The light program running on the board is in the way of an install: an old light (before 0.9.17) runs it in
+  // working memory with under 6 kB left, and the upload runs commands on the board that need room; the first file
+  // never arrived. Its start file is set aside and the board restarted, so it comes up bare, with all its memory
+  // and nothing of its own on the port; the upload brings a fresh start file, and the parked one is removed at
+  // the end. A board left without a start file (the install cut off in between) is dark until the next install,
+  // which the hub offers because files are missing.
+  private async parkProgram(path: string) {
+    const answer = await this.execute(`if file.exists("init.lua") then file.remove("${PARKED_INIT}") file.rename("init.lua", "${PARKED_INIT}") print("parked") end`)
+    if (!answer.response.toString().includes("parked")) return
+    console.info(`[board ${path}] start file set aside; restarting the board without the light program before the upload`)
+    await this.restartBoard(path, 20000)
+  }
+
   // node.restart() works on every board; the RTS reset line does not reset some boards (the same
   // boards that need FLASH and RST pressed to install the firmware). The command is written
   // without waiting for a reply: the board may restart before it sends one.
