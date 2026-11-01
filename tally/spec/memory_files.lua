@@ -23,12 +23,14 @@ return function(initial)
                         pos = e + 1
                         return line
                     end,
+                    read = function() return files[name] end,
                     close = function() end,
                 }
             end
             files[name] = ""
             return {
                 writeline = function(_, s) files[name] = files[name] .. s .. "\n" end,
+                write = function(_, s) files[name] = files[name] .. s; return true end,
                 close = function() end,
             }
         end,

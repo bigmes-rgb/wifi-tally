@@ -2,6 +2,7 @@ import React from 'react'
 import ChannelSelector from '../components/ChannelSelector'
 import { Tally as TallyType } from '../domain/Tally'
 import useChannels from '../hooks/useChannels'
+import useHubInfo from '../hooks/useHubInfo'
 import useProgramPreview from '../hooks/useProgramPreview'
 import { socket } from '../hooks/useSocket'
 import { Paper } from '@material-ui/core'
@@ -80,6 +81,7 @@ type TallyProps = {
 
 function Tally({ tally, className }: TallyProps) {
     const channels = useChannels()
+    const hub = useHubInfo()
     const [programs, previews] = useProgramPreview()
     const classes = useStyles()
 
@@ -125,6 +127,11 @@ function Tally({ tally, className }: TallyProps) {
             </div>
             <div className={classes.tallyFoot + (tally.isActive() && tally.isMissing() ? " " + classes.tallyFootMissing : "")}>
                 <div className={classes.tallyFootItem}>{ tally.isActive() ? (tally.isMissing() ? "missing": "connected") : "disconnected" }</div>
+                {tally.isUdpTally() && tally.isConnected() && hub?.programStamp && tally.program !== hub.programStamp && (
+                    <div className={classes.tallyFootItem} title={tally.program === undefined ? "This light predates updates over the network. Bring it to this computer once and press Install now in Build a light." : "This light runs an older program than the hub has. Press Update lights above."} data-testid={`tally-${tally.name}-program`}>
+                        {tally.program === undefined ? "needs USB once" : "older program"}
+                    </div>
+                )}
                 {tally.isUdpTally() && tally.address && tally.port && (<div className={classes.tallyFootItem}>{tally.address}:{tally.port}</div>)}
             </div>
         </Paper>

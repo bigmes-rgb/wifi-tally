@@ -22,11 +22,15 @@ end
 
 local inFlash = false
 local ok, err = pcall(function()
+    -- a program download (my-update.lua) cut off by a power cut
+    file.remove("lfs.img.new")
     local want = readFile("lfs.stamp")
     if not want then return end
     local stamp = lfsModule("lfs-stamp")
     if stamp and stamp() == want then
         inFlash = true
+        -- which build runs: the light tells the hub (my-tally.lua), which offers an update when it has a newer one
+        _G.lfsStamp = want
         if file.exists("lfs.tried") then
             -- the boot right after the load: it ends in a watchdog reset by design, which is no crash
             _G.lfsJustLoaded = true
@@ -37,6 +41,7 @@ local ok, err = pcall(function()
     if not file.exists("lfs.img") then return end
     if readFile("lfs.tried") == want then
         print("The light program did not load into the flash. Running it from its files.")
+        _G.lfsFailed = true -- my-app.lua tells the hub
         return
     end
     local f = file.open("lfs.tried", "w")

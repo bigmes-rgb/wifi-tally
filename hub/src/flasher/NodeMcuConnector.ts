@@ -299,6 +299,20 @@ class NodeMcuConnector {
     }))
   }
 
+  // one of the tally software's files by name (lfs.img for lights fetching the program over the network), or null
+  static async getLocalFile(fileName: string): Promise<string | null> {
+    const file = (await NodeMcuConnector.getLocalFiles()).find(f => f.fileName === fileName)
+    return file ? file.filePath : null
+  }
+
+  // which build of the light program the hub ships (see tally/src/init.lua), or undefined without one
+  static async getProgramStamp(): Promise<string | undefined> {
+    const path = await NodeMcuConnector.getLocalFile("lfs.stamp")
+    if (!path) return undefined
+    const stamp = (await fs.readFile(path, "utf8")).trim()
+    return /^[0-9a-f]{16}$/.test(stamp) ? stamp : undefined
+  }
+
   // the NodeMCU firmware image next to the tally software, if the hub ships one
   static async getFirmwareFile(dirs: string[] = NodeMcuConnector.localFileDirs): Promise<string | null> {
     for (const dir of dirs) {

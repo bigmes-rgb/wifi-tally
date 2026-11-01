@@ -34,8 +34,8 @@ class UdpTallyDriver {
             try {
                 const command = CommandParser.parse(msg.toString().trim())
                 if (command.command === "tally-ho") {
-                    const {tallyName} = command
-                    this.tallyReported(tallyName, rinfo)
+                    const {tallyName, program} = command
+                    this.tallyReported(tallyName, rinfo, program)
                 } else if (command.command === "log") {
                     const {tallyName, log} = command
                     this.tallyReported(tallyName, rinfo)
@@ -43,6 +43,9 @@ class UdpTallyDriver {
                 } else if (command.command === "wifi-answer") {
                     this.tallyReported(command.tallyName, rinfo)
                     this.container.emitter.emit('tally.wifi', { tallyName: command.tallyName, saved: command.saved })
+                } else if (command.command === "update-answer") {
+                    this.tallyReported(command.tallyName, rinfo)
+                    this.container.emitter.emit('tally.updated', { tallyName: command.tallyName, stamp: command.stamp, outcome: command.outcome })
                 } else if (command.command === "name-answer") {
                     this.tallyReported(command.tallyName, rinfo)
                     this.container.emitter.emit('tally.renamed', { tallyName: command.tallyName, newName: command.newName, saved: command.saved })
@@ -121,18 +124,21 @@ class UdpTallyDriver {
         this.io.close()
     }
 
-    private tallyReported(tallyName: string, rinfo: dgram.RemoteInfo) {
+    private tallyReported(tallyName: string, rinfo: dgram.RemoteInfo, program?: string) {
         this.lastTallyReport.set(tallyName, new Date())
         let tally = this.container.getOrCreate(tallyName, "udp") as UdpTally
         const oldState = tally.state
         const oldAddress = tally.address
         const oldPort = tally.port
+        const oldProgram = tally.program
 
         tally.state = ConnectionState.CONNECTED
         tally.address = rinfo.address
         tally.port = rinfo.port
+        // only "tally-ho" carries the build; a light's other messages leave what it last said
+        if (program !== undefined) tally.program = program
 
-        if (oldState !== tally.state || oldAddress !== tally.address || oldPort !== tally.port) {
+        if (oldState !== tally.state || oldAddress !== tally.address || oldPort !== tally.port || oldProgram !== tally.program) {
             this.container.update(tally)
         }
         return tally
@@ -160,6 +166,16 @@ class UdpTallyDriver {
         const tally = this.container.get(tallyName, "udp")
         if (!(tally instanceof UdpTally) || !tally.isConnected()) return false
         this.io.send(`name ${Buffer.from(newName, "utf8").toString("hex")}`, tally.port, tally.address)
+        return true
+    }
+
+    // Tells one light where to fetch the hub's current program (see tally/src/my-update.lua). It answers
+    // "update-saved" and restarts into it, "update-done" when it already runs it, or "update-failed".
+    // Returns false when the light is not on the network now.
+    sendUpdate(tallyName: string, hubAddress: string, hubPort: number, stamp: string): boolean {
+        const tally = this.container.get(tallyName, "udp")
+        if (!(tally instanceof UdpTally) || !tally.isConnected()) return false
+        this.io.send(`update ${hubAddress} ${hubPort} ${stamp}`, tally.port, tally.address)
         return true
     }
 

@@ -64,3 +64,29 @@ describe('name answer', () => {
         expect(() => CommandParser.parse('name-saved Cam 1')).toThrowError("invalid command")
     })
 })
+
+describe('tally-ho with the build the light runs', () => {
+    test('reads the build when the light says it, and leaves it out when it does not', () => {
+        const withBuild = CommandParser.parse('tally-ho "Cam 1" "0123456789abcdef"') as TallyHoCommand
+        expect(withBuild.tallyName).toBe("Cam 1")
+        expect(withBuild.program).toBe("0123456789abcdef")
+        const fromFiles = CommandParser.parse('tally-ho "Cam 1" "files"') as TallyHoCommand
+        expect(fromFiles.program).toBe("files")
+        const old = CommandParser.parse('tally-ho "Cam 1"') as TallyHoCommand
+        expect(old.tallyName).toBe("Cam 1")
+        expect(old.program).toBeUndefined()
+    })
+})
+
+describe('update answers', () => {
+    test('parses saved, done and failed, with and without the stamp', () => {
+        expect(CommandParser.parse('update-saved "Cam 1" "0123456789abcdef"')).toEqual({ command: "update-answer", tallyName: "Cam 1", stamp: "0123456789abcdef", outcome: "saved" })
+        expect(CommandParser.parse('update-done "Cam 1" "0123456789abcdef"')).toEqual({ command: "update-answer", tallyName: "Cam 1", stamp: "0123456789abcdef", outcome: "done" })
+        expect(CommandParser.parse('update-failed "Cam 1" ""')).toEqual({ command: "update-answer", tallyName: "Cam 1", stamp: "", outcome: "failed" })
+        // the light could not even load the code that fetches it
+        expect(CommandParser.parse('update-failed "Cam 1"')).toEqual({ command: "update-answer", tallyName: "Cam 1", stamp: "", outcome: "failed" })
+    })
+    test('rejects a garbled answer', () => {
+        expect(() => CommandParser.parse('update-maybe "Cam 1" "x"')).toThrow()
+    })
+})

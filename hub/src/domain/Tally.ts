@@ -27,6 +27,7 @@ export interface UdpTallyObjectType extends TallyObjectType {
     address?: string
     port?: number
     state: ConnectionState
+    program?: string
 }
 
 export interface WebTallyObjectType extends TallyObjectType {
@@ -138,6 +139,8 @@ export class UdpTally extends Tally {
     port?: number
     state: ConnectionState
     readonly type = "udp"
+    // the build the light says it runs (see CommandParser's TallyHoCommand); undefined for a light that does not say
+    program?: string
 
     constructor(name: string, channelId?: string, address?: string, port?: number, state: ConnectionState = ConnectionState.DISCONNECTED) {
         super(name, channelId)
@@ -165,6 +168,7 @@ export class UdpTally extends Tally {
             address: this.address,
             port: this.port,
             state: this.state,
+            program: this.program,
         }
     }
     static fromJson(valueObject: UdpTallyObjectType) {
@@ -175,6 +179,7 @@ export class UdpTally extends Tally {
             valueObject.port,
             valueObject.state
         )
+        tally.program = valueObject.program
         tally.configuration.fromJson(valueObject)
         return tally
     }

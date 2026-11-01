@@ -70,6 +70,7 @@ describe("init.lua", function()
 
     it("runs from the flash when it holds the current build, and forgets the try", function()
         local fromFlash = false
+        _G.lfsStamp = nil
         local b = board({
             files = { ["lfs.img"] = "img", ["lfs.stamp"] = "abc", ["lfs.tried"] = "abc", ["my-app.lc"] = "x" },
             flashStamp = "abc",
@@ -80,6 +81,9 @@ describe("init.lua", function()
         assert.is_true(fromFlash)
         assert.is_nil(b.appLoadedFrom)
         assert.is_nil(b.files["lfs.tried"])
+        -- the build it runs, for the hub
+        assert.is_same("abc", _G.lfsStamp)
+        _G.lfsStamp = nil
     end)
 
     it("marks the boot right after the load, which ends in a watchdog reset on purpose", function()
@@ -123,6 +127,17 @@ describe("init.lua", function()
         local ok = pcall(dofile, "src/init.lua")
         assert.is_true(ok)
         assert.is_same(1, #reloads) -- only the first board() call reloaded
+    end)
+
+    it("throws away a program download that a power cut cut off, and tells my-app when the flash holds no usable program", function()
+        _G.lfsFailed = nil
+        local b = board({ files = { ["lfs.img"] = "img", ["lfs.img.new"] = "half", ["lfs.stamp"] = "abc", ["lfs.tried"] = "abc", ["my-app.lc"] = "x" } })
+        assert.is_nil(b.files["lfs.img.new"])
+        assert.is_same("file", b.appLoadedFrom)
+        assert.is_true(_G.lfsFailed)
+        _G.lfsFailed = nil
+        board({ files = { ["lfs.stamp"] = "abc" }, flashStamp = "abc", flashModules = { ["my-app"] = function() return true end } })
+        assert.is_nil(_G.lfsFailed)
     end)
 
     it("loads a newer build over an older one in the flash", function()

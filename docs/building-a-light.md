@@ -94,6 +94,28 @@ while it runs shows on the page and goes into the same log file: why it started 
 crash, a watchdog), Wi-Fi drops and their reasons, and what it could not send. Leave it running until
 the light drops off, then send the file. The watch stops by itself after ten minutes.
 
+## Updating the lights
+
+New hub versions often bring a new light program. Lights built with 0.9.24 or later fetch it over the
+network: when the Tallies page sees a light on an older build, it shows **Update lights**. Press it,
+and each light fetches the program from the hub, restarts once, and comes back in a few seconds. The
+page shows each light's answer. A light that cannot fetch it keeps running what it has.
+
+Lights from before 0.9.24 do not say which build they run and cannot be updated this way; the page
+marks them "needs USB once". Bring each to the computer once, open Build a light, "Plug it in", and
+press **Install now**. After that it updates over the network like the rest.
+
+**When an update breaks.** The light keeps running what it has: the new program only takes the old
+one's place once it has arrived whole. A Wi-Fi drop, the hub being closed, or a power cut during the
+download leaves the light as it was; the page says "could not fetch it" and the light's own log line
+(its menu, Logs) says why. If the light restarts into the new program and the flash does not take it,
+the light runs the copy in its files and reports "The light program did not load into the flash";
+the page then offers the update again. A light that has not come back a minute and a half after it
+said "got it" is marked as such on the page: look at the light itself.
+
+Only the program in the board's flash is updated over the network. The copy in the board's files, which
+the light falls back to if the flash cannot be loaded, stays the one last installed over USB.
+
 ## Run only one hub
 
 Each light follows the first hub that answers it and talks to that one only. With vTally running on

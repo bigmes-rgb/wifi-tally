@@ -53,17 +53,20 @@ local otherHubsWarned = {}
 -- Settings sent by the hub over the network, taken only from the hub this light follows and answered so
 -- the hub can show it. "wifi <ssid in hex> <password in hex>": a new Wi-Fi before the router is switched
 -- over. "name <name in hex>": a new name; the light restarts to take it, and comes back under it.
--- The code that saves them is loaded only now (my-wifi-handover.lua), from the flash or its file, and dropped after.
+-- "update <ip> <port> <stamp>": a new light program to fetch from the hub (my-update.lua).
+-- The code that handles them is loaded only now, from the flash or its file, and dropped after.
 local handleSetting = function(data, ip)
     local ourHub = MySettings:hubIp() or learnedHubIp
     if ip == nil or ourHub == nil or ip ~= ourHub then return end
+    local what = data:match("^%S+")
+    local module = what == "update" and "my-update" or "my-wifi-handover"
     -- a failed load (no memory, say) must not restart the light: it answers "...-failed" itself
-    local ran, err = pcall(function() return require("my-wifi-handover")(data) end)
+    local ran, err = pcall(function() return require(module)(data) end)
     -- dropped whatever happened: a failed load would otherwise block every later require
-    package.loaded["my-wifi-handover"] = nil
+    package.loaded[module] = nil
     if not ran then
-        print("Could not save the " .. data:sub(1, 4) .. ": " .. tostring(err))
-        MyTally:send(string.format('%s-failed "%s"', data:sub(1, 4), MySettings:name()))
+        print("Could not do the " .. what .. ": " .. tostring(err))
+        MyTally:send(string.format('%s-failed "%s"', what, MySettings:name()))
     end
 end
 
@@ -72,7 +75,7 @@ _G.myHandleReceive = function(data, ip)
         -- another tally searching for the hub by broadcast. Not for us.
         return
     end
-    if data:sub(1, 5) == "wifi " or data:sub(1, 5) == "name " then
+    if data:sub(1, 5) == "wifi " or data:sub(1, 5) == "name " or data:sub(1, 7) == "update " then
         handleSetting(data, ip)
         return
     end
@@ -148,8 +151,9 @@ _G.MyTally = {
         local ok, err = pcall(listenSocket.send, listenSocket, MySettings:hubPort(), MyTally.hubAddress(), data .. "\n")
         if not ok then print("Could not send to the hub: " .. tostring(err)) end
     end,
+    -- with the build it runs (init.lua), so the hub can offer a newer one; "files" when it runs from its files
     sendInfo = function(self)
-        self:send(string.format('tally-ho "%s"', MySettings:name()))
+        self:send(string.format('tally-ho "%s" "%s"', MySettings:name(), _G.lfsStamp or "files"))
     end,
     sendLog = function(self, severity, msg)
         self:send(string.format('log "%s" %s "%s"', MySettings:name(), severity, msg))
