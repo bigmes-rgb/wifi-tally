@@ -21,10 +21,15 @@ class ConfigTracker extends EventEmitter{
     vmixConfiguration?: VmixConfiguration
     defaultTallyConfiguration?: DefaultTallyConfiguration
     setupState?: SetupStateType
+    dimmer?: number
 
     constructor(socket: ClientSideSocket) {
         super()
 
+        socket.on('config.state.dimmer', (dimmer) => {
+            this.dimmer = dimmer
+            this.emit('dimmer', dimmer)
+        })
         socket.on('config.state.mixer', ({mixerName, allowedMixers}) => {
             this.mixerName = mixerName
             this.allowedMixers = allowedMixers

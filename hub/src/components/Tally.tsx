@@ -3,6 +3,7 @@ import ChannelSelector from '../components/ChannelSelector'
 import { Tally as TallyType } from '../domain/Tally'
 import useChannels from '../hooks/useChannels'
 import useHubInfo from '../hooks/useHubInfo'
+import { channelLabel } from '../lib/preService'
 import useProgramPreview from '../hooks/useProgramPreview'
 import { socket } from '../hooks/useSocket'
 import { fade, makeStyles, Paper } from '@material-ui/core'
@@ -46,7 +47,23 @@ const useStyles = makeStyles(theme => {
             borderBottom: "1px solid " + theme.palette.grey[800],
         },
         tallyHeadTitle:  {
-
+            minWidth: 0,
+        },
+        tallyName: {
+            fontSize: "1rem",
+            lineHeight: 1.3,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+        },
+        // the switcher input the light stands for, readable at a glance across the room
+        tallyInput: {
+            fontSize: "0.75rem",
+            lineHeight: 1.3,
+            opacity: 0.85,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
         },
         tallyHeadIcon: {
 
@@ -134,7 +151,10 @@ function Tally({ tally, className }: TallyProps) {
     return (<>
         <Paper data-color={dataColor} data-isactive={isActive} className={classRoot.join(" ")} data-testid={`tally-${tally.name}`}>
             <div className={classHead.join(" ")}><>
-                <div className={classes.tallyHeadTitle}>{tally.name}</div>
+                <div className={classes.tallyHeadTitle}>
+                    <div className={classes.tallyName}>{tally.name}</div>
+                    <div className={classes.tallyInput} data-testid={`tally-${tally.name}-input`}>{tally.isPatched() ? channelLabel(tally.channelId, channels || []) : "No input"}</div>
+                </div>
                 <TallyMenu className={classes.tallyHeadIcon} tally={tally} />
             </></div>
             <div className={classes.tallyBody}>

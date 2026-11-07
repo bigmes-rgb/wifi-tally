@@ -188,6 +188,9 @@ io.on('connection', (socket: ServerSideSocket) => {
     new SocketAwareEvent(myEmitter, 'config.changed.tallyconfig', socket, (socket, tallyConfiguration) => {
       socket.emit('config.state.tallyconfig', tallyConfiguration.toJson())
     }),
+    new SocketAwareEvent(myEmitter, 'config.changed.dimmer', socket, (socket, dimmer) => {
+      socket.emit('config.state.dimmer', dimmer)
+    }),
     new SocketAwareEvent(myEmitter, 'config.changed.mixer', socket, (socket, mixerName) => {
       socket.emit('config.state.mixer', {mixerName, allowedMixers: MixerDriver.getAllowedMixers(myConfiguration.isDev(), myConfiguration.isTest())})
     }),
@@ -206,6 +209,7 @@ io.on('connection', (socket: ServerSideSocket) => {
     socket.emit('config.state.rolandV60HD', myConfiguration.getRolandV60HDConfiguration().toJson())
     socket.emit('config.state.vmix', myConfiguration.getVmixConfiguration().toJson())
     socket.emit('config.state.tallyconfig', myConfiguration.getTallyConfiguration().toJson())
+    socket.emit('config.state.dimmer', myConfiguration.getDimmer())
     socket.emit('config.state.setup', myConfiguration.getSetupState())
   })
   socket.on('events.program.unsubscribe', () => {
@@ -234,8 +238,8 @@ io.on('connection', (socket: ServerSideSocket) => {
   socket.on('tally.patch', (tallyName, tallyType, channelId) => {
     myTallyContainer.patch(tallyName, tallyType, channelId)
   })
-  socket.on('tally.highlight', (tallyName, tallyType) => {
-    myTallyContainer.highlight(tallyName, tallyType)
+  socket.on('tally.highlight', (tallyName, tallyType, ms?: number) => {
+    myTallyContainer.highlight(tallyName, tallyType, ms)
   })
   socket.on('tally.remove', (tallyName, tallyType) => {
     myTallyContainer.remove(tallyName, tallyType)
@@ -400,6 +404,11 @@ io.on('connection', (socket: ServerSideSocket) => {
     if (newMixerName) {
       myConfiguration.setMixerSelection(newMixerName)
     }
+  })
+  // the brightness of every light at once; the lights get it with the next state the hub sends them
+  socket.on('config.change.dimmer', (dimmer: number) => {
+    myConfiguration.setDimmer(dimmer)
+    console.info(`Lights dimmed to ${myConfiguration.getDimmer()}%`)
   })
   socket.on('config.change.tallyconfig', (conf) => {
     const configuration = new DefaultTallyConfiguration()

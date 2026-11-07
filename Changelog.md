@@ -3,6 +3,17 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Pre-service check: a button on the Tallies page opens one list of what must be true for the lights
+  to work in a service: the switcher connected, every light on an input online, every light on its own
+  input, only one vTally on the network, the lights' program current, the lights at full brightness. Each
+  line says what to do, and a dimmed room has a one-click fix. Below it, a walk test flashes each light white
+  for three seconds, one after the other in the switcher's order, so whoever is in the room sees every
+  camera's light respond; any light can be flashed on its own.
+* [FEATURE] One brightness for all lights: a button in the Tallies page's toolbar with a slider, 10 to 100
+  percent, on top of each light's own settings. For evening services; the button stays amber while the
+  lights are dimmed, and the pre-service check points it out, so a dimmed room is not forgotten.
+* [UI] A light's card shows the switcher input it stands for under its name, by the switcher's name for it
+  where there is one ("Wide"), else by number ("Channel 2"), or "No input".
 * [BUGFIX] "Install now" on a light from the original vTally stuck on the first of its files: the old light
   program runs in the board's working memory with under 6 kB left, and the upload needs room on the board. The
   install now sets the light's start file aside and restarts the board bare before uploading, then cleans up.

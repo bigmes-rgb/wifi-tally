@@ -179,6 +179,22 @@ export function useDefaultTallyConfiguration() {
   return configuration
 }
 
+// the brightness of every light at once, in percent; undefined until the hub has said
+export function useDimmer() {
+  const [dimmer, setDimmer] = useState<number|undefined>(configTracker.dimmer)
+
+  useEffect(() => {
+    const onChange = (value: number) => setDimmer(value)
+    configTracker.on("dimmer", onChange)
+    setDimmer(configTracker.dimmer)
+    return () => {
+      configTracker.off("dimmer", onChange)
+    }
+  }, [])
+
+  return dimmer
+}
+
 export function useSetupConfiguration() {
   const [setupState, setSetupState] = useState<SetupStateType|undefined>(configTracker.setupState)
 

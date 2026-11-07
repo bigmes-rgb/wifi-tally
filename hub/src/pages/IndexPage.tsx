@@ -17,6 +17,8 @@ import { useSetupConfiguration } from '../hooks/useConfiguration'
 import useOtherHubs from '../hooks/useOtherHubs'
 import useChannels from '../hooks/useChannels'
 import UpdateLights from '../components/UpdateLights'
+import PreServiceCheck from '../components/PreServiceCheck'
+import Dimmer from '../components/Dimmer'
 import Channel from '../domain/Channel'
 import { orderTallies } from '../lib/tallyOrder'
 
@@ -24,8 +26,13 @@ import { orderTallies } from '../lib/tallyOrder'
 const useStyles = makeStyles(theme => {
   return {
     buttons: {
-      display: "block",
+      display: "flex",
+      flexWrap: "wrap",
+      gap: theme.spacing(1),
       marginBottom: theme.spacing(2),
+    },
+    tools: {
+      marginLeft: "auto",
     },
     button: {
       textTransform: "none",
@@ -97,6 +104,10 @@ const IndexPage = () => {
             <Button data-testid="tallies-connected" className={classes.button} color="default" variant="outlined"><WifiIcon className={classes.buttonIcon} /> {nrConnectedTallies === null ? "?" : nrConnectedTallies}</Button>
           </Tooltip>
           <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/light"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
+        </ButtonGroup>
+        <ButtonGroup size="small" variant="contained" className={classes.tools}>
+          <PreServiceCheck />
+          <Dimmer />
         </ButtonGroup>
       </div>
       { isHubConnected && otherHubs.length > 0 && (

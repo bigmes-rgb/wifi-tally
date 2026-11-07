@@ -132,13 +132,15 @@ class TallyContainer {
     }
   }
 
-  highlight(tallyName: string, tallyType: TallyType) {
+  // ms: how long, within reason; the configured time when left out
+  highlight(tallyName: string, tallyType: TallyType, ms?: number) {
       const tally = this.get(tallyName, tallyType)
       if (tally) {
           console.debug(`Tally "${tally.name}" highlighted`)
+          const time = typeof ms === "number" && Number.isFinite(ms) ? Math.min(Math.max(ms, 500), 10000) : this.configuration.getTallyHighlightTime()
           setTimeout(() => {
             this.deHighlight(tallyName, tallyType)
-          }, this.configuration.getTallyHighlightTime())
+          }, time)
           tally.setHighlight(true)
           this.setAndAnnounceTally(tally)
       } else {

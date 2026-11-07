@@ -21,6 +21,14 @@ uses icons from the Noun Project by
 [Building a light](docs/building-a-light.md) walks through the five steps in the hub's Build a light page;
 [Wiring a light](docs/wiring.md) has the drawings and pin tables for the common builds.
 
+## Before the service
+
+On the Tallies page, **Pre-service check** lists what must be true for the lights to work: the switcher
+connected, every light online and on its own input, one vTally on the network, the lights' program current,
+and the lights at full brightness. Each line says what to do. Its **walk test** flashes every light in turn,
+in the switcher's order, so someone in the room can see each camera's light respond. Next to it, the
+brightness button dims all lights at once for an evening service; it stays amber until they are back at full.
+
 ## Features
 
 * WiFi Tally Light based on the ESP8266

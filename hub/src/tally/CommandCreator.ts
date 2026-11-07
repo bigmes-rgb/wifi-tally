@@ -21,7 +21,8 @@ class CommandCreator {
     return "release"
   }
 
-  createStateCommand(tally: UdpTally, programs: ChannelList, previews: ChannelList, defaultConfiguration: DefaultTallyConfiguration): string {
+  // dimmer: the brightness of every light at once, in percent, on top of the light's own brightness
+  createStateCommand(tally: UdpTally, programs: ChannelList, previews: ChannelList, defaultConfiguration: DefaultTallyConfiguration, dimmer = 100): string {
     let opColor: Color
     let stColor: Color
     let flashPattern: number = 0
@@ -56,11 +57,13 @@ class CommandCreator {
       ((_:never) => {})(state)
     }
 
+    // a dimmed light must stay visible: the operator light never goes below its minimum brightness
+    const dim = (brightness: number, floor: number) => Math.max(Math.round(brightness * Math.min(Math.max(dimmer, 0), 100) / 100), Math.min(brightness, floor))
     const operatorBrightness = tally.configuration.getOperatorLightBrightness() !== undefined ? tally.configuration.getOperatorLightBrightness() : defaultConfiguration.getOperatorLightBrightness()
-    opColor = opColor.withBrightness(operatorBrightness)
+    opColor = opColor.withBrightness(dim(operatorBrightness, DefaultTallyConfiguration.minOperatorLightBrightness))
 
     const stageBrightness = tally.configuration.getStageLightBrightness() !== undefined ? tally.configuration.getStageLightBrightness() : defaultConfiguration.getStageLightBrightness()
-    stColor = stColor.withBrightness(stageBrightness)
+    stColor = stColor.withBrightness(dim(stageBrightness, 0))
 
     let command = `O${opColor.r.toString().padStart(3, "0")}/${opColor.g.toString().padStart(3, "0")}/${opColor.b.toString().padStart(3, "0")} `+
       `S${stColor.r.toString().padStart(3, "0")}/${stColor.g.toString().padStart(3, "0")}/${stColor.b.toString().padStart(3, "0")}`

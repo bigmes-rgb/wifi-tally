@@ -11,6 +11,23 @@ import {UdpTally, WebTally} from '../domain/Tally'
 import { DefaultTallyConfiguration } from '../tally/TallyConfiguration'
 
 describe("toJson/fromJson", () => {
+    test('it persists the dimmer, within 10 and 100, and says when it changes', () => {
+        const emitter = new EventEmitter()
+        const config = new AppConfiguration(emitter)
+        const changes: number[] = []
+        emitter.on("config.changed.dimmer", (d: number) => changes.push(d))
+        expect(config.getDimmer()).toBe(100)
+        config.setDimmer(42.4)
+        config.setDimmer(3)
+        config.setDimmer(250)
+        config.setDimmer(100) // no change: not announced again
+        config.setDimmer(60)
+        expect(changes).toEqual([42, 10, 100, 60])
+
+        const otherConfig = new AppConfiguration(emitter)
+        otherConfig.fromJson(config.toJson())
+        expect(otherConfig.getDimmer()).toBe(60)
+    })
     test('it persists whether the setup wizard was completed', () => {
         const emitter = new EventEmitter()
         const config = new AppConfiguration(emitter)
