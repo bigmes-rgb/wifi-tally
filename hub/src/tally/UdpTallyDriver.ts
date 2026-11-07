@@ -181,7 +181,7 @@ class UdpTallyDriver {
 
     updateTallyState(tally: UdpTally, programs: ChannelList, previews: ChannelList) {
         if(tally.isActive()) {
-            const command = CommandCreator.createStateCommand(tally, programs, previews, this.configuration.getTallyConfiguration())
+            const command = CommandCreator.createStateCommand(tally, programs, previews, this.configuration.getTallyConfiguration(), this.configuration.getDimmer())
             this.io.send(command, tally.port, tally.address)
         }
     }

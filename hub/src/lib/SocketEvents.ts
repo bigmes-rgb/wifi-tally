@@ -41,6 +41,8 @@ export interface ServerSentEvents {
     'config.state.rolandV60HD': (rolandV60HDConfiguration: RolandV60HDConfigurationSaveType) => void
     'config.state.vmix': (vmixConfiguration: VmixConfigurationSaveType) => void
     'config.state.tallyconfig': (defaultTallyConfiguration: TallyConfigurationObjectType) => void
+    // brightness of every light at once, in percent
+    'config.state.dimmer': (dimmer: number) => void
     'config.state.mixer': (data: {mixerName: string, allowedMixers: string[]}) => void
     'config.state.setup': (data: SetupStateType) => void
     'hub.info': (info: HubInfoType) => void
@@ -84,7 +86,8 @@ export interface ClientSentEvents {
     'events.webTally.unsubscribe': (tallyName: string) =>  void
 
     'tally.patch': (tallyName: string, tallyType: TallyType, channelId: string|null) => void
-    'tally.highlight': (tallyName: string, tallyType: TallyType) => void
+    // ms: how long the light flashes; the hub's default (one second) when left out
+    'tally.highlight': (tallyName: string, tallyType: TallyType, ms?: number) => void
     'tally.remove': (tallyName: string, tallyType: TallyType) => void
     'tally.create': (tallyName: string, channelId?: string) => void
     'tally.settings': (tallyName: string, tallyType: TallyType, settings: TallyConfigurationObjectType) => void
@@ -98,6 +101,7 @@ export interface ClientSentEvents {
     'config.change.rolandV60HD': (rolandV60HDConfiguration: RolandV60HDConfigurationSaveType, newMixer?: "rolandV60HD") => void
     'config.change.vmix': (vmixConfiguration: VmixConfigurationSaveType, newMixer?: "vmix") => void
     'config.change.tallyconfig': (configuration: TallyConfigurationObjectType) => void
+    'config.change.dimmer': (dimmer: number) => void
     'config.change.setup': (completed: boolean) => void
     'hub.info.get': () => void
     'hub.others.get': () => void

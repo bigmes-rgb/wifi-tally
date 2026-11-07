@@ -33,6 +33,8 @@ export class AppConfiguration extends Configuration {
     firmwareInstall?: object
     tallyPort: number
     tallyHighlightTime: number
+    // brightness of every light at once, on top of each light's own settings, in percent (10..100)
+    dimmer: number
     tallyKeepAlivesPerSecond: number
     tallyTimeoutDisconnected: number
     tallyTimeoutMissing: number
@@ -55,6 +57,7 @@ export class AppConfiguration extends Configuration {
 
         this.tallyPort = 7411
         this.tallyHighlightTime = 1000 // ms
+        this.dimmer = 100
         this.tallyKeepAlivesPerSecond = 10
         this.tallyTimeoutDisconnected = 30000 // ms
         this.tallyTimeoutMissing = 3000 //ms
@@ -123,6 +126,9 @@ export class AppConfiguration extends Configuration {
             this.tallyConfiguration.fromJson(data.tallyDefaults)
         }
         this.loadString("mixer", this.setMixerSelection.bind(this), data)
+        if (typeof data.dimmer === "number") {
+            this.setDimmer(data.dimmer)
+        }
         if (typeof data.setupCompleted === "boolean") {
             this.setSetupCompleted(data.setupCompleted)
         }
@@ -146,6 +152,7 @@ export class AppConfiguration extends Configuration {
             test: this.testConfiguration.toJson(),
             vmix: this.vmixConfiguration.toJson(),
             tallyDefaults: this.tallyConfiguration.toJson(),
+            dimmer: this.dimmer,
             tallies: this.tallies.map(tally => tally.toJsonForSave()),
             channels: this.channels.map(channel => channel.toJson()),
         }
@@ -239,6 +246,20 @@ export class AppConfiguration extends Configuration {
     getTallyConfiguration() {
         return this.tallyConfiguration.clone()
     }
+
+    getDimmer() {
+        return this.dimmer
+    }
+
+    // 10 is as dim as it goes: a light that is set to 0 looks broken
+    setDimmer(dimmer: number) {
+        const value = Math.round(Math.min(Math.max(Number.isFinite(dimmer) ? dimmer : 100, AppConfiguration.minDimmer), 100))
+        if (value === this.dimmer) return
+        this.dimmer = value
+        this.emitter.emit("config.changed", this)
+        this.emitter.emit("config.changed.dimmer", this.dimmer)
+    }
+    static minDimmer = 10
 
     setTallyConfiguration(configuration: DefaultTallyConfiguration) {
         this.tallyConfiguration = configuration.clone()

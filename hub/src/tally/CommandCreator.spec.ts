@@ -197,3 +197,25 @@ describe("operatorShowsIdle()", () => {
         })
     })
 })
+describe('the dimmer: one brightness on top of every light\'s own', () => {
+    const defaultConfig = new DefaultTallyConfiguration()
+    test('dims program, preview and highlight alike', () => {
+        const tally = new UdpTally("test", "channel")
+        expect(CommandCreator.createStateCommand(tally, ["channel"], [], defaultConfig, 50)).toEqual("O128/000/000 S128/000/000")
+        expect(CommandCreator.createStateCommand(tally, [], ["channel"], defaultConfig, 20)).toEqual("O000/051/000 S000/051/000")
+        tally.setHighlight(true)
+        expect(CommandCreator.createStateCommand(tally, [], [], defaultConfig, 10)).toEqual("O026/026/026 S026/026/026 0xAA 125")
+    })
+    test('multiplies with the light\'s own brightness, and never puts the operator light out', () => {
+        const tally = new UdpTally("test", "channel")
+        tally.configuration.setOperatorLightBrightness(50)
+        tally.configuration.setStageLightBrightness(0)
+        expect(CommandCreator.createStateCommand(tally, ["channel"], [], defaultConfig, 50)).toEqual("O064/000/000 S000/000/000")
+        tally.configuration.setOperatorLightBrightness(1)
+        expect(CommandCreator.createStateCommand(tally, ["channel"], [], defaultConfig, 10)).toEqual("O003/000/000 S000/000/000")
+    })
+    test('100 and no dimmer are the same', () => {
+        const tally = new UdpTally("test", "channel")
+        expect(CommandCreator.createStateCommand(tally, ["channel"], [], defaultConfig, 100)).toEqual(CommandCreator.createStateCommand(tally, ["channel"], [], defaultConfig))
+    })
+})

@@ -20,6 +20,7 @@ import { SetupStateType } from "./SocketEvents";
 export interface EventHandlersDataMap {
     'config.changed': (configuration: AppConfiguration) => void
     'config.changed.atem': (atemConfiguration: AtemConfiguration) => void
+    'config.changed.dimmer': (dimmer: number) => void
     'config.changed.mock': (mockConfiguration: MockConfiguration) => void
     'config.changed.null': (nullConfiguration: NullConfiguration) => void
     'config.changed.obs': (obsConfiguration: ObsConfiguration) => void
