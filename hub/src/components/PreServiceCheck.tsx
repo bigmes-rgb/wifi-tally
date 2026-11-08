@@ -1,4 +1,4 @@
-import { Button, ButtonProps, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, makeStyles, Typography } from '@material-ui/core'
+import { Button, ButtonProps, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, makeStyles, Tooltip, Typography, useMediaQuery, useTheme } from '@material-ui/core'
 import { Alert } from '@material-ui/lab'
 import CheckCircleIcon from '@material-ui/icons/CheckCircle'
 import ErrorIcon from '@material-ui/icons/Error'
@@ -45,9 +45,15 @@ type WalkState = { running: boolean, current: string | null, done: string[] }
 // Before the service: what must be true for the lights to work, in one list, and a walk test that flashes each
 // light in turn so whoever is in the room can see every camera's light respond. Lives in the Tallies page's
 // toolbar (ButtonGroup passes its props through).
-function PreServiceCheck(buttonProps: ButtonProps) {
+type PreServiceCheckProps = ButtonProps & { compact?: boolean, openSignal?: number }
+
+function PreServiceCheck({ compact, openSignal, ...buttonProps }: PreServiceCheckProps) {
   const classes = useStyles()
+  // in a narrow pane (a dock inside OBS) the dialog takes the whole pane instead of a cramped box
+  const narrow = useMediaQuery(useTheme().breakpoints.down('xs'))
   const [open, setOpen] = useState(false)
+  // a parent asks for the dialog by bumping openSignal
+  useEffect(() => { if (openSignal) setOpen(true) }, [openSignal])
   const mixerConnected = useMixerInfo()
   const mixerProblem = useMixerProblem()
   const tallies = useTallies() || []
@@ -102,10 +108,12 @@ function PreServiceCheck(buttonProps: ButtonProps) {
 
   const { className, ...rest } = buttonProps
   return <>
-    <Button {...rest} className={[className, classes.button].join(" ")} onClick={() => setOpen(true)} data-testid="precheck">
-      <PlaylistAddCheckIcon className={classes.icon} fontSize="small" /> Pre-service check
-    </Button>
-    <Dialog open={open} onClose={close} maxWidth="sm" fullWidth data-testid="precheck-dialog">
+    {compact
+      ? <Tooltip title="Pre-service check"><Button {...rest} className={[className, classes.button].join(" ")} onClick={() => setOpen(true)} data-testid="precheck" aria-label="Pre-service check"><PlaylistAddCheckIcon fontSize="small" /></Button></Tooltip>
+      : <Button {...rest} className={[className, classes.button].join(" ")} onClick={() => setOpen(true)} data-testid="precheck">
+        <PlaylistAddCheckIcon className={classes.icon} fontSize="small" /> Pre-service check
+      </Button>}
+    <Dialog open={open} onClose={close} maxWidth="sm" fullWidth fullScreen={narrow} data-testid="precheck-dialog">
       <DialogTitle>Pre-service check</DialogTitle>
       <DialogContent>
         <Alert severity={severity} data-testid="precheck-verdict">{summary.title}</Alert>

@@ -17,7 +17,8 @@ const useStyles = makeStyles(theme => ({
     "&:hover": { backgroundColor: theme.palette.warning.main },
   },
   icon: { marginRight: theme.spacing(1) },
-  popover: { padding: theme.spacing(2), width: 320 },
+  compactValue: { marginLeft: theme.spacing(0.5), fontSize: "0.75rem" },
+  popover: { padding: theme.spacing(2), width: 320, maxWidth: "calc(100vw - 16px)" },
   // room for the slider's value bubble above the thumb
   slider: { marginTop: theme.spacing(2), padding: theme.spacing(0, 1) },
   actions: { display: "flex", justifyContent: "flex-end", marginTop: theme.spacing(1) },
@@ -27,7 +28,9 @@ export const MIN_DIMMER = 10
 
 // One brightness for every light at once, on top of each light's own settings: dim for an evening service,
 // back to full afterwards. Lives in the Tallies page's toolbar (ButtonGroup passes its props through).
-function Dimmer(buttonProps: ButtonProps) {
+type DimmerProps = ButtonProps & { compact?: boolean }
+
+function Dimmer({ compact, ...buttonProps }: DimmerProps) {
   const classes = useStyles()
   const fromHub = useDimmer()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
@@ -51,7 +54,7 @@ function Dimmer(buttonProps: ButtonProps) {
   return <>
     <Tooltip title={dimmed ? `All lights dimmed to ${value}%` : "Brightness of all lights"}>
       <Button {...rest} className={[className, classes.button, dimmed ? classes.dimmed : ""].join(" ")} onClick={e => setAnchor(e.currentTarget)} data-testid="dimmer" data-dimmed={dimmed}>
-        <Brightness6Icon className={classes.icon} fontSize="small" /> {value}%
+        <Brightness6Icon className={compact ? undefined : classes.icon} fontSize="small" />{compact ? (dimmed ? <span className={classes.compactValue}>{value}%</span> : null) : ` ${value}%`}
       </Button>
     </Tooltip>
     <Popover open={!!anchor} anchorEl={anchor} onClose={() => setAnchor(null)} anchorOrigin={{ vertical: "bottom", horizontal: "left" }} classes={{ paper: classes.popover }}>
