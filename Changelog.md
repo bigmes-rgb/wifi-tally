@@ -3,6 +3,12 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] A view for a dock inside OBS, at /dock: one tile per light in the switcher's order, red on air,
+  green on preview, a word in the corner when a light is offline, missing or on no input, and "no switcher"
+  on every tile while the switcher is away. A line at the top says the one thing that needs attention most
+  and opens the pre-service check; the check and the brightness sit in a slim bar as icons. Clicking a tile
+  flashes that light. Works as a narrow column or a wide strip. The desktop page is unchanged. The Readme
+  says how to add it as a custom browser dock in OBS.
 * [FEATURE] Pre-service check: a button on the Tallies page opens one list of what must be true for the lights
   to work in a service: the switcher connected, every light on an input online, every light on its own
   input, only one vTally on the network, the lights' program current, the lights at full brightness. Each
