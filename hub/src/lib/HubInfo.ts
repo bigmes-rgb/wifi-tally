@@ -1,6 +1,6 @@
 import os from 'os'
 
-// another vTally hub heard on the network
+// another ACC Tally hub heard on the network
 export type OtherHubType = {
   address: string
   hostname: string

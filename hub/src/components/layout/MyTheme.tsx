@@ -1,9 +1,10 @@
-import { createMuiTheme, ThemeProvider } from '@material-ui/core'
+import { createMuiTheme, ThemeOptions, ThemeProvider } from '@material-ui/core'
 import React from 'react';
 // import App from 'next/app'
 
 const colorGreen = "#00bc8c"
-const myTheme = createMuiTheme({
+// exported so the dock view can derive a smaller-typed theme from the same colours
+export const myThemeOptions: ThemeOptions = {
   // copying the colors of https://bootswatch.com/4/darkly/_variables.scss
   
   palette: {
@@ -111,7 +112,8 @@ const myTheme = createMuiTheme({
     }
   },
 
-})
+}
+const myTheme = createMuiTheme(myThemeOptions)
 
 type MyThemeProps = {
   children: React.ReactNode

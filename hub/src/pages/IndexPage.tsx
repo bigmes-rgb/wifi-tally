@@ -112,9 +112,9 @@ const IndexPage = () => {
       </div>
       { isHubConnected && otherHubs.length > 0 && (
         <Alert severity="error" className={classes.alert} data-testid="other-hubs">
-          <AlertTitle>Another vTally is running on {otherHubs.map(h => `${h.hostname} (${h.address})`).join(" and ")}</AlertTitle>
+          <AlertTitle>Another ACC Tally is running on {otherHubs.map(h => `${h.hostname} (${h.address})`).join(" and ")}</AlertTitle>
           Each light follows the first hub that answers it and talks to that one only. With two hubs running, every
-          light shows up on one of them and goes missing on the other, for no reason it can give. Close vTally on
+          light shows up on one of them and goes missing on the other, for no reason it can give. Close ACC Tally on
           the other computer and leave only this one running.
         </Alert>
       )}

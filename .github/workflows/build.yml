@@ -1,9 +1,9 @@
 # Builds and tests every push and pull request.
 # A tag that looks like v1.2.3 (or v1.2.3-rc1), or "Run workflow" with a
 # version typed in, additionally produces a GitHub Release on this repository with:
-#   - vtally-<version>-win-x64-portable.exe   the hub as a Windows desktop app
-#   - vtally-<version>.tgz                     the hub as an npm package
-#   - vtally-<version>-esp8266.zip             firmware + code for the tally lights
+#   - acc-tally-<version>-win-x64-portable.exe   the hub as a Windows desktop app
+#   - acc-tally-<version>.tgz                  the hub as an npm package
+#   - acc-tally-<version>-esp8266.zip             firmware + code for the tally lights
 #
 # Everything is built from this repository alone. There is no S3 bucket, no
 # npm account and no separate wrapper repository involved.
@@ -175,12 +175,12 @@ jobs:
           name: tally-dist
           path: esp8266
       - run: cp firmware/prebuilt/nodemcu-*.bin esp8266/
-      - run: zip -Jrq "../vtally-${{ needs.setup.outputs.version }}-esp8266.zip" *
+      - run: zip -Jrq "../acc-tally-${{ needs.setup.outputs.version }}-esp8266.zip" *
         working-directory: esp8266
       - uses: actions/upload-artifact@v4
         with:
           name: esp8266
-          path: vtally-*-esp8266.zip
+          path: acc-tally-*-esp8266.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -286,7 +286,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: electron-windows
-          path: electron/dist/vtally-*-portable.exe
+          path: electron/dist/acc-tally-*-portable.exe
           if-no-files-found: error
           retention-days: 1
 
@@ -312,6 +312,8 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      # the hub's npm package keeps its internal name; its tarball is renamed for the release page
+      - run: for f in artifacts/vtally-*.tgz; do mv "$f" "${f/vtally-/acc-tally-}"; done
       - run: ls -l artifacts
       - uses: softprops/action-gh-release@v2
         with:
@@ -322,6 +324,6 @@ jobs:
           prerelease: ${{ contains(needs.setup.outputs.version, '-') }}
           generate_release_notes: true
           files: |
-            artifacts/vtally-*-portable.exe
-            artifacts/vtally-*.tgz
-            artifacts/vtally-*-esp8266.zip
+            artifacts/acc-tally-*-portable.exe
+            artifacts/acc-tally-*.tgz
+            artifacts/acc-tally-*-esp8266.zip

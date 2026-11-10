@@ -23,7 +23,7 @@ const WAIT: Partial<Record<BoardState, NextStep>> = {
   formatting: { action: "check", severity: "info", text: "The firmware is installed. The board is setting up its storage for the first time and answers nothing until it is done. Leave it plugged in, wait a minute, then check again." },
   busy: { action: "check", severity: "info", text: "The NodeMCU firmware is running but has not answered yet. Wait a few seconds and check again." },
   tallyBusy: { action: "check", severity: "info", text: "The tally software is running on it (it is printing its log) but did not answer in time. Press Check again." },
-  twoHubs: { action: "check", severity: "warning", text: "The light is on the Wi-Fi but hears a vTally hub at two addresses, and switches between them so fast that it cannot answer." },
+  twoHubs: { action: "check", severity: "warning", text: "The light is on the Wi-Fi but hears a ACC Tally hub at two addresses, and switches between them so fast that it cannot answer." },
 }
 
 // a board this hub has not just installed

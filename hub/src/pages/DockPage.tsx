@@ -1,4 +1,5 @@
-import { ButtonGroup, fade, makeStyles, Tooltip, Typography } from '@material-ui/core'
+import { ButtonGroup, createMuiTheme, fade, makeStyles, ThemeProvider, Tooltip, Typography } from '@material-ui/core'
+import { myThemeOptions } from '../components/layout/MyTheme'
 import ChevronRightIcon from '@material-ui/icons/ChevronRight'
 import PhoneIphoneIcon from '@material-ui/icons/PhoneIphone'
 import React, { useEffect, useRef, useState } from 'react'
@@ -18,6 +19,13 @@ import useSocketInfo from '../hooks/useSocketInfo'
 import useTallies from '../hooks/useTallies'
 import { channelLabel, preServiceFindings, verdict } from '../lib/preService'
 import { orderTallies } from '../lib/tallyOrder'
+
+// The main theme sets its type for a desktop screen (about 18 px body text). A dock inside OBS is a few hundred
+// pixels wide, so everything that opens from it (the check, the dimmer) is set smaller: about 14 px body text.
+export const dockTheme = createMuiTheme({
+  ...myThemeOptions,
+  typography: { ...(myThemeOptions.typography as object), fontSize: 12.5, htmlFontSize: 16 },
+})
 
 // what a tile shows, from the light's state and the switcher's
 export type TileState = "program" | "preview" | "idle" | "unpatched" | "unknown" | "missing" | "offline"
@@ -184,10 +192,10 @@ function DockPage() {
     flashTimer.current = setTimeout(() => setFlashing(null), WALK_FLASH_MS)
   }
 
-  return <div className={classes.root} data-testid="dock">
+  return <ThemeProvider theme={dockTheme}><div className={classes.root} data-testid="dock">
     <div className={classes.bar}>
       <Tooltip title={isHubConnected ? "Hub connected" : "Hub disconnected"}><span className={[classes.dot, isHubConnected ? "" : classes.dotOff].join(" ")} data-testid="dock-hub" data-connected={isHubConnected} /></Tooltip>
-      <span className={classes.brand}>vTally</span>
+      <span className={classes.brand}>ACC | Tally</span>
       <ButtonGroup size="small" variant="outlined" className={classes.tools}>
         <PreServiceCheck compact openSignal={openCheck} />
         <Dimmer compact />
@@ -200,7 +208,7 @@ function DockPage() {
         <ChevronRightIcon fontSize="small" />
       </div>}
     {setupState?.needed
-      ? <Typography className={classes.empty} color="textSecondary">vTally is not set up yet. <RouterLink to="/setup" style={{ color: "inherit" }}>Open the setup</RouterLink> on the hub computer.</Typography>
+      ? <Typography className={classes.empty} color="textSecondary">ACC Tally is not set up yet. <RouterLink to="/setup" style={{ color: "inherit" }}>Open the setup</RouterLink> on the hub computer.</Typography>
       : tallies.length === 0
         ? <Typography className={classes.empty} color="textSecondary" data-testid="dock-empty">No lights yet. Add them on the hub's Tallies page.</Typography>
         : <div className={classes.grid} data-testid="dock-grid">
@@ -217,7 +225,7 @@ function DockPage() {
             </Tooltip>
           })}
         </div>}
-  </div>
+  </div></ThemeProvider>
 }
 
 export default DockPage

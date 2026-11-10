@@ -1,8 +1,9 @@
 {
-  "name": "vtally-electron",
+  "name": "acc-tally-electron",
+  "productName": "ACC Tally",
   "private": true,
   "version": "0.0.0-dev",
-  "description": "Electron wrapper that ships the vTally hub as a desktop app",
+  "description": "Electron wrapper that ships the ACC Tally hub as a desktop app",
   "main": "index.js",
   "scripts": {
     "start": "electron .",

@@ -5,7 +5,7 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 
 ## Before you start
 
-- **The computer:** the one that runs vTally Hub. The board plugs into it by USB.
+- **The computer:** the one that runs ACC Tally. The board plugs into it by USB.
 - **Power during an install:** a light with its strip wired draws a surge when the program starts and the
   strip lights up. On some laptop ports that drops the USB connection for a moment, and the page then says
   the light did not answer after its restart. The install is still complete; the light shows up on the
@@ -16,7 +16,7 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
   If Device Manager shows a yellow triangle, install CH341SER from wch-ic.com.
 - **The Wi-Fi:** a 2.4 GHz network with a plain password (WPA2-Personal), on the same network as
   this computer. These boards cannot use 5 GHz or username-and-password networks.
-- **Windows Firewall:** the first time a new vTally starts, Windows asks whether to allow it on
+- **Windows Firewall:** the first time a new ACC Tally starts, Windows asks whether to allow it on
   networks. Allow it, including on Private networks. Without that the lights cannot reach the hub.
 
 - **Strip power:** a NeoPixel strip's +5V goes to **VU** and its GND to the **G** right next to it,
@@ -69,7 +69,7 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
    the hub treats it as a new one (**Build another light** does the same). A board that answered
    after the install and starts restarting once the light program is on it usually lacks power for
    its LEDs and Wi-Fi; the page says what to try, and does not send it round the install again. The
-   hub remembers the install for 12 hours, also when vTally is closed and opened again. **What the board printed** shows the board's own words, and **Read
+   hub remembers the install for 12 hours, also when ACC Tally is closed and opened again. **What the board printed** shows the board's own words, and **Read
    the start-up message** shows what the chip itself says when you press RST.
 3. **Wiring test.** The hub lights each colour through the USB cable and asks what you see. It
    tells you which wire to move, or fixes the common-pin and pixel settings itself.
@@ -81,7 +81,7 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
    - *Refused the password* means the password is wrong, or the network needs a username.
    - *Different networks* means the light is on another network than this computer, such as a
      guest Wi-Fi.
-   - *The hub does not answer* usually means Windows Firewall is blocking vTally Hub.
+   - *The hub does not answer* usually means Windows Firewall is blocking ACC Tally.
 
    When it says it found the hub, unplug it and mount it.
 
@@ -90,7 +90,7 @@ How a light goes from a bare NodeMCU board to a working tally, what each screen 
 The hub writes down what happened to each board: every check (the COM port, what the board
 printed, the advice the page showed), every step of a firmware install and how the board's
 restart was noticed, and pages opened and closed. In the Windows app the file is
-`%APPDATA%\vtally-electron\logs\main.log`. Send that file along with a description of what you did.
+`%APPDATA%\ACC Tally\logs\main.log`. Send that file along with a description of what you did.
 
 A light that keeps dropping off the hub can be watched: plug it into the computer, open **Build a
 light**, go to **Plug it in**, and press **Watch what the light says**. Everything the light prints
@@ -122,10 +122,10 @@ the light falls back to if the flash cannot be loaded, stays the one last instal
 
 ## Run only one hub
 
-Each light follows the first hub that answers it and talks to that one only. With vTally running on
+Each light follows the first hub that answers it and talks to that one only. With ACC Tally running on
 two computers at once, every light shows up on one of them and goes "missing" on the other, with no
-reason it can give. The Tallies page warns as soon as another vTally is heard on the network, naming
-the computer: close vTally there. The hubs find each other on UDP port 7412.
+reason it can give. The Tallies page warns as soon as another ACC Tally is heard on the network, naming
+the computer: close ACC Tally there. The hubs find each other on UDP port 7412.
 
 ## Existing lights
 

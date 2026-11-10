@@ -131,7 +131,7 @@ const SetupPage = () => {
   }
 
   return <Layout testId="setup">
-    <MiniPage title={setupState?.needed ? "Welcome to vTally" : "Setup"} testId={`setup-${current.id}`}>
+    <MiniPage title={setupState?.needed ? "Welcome to ACC | Tally" : "Setup"} testId={`setup-${current.id}`}>
       {setupState?.needed && index === 0 && <Typography paragraph>
         Let's get your tally lights running. This takes a few minutes.
       </Typography>}

@@ -108,7 +108,7 @@ class NodeMcuConnector {
   private wiringTest: { path: string, profile: HardwareProfile, idleTimer?: NodeJS.Timeout } | null = null
 
   // One board operation at a time. Each gets a deadline: a job stuck on a board that vanished must
-  // not hold the USB port, and with it every later step, until vTally is restarted.
+  // not hold the USB port, and with it every later step, until ACC Tally is restarted.
   withMutex<T> (fn: () => T, maxMs = NodeMcuConnector.jobDeadlineMs): Promise<T> {
     return new Promise((resolve) => {
       const interval = setInterval(() => {
@@ -139,7 +139,7 @@ class NodeMcuConnector {
   // how long a board that went away (unplugged to restart it) gets to come back before a check gives up on it
   static boardReturnMs = 20000
   // How long an install still decides what a check of a board that does not answer advises. Longer than an evening
-  // of building lights, vTally restarts included; short enough that a board from the box next week is offered the
+  // of building lights, ACC Tally restarts included; short enough that a board from the box next week is offered the
   // install. Another board within that time: "Check the other board".
   static recentInstallMs = 12 * 60 * 60 * 1000
 

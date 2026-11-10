@@ -55,7 +55,7 @@ export function InstallRunning({ job, action }: { job: FirmwareJob, action?: Rea
 }
 
 // What to do about a light that hears a hub at two addresses. The hub knows its own addresses, so
-// it can tell "this computer is on the network twice" from "another computer runs vTally".
+// it can tell "this computer is on the network twice" from "another computer runs ACC Tally".
 export function twoHubsText(heard: string[], own: string[]): string {
   const others = heard.filter(a => !own.includes(a))
   const after = "press RST on the board, wait a minute, then Check again."
@@ -63,9 +63,9 @@ export function twoHubsText(heard: string[], own: string[]): string {
     return `${heard.length === 2 ? "Both" : "All"}, ${heard.join(" and ")}, are this computer: it is on the network twice, by cable and by Wi-Fi. Unplug its network cable or turn its Wi-Fi off, ${after}`
   }
   if (own.length > 0) {
-    return `${others.join(" and ")} ${others.length === 1 ? "is another computer" : "are other computers"} running vTally. Close vTally there, ${after}`
+    return `${others.join(" and ")} ${others.length === 1 ? "is another computer" : "are other computers"} running ACC Tally. Close ACC Tally there, ${after}`
   }
-  return `The addresses are ${heard.join(" and ")}. Either another computer on this network runs vTally (close it there), or this computer is on the network twice, by cable and by Wi-Fi (unplug the cable or turn its Wi-Fi off). Then ${after}`
+  return `The addresses are ${heard.join(" and ")}. Either another computer on this network runs ACC Tally (close it there), or this computer is on the network twice, by cable and by Wi-Fi (unplug the cable or turn its Wi-Fi off). Then ${after}`
 }
 
 type Props = {

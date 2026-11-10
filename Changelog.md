@@ -3,6 +3,14 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [CHANGE] The app is now called ACC | Tally: the header, the page title, the Windows app and its tray, the
+  messages, the docs. The Windows app is `acc-tally-<version>-win-x64-portable.exe`, and its log file moved to
+  `%APPDATA%\ACC Tally\logs\main.log`. Nothing else moves: the hub's settings file, the lights and their
+  settings stay as they are, and the portable app still unpacks to the same folder, so Windows Firewall's
+  existing "allow" keeps working. The lights' own message about a second hub says ACC Tally after the next
+  "Update lights".
+* [BUGFIX] Inside a dock in OBS, the pre-service check and the brightness slider used the desktop's type size and
+  looked huge. Everything that opens from the dock is set smaller now.
 * [FEATURE] A view for a dock inside OBS, at /dock: one tile per light in the switcher's order, red on air,
   green on preview, a word in the corner when a light is offline, missing or on no input, and "no switcher"
   on every tile while the switcher is away. A line at the top says the one thing that needs attention most

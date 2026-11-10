@@ -64,7 +64,7 @@ export function adviceFor(report: NetworkReport, hubAddresses: string[] = []): s
     case "wrongPassword": return `${net} refused the password. Check it and go back a step to save again. The network must use a plain password (WPA2-Personal), not a username and password.`
     case "noAddress": return `The light joined ${net} but the router gave it no address. The router may block new devices; ask whoever runs the network.`
     case "otherNetwork": return `The light got the address ${report.ip}, but this computer is on ${hubAddresses.join(", ")}. They are on different networks (a guest Wi-Fi?). Put the light on the network this computer uses.`
-    case "noHub": return `The light is on ${net} with the address ${report.ip}, but the hub does not answer it. Usually Windows Firewall is blocking vTally: open "Allow an app through Windows Firewall", find vTally Hub and tick Private (and Public if the church network is marked Public).`
+    case "noHub": return `The light is on ${net} with the address ${report.ip}, but the hub does not answer it. Usually Windows Firewall is blocking ACC Tally: open "Allow an app through Windows Firewall", find ACC Tally and tick Private (and Public if the church network is marked Public).`
     default: return null
   }
 }

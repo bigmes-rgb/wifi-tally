@@ -1,6 +1,6 @@
 # Open Source Tally Light
 
-vTally is an Open Source Wifi Tally Light based on the ESP8266.
+ACC Tally is an Open Source Wifi Tally Light based on the ESP8266.
 
 It aims to be affordable without sacrificing reliability and works with most
 common video mixers.
@@ -44,7 +44,7 @@ allows easy configuration and monitoring.
 
 ## Get Started
 
-Refer to [Getting Started](getting-started/index.md) to start running your own vTally setup.
+Refer to [Getting Started](getting-started/index.md) to start running your own ACC Tally setup.
 
 ## Download
 
