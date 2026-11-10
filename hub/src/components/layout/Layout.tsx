@@ -4,10 +4,19 @@ import { Link as RouterLink } from 'react-router-dom'
 
 const useStyles = makeStyles(theme => {
   return {
-    logo: {
-      height: theme.typography.h2.fontSize,
-      margin: theme.spacing(1, 2, 2, 0)
+    // the wordmark: "ACC" set heavy, a thin divider, "Tally" light
+    brand: {
+      display: "flex",
+      alignItems: "baseline",
+      gap: theme.spacing(1),
+      marginRight: theme.spacing(3),
+      color: "inherit",
+      textDecoration: "none",
+      whiteSpace: "nowrap",
     },
+    brandAcc: { fontSize: "1.35rem", fontWeight: 700, letterSpacing: "0.06em" },
+    brandBar: { fontSize: "1.35rem", fontWeight: 300, opacity: 0.5 },
+    brandTally: { fontSize: "1.35rem", fontWeight: 300, letterSpacing: "0.02em" },
     contentContainer: {
       marginTop: theme.spacing(2),
     },
@@ -25,7 +34,9 @@ const Layout = ({testId: cypressId, children}: LayoutProps) => {
   return (<div data-testid={`page-${cypressId}`}>
     <AppBar position="static">
       <Toolbar>
-        <img width="106" height="40" className={classes.logo} src="/logo-with-text.svg" alt="vTally" />
+        <RouterLink to="/" className={classes.brand} aria-label="ACC | Tally" data-testid="brand">
+          <span className={classes.brandAcc}>ACC</span><span className={classes.brandBar}>|</span><span className={classes.brandTally}>Tally</span>
+        </RouterLink>
         <Button component={RouterLink} to="/">Tallies</Button>
         <Button component={RouterLink} to="/config">Configuration</Button>
         <Button component={RouterLink} to="/flasher">Flash</Button>

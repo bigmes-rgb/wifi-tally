@@ -1,4 +1,4 @@
-# vTally Light
+# ACC Tally light
 
 This is the code that is uploaded to the Tally Light.
 

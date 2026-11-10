@@ -1,4 +1,4 @@
-# vTally Documentation
+# ACC Tally Documentation
 
 The files in [docs](docs/) create the [documentation on the project](https://wifi-tally.github.io/).
 

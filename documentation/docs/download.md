@@ -13,7 +13,7 @@
       that they might be improved, but in a backward compatible way
 
 
-The latest version of vTally is [{{ latest_version }}]({{ github_link }}/releases/tag/{{ latest_version }}).
+The latest version of ACC Tally is [{{ latest_version }}]({{ github_link }}/releases/tag/{{ latest_version }}).
 
 ## Windows
 
@@ -24,13 +24,13 @@ Windows Defender might complain multiple times, that it can not verify the sourc
 It does not require installation. Just double-click, and a tray icon should pop up. Right click and select
 "Open in Browser", and you see the hub.
 
-To exit vTally, right click the tray icon, click "Exit" and confirm.
+To exit ACC Tally, right click the tray icon, click "Exit" and confirm.
 
 ### Autostart
 
 Hit `WIN` + `R` on your keyboard and type `shell:Startup`. Move the exe file, you downloaded, into this directory.
 
-When you restart your PC and log in again, vTally should automatically start.
+When you restart your PC and log in again, ACC Tally should automatically start.
 
 ## MacOS (x86_64)
 
@@ -40,7 +40,7 @@ To start the app, right click and select `open`.
 
 A tray icon should pop up. Right click and select "Open in Browser", and you see the hub.
 
-To exit vTally, right click the tray icon, click "Exit" and confirm.
+To exit ACC Tally, right click the tray icon, click "Exit" and confirm.
 
 ## Linux (x86_64), Ubuntu, Debian, Fedora, etc.
 
@@ -76,9 +76,9 @@ case, [check their website](https://nodejs.org/en/download/) for alternative way
     $ npm -v
     6.14.10
 
-### 2. Install vTally
+### 2. Install ACC Tally
 
-This command will install vTally for the logged-in user and does not require `sudo` rights. Run
+This command will install ACC Tally for the logged-in user and does not require `sudo` rights. Run
 
 ````bash
 npm config set prefix '~/.local/'
@@ -87,9 +87,9 @@ source ~/.bashrc
 npm install -g vtally:{{ latest_version }}
 ````
 
-### 3. Run vTally
+### 3. Run ACC Tally
 
-vTally is installed. Run it by calling
+ACC Tally is installed. Run it by calling
 
     vtally
 

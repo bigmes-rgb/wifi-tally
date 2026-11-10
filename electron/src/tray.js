@@ -12,8 +12,8 @@ const openBrowser = () => {
 
 const exitApp = () => {
     dialog.showMessageBox({
-        title: "Really quit vTally?",
-        message: "Do you really want to stop vTally?",
+        title: "Really quit ACC Tally?",
+        message: "Do you really want to stop ACC Tally?",
         buttons: ["No", "Yes"],
         defaultId: 0,
         cancelId: 0,
@@ -33,7 +33,7 @@ app.whenReady().then(() => {
         { label: `Tally Hub ${package.version}`, enabled: false },
         { 
             label: 'Open in Browser', 
-            toolTip: 'Opens vTally Hub in your default browser',
+            toolTip: 'Opens ACC Tally in your default browser',
             click: openBrowser,
         },
         { label: "Seperator", type: "separator" },
@@ -42,6 +42,6 @@ app.whenReady().then(() => {
             click: exitApp
         }
     ])
-    tray.setToolTip('vTally Hub')
+    tray.setToolTip('ACC | Tally')
     tray.setContextMenu(contextMenu)
 })

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { OtherHubType } from '../lib/HubInfo'
 import { socket } from './useSocket'
 
-// other vTally hubs heard on the network (see tally/HubBeacon): more than one makes lights go missing
+// other ACC Tally hubs heard on the network (see tally/HubBeacon): more than one makes lights go missing
 function useOtherHubs(): OtherHubType[] {
   const [others, setOthers] = useState<OtherHubType[]>([])
 

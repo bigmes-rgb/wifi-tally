@@ -17,7 +17,7 @@ child.on('restart', function() {
   console.error("")
   console.error("This should never happen, so please consider filing a bug report including steps to reproduce and the error messages above.")
   console.error("")
-  console.error("vTally will try to restart automatically.")
+  console.error("ACC Tally will try to restart automatically.")
   console.error("")
   console.error("####################################")
 })

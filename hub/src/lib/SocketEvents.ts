@@ -46,7 +46,7 @@ export interface ServerSentEvents {
     'config.state.mixer': (data: {mixerName: string, allowedMixers: string[]}) => void
     'config.state.setup': (data: SetupStateType) => void
     'hub.info': (info: HubInfoType) => void
-    // other vTally hubs heard on the network; lights go missing with more than one
+    // other ACC Tally hubs heard on the network; lights go missing with more than one
     'hub.others': (others: OtherHubType[]) => void
     // "Update lights": who was told to fetch the program, and each light's answer
     'tallies.update.sent': (data: { sentTo: string[], needUsb: string[] }) => void

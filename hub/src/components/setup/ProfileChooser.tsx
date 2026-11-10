@@ -65,7 +65,7 @@ const label: Record<Choice, string> = {
 function printWiring(node: HTMLElement | null) {
   const win = node && window.open("", "_blank", "width=900,height=700")
   if (!win || !node) return
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>vTally wiring</title><style>
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ACC Tally wiring</title><style>
     body { font-family: sans-serif; margin: 24px; color: #212121; }
     table { border-collapse: collapse; margin-top: 16px; }
     th, td { text-align: left; padding: 4px 16px 4px 0; border-bottom: 1px solid #ccc; }

@@ -45,7 +45,7 @@ const flipFlop = "[INFO]  Found hub at 192.168.1.35\r\n[INFO]  Found hub at 192.
 test("a light switching between two hubs says so, names both addresses, and offers Check again", () => {
   render(<DevicePanel device={board({ boardState: "twoHubs", boardOutput: flipFlop })} onReload={() => {}} />)
   const alert = screen.getByTestId("device-state-twoHubs")
-  expect(alert.textContent).toContain("hears a vTally hub at two addresses")
+  expect(alert.textContent).toContain("hears a ACC Tally hub at two addresses")
   expect(alert.textContent).toContain("192.168.1.35 and 192.168.1.6")
   expect(alert.textContent).toContain("press RST on the board")
   expect(screen.getByTestId("device-check")).toBeInTheDocument()
@@ -65,14 +65,14 @@ describe("twoHubsText()", () => {
     expect(text).toContain("Both, 192.168.1.35 and 192.168.1.6, are this computer")
     expect(text).toContain("Unplug its network cable or turn its Wi-Fi off")
   })
-  test("one address is someone else's: another computer runs vTally", () => {
+  test("one address is someone else's: another computer runs ACC Tally", () => {
     const text = twoHubsText(["192.168.1.35", "192.168.1.20"], ["192.168.1.35"])
-    expect(text).toContain("192.168.1.20 is another computer running vTally")
+    expect(text).toContain("192.168.1.20 is another computer running ACC Tally")
     expect(text).not.toContain("network twice")
   })
   test("without this computer's addresses it names both possibilities", () => {
     const text = twoHubsText(["192.168.1.35", "192.168.1.6"], [])
-    expect(text).toContain("another computer on this network runs vTally")
+    expect(text).toContain("another computer on this network runs ACC Tally")
     expect(text).toContain("on the network twice")
   })
 })

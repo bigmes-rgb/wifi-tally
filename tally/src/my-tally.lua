@@ -88,14 +88,14 @@ _G.myHandleReceive = function(data, ip)
         MyLog.warning(string.format('invalid package: %s', data))
         return
     end
-    -- stay with one hub. With two vTally hubs on the network (say the booth PC and a laptop used
+    -- stay with one hub. With two ACC Tally hubs on the network (say the booth PC and a laptop used
     -- to build lights) both answer; following whichever spoke last made the light flicker between
     -- two switchers' states and flooded the log. The other hub is ignored until ours goes silent.
     local ourHub = MySettings:hubIp() or learnedHubIp
     if ip ~= nil and ourHub ~= nil and ip ~= ourHub then
         if not otherHubsWarned[ip] then
             otherHubsWarned[ip] = true
-            MyLog.warning("Another hub at " .. ip .. " is also sending. Staying with " .. ourHub .. ". Run only one vTally on this network.")
+            MyLog.warning("Another hub at " .. ip .. " is also sending. Staying with " .. ourHub .. ". Run only one ACC Tally on this network.")
         end
         return
     end

@@ -899,7 +899,7 @@ describe("the install record: what the checks after an install advise, and for h
     expect(next.text).toContain("LED wires")
   })
 
-  test("the install is remembered across a hub restart, so closing and opening vTally does not send the board round again", async () => {
+  test("the install is remembered across a hub restart, so closing and opening ACC Tally does not send the board round again", async () => {
     const b = board()
     const store = memoryStore()
     const first = new NodeMcuConnector(b.nodemcu, quickFlasher(), extras(b.listen, { installStore: store }))

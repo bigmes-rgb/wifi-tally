@@ -69,8 +69,8 @@ export function preServiceFindings(input: PreServiceInput): Finding[] {
   }
 
   findings.push(input.otherHubs.length > 0
-    ? { id: "hubs", status: "fail", title: `Another vTally is running on ${input.otherHubs.map(h => h.hostname).join(" and ")}`, detail: "Lights follow one hub only and go missing on the other. Close vTally there." }
-    : { id: "hubs", status: "ok", title: "Only this vTally on the network" })
+    ? { id: "hubs", status: "fail", title: `Another ACC Tally is running on ${input.otherHubs.map(h => h.hostname).join(" and ")}`, detail: "Lights follow one hub only and go missing on the other. Close ACC Tally there." }
+    : { id: "hubs", status: "ok", title: "Only this ACC Tally on the network" })
 
   if (input.programStamp) {
     const plan = updatePlan(tallies.filter(t => t instanceof UdpTally), input.programStamp)

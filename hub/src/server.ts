@@ -64,11 +64,11 @@ if (myConfiguration.isTest()) {
 
 const myTallyContainer = new TallyContainer(myConfiguration, myEmitter)
 const myUdpTallyDriver = new UdpTallyDriver(myConfiguration, myTallyContainer)
-// a second vTally on the network makes lights go missing on one of the two; every page says so
+// a second ACC Tally on the network makes lights go missing on one of the two; every page says so
 const myHubBeacon = new HubBeacon()
 myHubBeacon.on('change', (others: OtherHubType[]) => {
-  if (others.length > 0) console.warn(`Another vTally hub is running: ${others.map(o => `"${o.hostname}" (${o.address})`).join(", ")}. Lights follow one hub only; run only one.`)
-  else console.info("No other vTally hub on the network any more.")
+  if (others.length > 0) console.warn(`Another ACC Tally hub is running: ${others.map(o => `"${o.hostname}" (${o.address})`).join(", ")}. Lights follow one hub only; run only one.`)
+  else console.info("No other ACC Tally hub on the network any more.")
   io.emit('hub.others', others)
 })
 myHubBeacon.start()
@@ -82,7 +82,7 @@ logEveryPortClose()
 // with --with-test a pretend board is plugged in, so the light pages can be tried without hardware
 const myNodeMcuConnector = (() => {
   if (!myConfiguration.isTest()) {
-    // the last firmware install outlives a restart of vTally: the page must not offer it again for the same symptom
+    // the last firmware install outlives a restart of ACC Tally: the page must not offer it again for the same symptom
     return new NodeMcuConnector(undefined, undefined, {
       installStore: { load: () => myConfiguration.getFirmwareInstall(), save: record => myConfiguration.setFirmwareInstall(record) },
     })
@@ -558,7 +558,7 @@ server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
     // the Electron wrapper shows the message of an uncaught error in a dialog; make it a sentence
     // code EADDRINUSE: the Electron wrapper shows this one in a dialog and quits instead of carrying on
-    throw Object.assign(new Error(`vTally is already running: port ${myConfiguration.getHttpPort()} is in use. Quit the other copy from the tray icon (right-click, Exit) and start this one again.`), { code: 'EADDRINUSE' })
+    throw Object.assign(new Error(`ACC Tally is already running: port ${myConfiguration.getHttpPort()} is in use. Quit the other copy from the tray icon (right-click, Exit) and start this one again.`), { code: 'EADDRINUSE' })
   }
   throw err
 })

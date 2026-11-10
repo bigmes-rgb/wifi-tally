@@ -48,7 +48,7 @@ export default class HubBeacon extends EventEmitter {
   start() {
     if (this.socket) return
     const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true })
-    socket.on('error', e => console.warn(`Could not listen for other vTally hubs on port ${this.port}: ${e.message}`))
+    socket.on('error', e => console.warn(`Could not listen for other ACC Tally hubs on port ${this.port}: ${e.message}`))
     socket.on('message', (msg, rinfo) => this.hear(msg.toString(), rinfo.address))
     socket.bind(this.port, () => {
       socket.setBroadcast(true)
