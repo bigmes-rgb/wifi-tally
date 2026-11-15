@@ -35,6 +35,7 @@ import { logEveryPortClose } from './flasher/BoardListener'
 import { lineLogger } from './flasher/LineLogger'
 import { getHubInfo, listLanAddresses, OtherHubType } from './lib/HubInfo'
 import { hubAddressFor, updatePlan } from './lib/LightUpdates'
+import { serveLightProgram } from './tally/LightProgramRoute'
 import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
 const argv = yargs.argv
@@ -505,14 +506,8 @@ io.on('connection', (socket: ServerSideSocket) => {
   })
 })
 
-// the light program for lights updating over the network (see tally/src/my-update.lua). Content-Length tells
-// the light when it has everything; a hub without the file answers 404 and the light keeps what it has.
-app.get('/tally/lfs.img', async (req, res) => {
-  const path = await NodeMcuConnector.getLocalFile("lfs.img")
-  if (!path) { res.status(404).type("text/plain").send("Not Found"); return }
-  res.type("application/octet-stream")
-  res.sendFile(path, { cacheControl: false, acceptRanges: false })
-})
+// the light program for lights updating over the network (see LightProgramRoute.ts and tally/src/my-update.lua)
+app.get('/tally/lfs.img', serveLightProgram(() => NodeMcuConnector.getLocalFile("lfs.img")))
 // which build of the light program this hub ships; read once, it changes only with the hub
 let programStamp: string | undefined
 NodeMcuConnector.getProgramStamp().then(stamp => {

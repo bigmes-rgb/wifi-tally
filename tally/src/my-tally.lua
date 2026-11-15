@@ -65,7 +65,8 @@ local handleSetting = function(data, ip)
     -- dropped whatever happened: a failed load would otherwise block every later require
     package.loaded[module] = nil
     if not ran then
-        print("Could not do the " .. what .. ": " .. tostring(err))
+        -- said to the hub too: its page shows the light failed, and its log then says why
+        MyLog.error("Could not do the " .. what .. ": " .. tostring(err))
         MyTally:send(string.format('%s-failed "%s"', what, MySettings:name()))
     end
 end
