@@ -2,7 +2,13 @@
 
 Packages the hub (`../hub`) as a desktop app: a tray icon with "Open in Browser"
 and "Exit", plus the hub server running inside. This is what the
-`vtally-<version>-win-x64-portable.exe` on the Releases page is.
+`acc-tally-<version>-setup.exe` on the Releases page installs.
+
+Once installed it keeps itself up to date (`src/updates.js`, with electron-updater):
+it reads `latest.yml` from the newest GitHub release, downloads the new installer in
+the background, and installs it when the operator chooses "Restart and update" on the
+Tallies page, in the OBS dock or in the tray, or the next time the app closes. It never
+restarts by itself.
 
 Vendored from [wifi-tally/electron-dist](https://github.com/wifi-tally/electron-dist)
 (MIT) so that one repository and one workflow produce every release artifact.

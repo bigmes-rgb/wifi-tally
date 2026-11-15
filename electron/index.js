@@ -37,3 +37,4 @@ process.on('unhandledRejection', onUnexpected('Unhandled promise rejection'))
 process.env.NODE_ENV = 'production'
 require('vtally/src/server')
 require('./src/tray')
+app.whenReady().then(() => require('./src/updates').startUpdates())

@@ -1,12 +1,18 @@
-import { ButtonGroup, createMuiTheme, fade, makeStyles, ThemeProvider, Tooltip, Typography } from '@material-ui/core'
+import { ButtonGroup, createMuiTheme, fade, IconButton, makeStyles, ThemeProvider, Tooltip, Typography } from '@material-ui/core'
 import { myThemeOptions } from '../components/layout/MyTheme'
 // lets the theme below style the Alert from @material-ui/lab
 import type {} from '@material-ui/lab/themeAugmentation'
 import ChevronRightIcon from '@material-ui/icons/ChevronRight'
+import MoreVertIcon from '@material-ui/icons/MoreVert'
 import PhoneIphoneIcon from '@material-ui/icons/PhoneIphone'
 import React, { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
+import AppUpdateNotice from '../components/AppUpdateNotice'
 import Dimmer from '../components/Dimmer'
+import DockLogDialog from '../components/dock/DockLogDialog'
+import DockTallyMenu, { DockMenuAnchor } from '../components/dock/DockTallyMenu'
+import RenameTally from '../components/RenameTally'
+import TallySettings from '../components/TallySettings'
 import PreServiceCheck, { WALK_FLASH_MS } from '../components/PreServiceCheck'
 import Channel from '../domain/Channel'
 import { Tally } from '../domain/Tally'
@@ -26,10 +32,25 @@ import { orderTallies } from '../lib/tallyOrder'
 // pixels wide, and Windows' display scaling makes every pixel bigger again, so the dock and everything that opens
 // from it (the check, the dimmer) is set small and dense: about 12.5 px body text, tighter dialogs and alerts.
 // These are theme settings, not class names: under a second theme MUI's class names get a suffix.
+const baseType = myThemeOptions.typography as Record<string, any>
+// the main theme sets its headings in fixed sizes (up to 3rem), which the smaller base size would not reach
+const heading = (variant: string, fontSize: string) => ({ ...(baseType[variant] || {}), fontSize })
 export const dockTheme = createMuiTheme({
   ...myThemeOptions,
-  typography: { ...(myThemeOptions.typography as object), fontSize: 11, htmlFontSize: 16 },
+  typography: {
+    ...baseType,
+    fontSize: 11,
+    htmlFontSize: 16,
+    h1: heading("h1", "1.05rem"),
+    h2: heading("h2", "1rem"),
+    h3: heading("h3", "0.95rem"),
+    h4: heading("h4", "0.9rem"),
+    h5: heading("h5", "0.85rem"),
+    h6: heading("h6", "0.85rem"),
+  },
+  // added to the main theme's defaults (filled alerts and fields), not in their place
   props: {
+    ...myThemeOptions.props,
     MuiSvgIcon: { fontSize: "small" },
     MuiButton: { size: "small" },
   },
@@ -169,6 +190,15 @@ const useStyles = makeStyles(theme => ({
     opacity: 0.9,
   },
   phone: { flexShrink: 0, fontSize: "0.85rem", opacity: 0.7 },
+  // the light's menu; it does not flash the light, the rest of the row does
+  more: {
+    flexShrink: 0,
+    margin: "-3px -6px -3px 0",
+    padding: 3,
+    color: "inherit",
+    opacity: 0.65,
+    "&:hover": { opacity: 1 },
+  },
   empty: { padding: theme.spacing(3, 2), textAlign: "center", fontSize: "0.8rem" },
 }))
 
@@ -185,7 +215,8 @@ const tagFor = (state: TileState): string | null => {
 // The Tallies page made for a dock inside OBS: a narrow column or a wide strip, dark, readable from the booth
 // at a glance. One row per light in the switcher's order, coloured by what the light shows; a one-line strip
 // when something needs attention, which opens the pre-service check; the check and the dimmer in a slim bar.
-// No menu: the full page at / is for the desktop. Clicking a row flashes its light, to tell which is which.
+// No page menu: the full page at / is for the desktop. Clicking a row flashes its light, to tell which is which;
+// its ⋮ (or a right-click) has the rest: input, rename, settings, log, remove. Adding lights stays on the full page.
 function DockPage() {
   const classes = useStyles()
   const rawTallies = useTallies()
@@ -200,6 +231,9 @@ function DockPage() {
   const setupState = useSetupConfiguration()
   const [openCheck, setOpenCheck] = useState(0)
   const [flashing, setFlashing] = useState<string | null>(null)
+  // one light's menu (from its ⋮ or a right-click), and the dialog it opened
+  const [menu, setMenu] = useState<{ name: string, anchor: DockMenuAnchor } | null>(null)
+  const [dialog, setDialog] = useState<{ kind: "rename" | "settings" | "log", tally: Tally } | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
 
@@ -216,10 +250,14 @@ function DockPage() {
     flashTimer.current = setTimeout(() => setFlashing(null), WALK_FLASH_MS)
   }
 
+  const menuTally = menu && tallies.find(t => t.name === menu.name)
+  const openMenu = (tally: Tally, anchor: DockMenuAnchor) => setMenu({ name: tally.name, anchor })
+
   return <ThemeProvider theme={dockTheme}><div className={classes.root} data-testid="dock">
     <div className={classes.bar}>
       <Tooltip title={isHubConnected ? "Hub connected" : "Hub disconnected"}><span className={[classes.dot, isHubConnected ? "" : classes.dotOff].join(" ")} data-testid="dock-hub" data-connected={isHubConnected} /></Tooltip>
       <span className={classes.brand}>ACC | Tally</span>
+      <AppUpdateNotice compact />
       <ButtonGroup size="small" variant="outlined" className={classes.tools}>
         <PreServiceCheck compact openSignal={openCheck} />
         <Dimmer compact />
@@ -240,15 +278,26 @@ function DockPage() {
             const state = tileState(tally, programs, previews)
             const tag = tagFor(state)
             return <Tooltip key={tally.name} title="Click to flash this light" enterDelay={700}>
-              <div className={[classes.row, classes[state], flashing === tally.name ? classes.flashing : ""].join(" ")} onClick={() => flash(tally)} data-testid={`dock-${tally.name}`} data-state={state} role="button">
+              <div className={[classes.row, classes[state], flashing === tally.name ? classes.flashing : ""].join(" ")} onClick={() => flash(tally)}
+                onContextMenu={e => { e.preventDefault(); openMenu(tally, { position: { top: e.clientY, left: e.clientX } }) }}
+                data-testid={`dock-${tally.name}`} data-state={state} role="button">
                 <span className={classes.name}>{tally.name}</span>
                 <span className={classes.input}>{tally.isPatched() ? channelLabel(tally.channelId, channels) : "No input"}</span>
                 {tag && <span className={classes.tag}>{tag}</span>}
                 {!tag && tally.isWebTally() && <PhoneIphoneIcon className={classes.phone} />}
+                <IconButton size="small" className={classes.more} aria-label={`${tally.name} menu`} aria-haspopup="true"
+                  onClick={e => { e.stopPropagation(); openMenu(tally, { el: e.currentTarget }) }} data-testid={`dockmenu-open-${tally.name}`}>
+                  <MoreVertIcon fontSize="small" />
+                </IconButton>
               </div>
             </Tooltip>
           })}
         </div>}
+    {menuTally && <DockTallyMenu tally={menuTally} state={tileState(menuTally, programs, previews)} channels={channels} anchor={menu!.anchor}
+      onClose={() => setMenu(null)} onFlash={flash} onOpen={(kind, tally) => setDialog({ kind, tally })} />}
+    {dialog?.kind === "rename" && <RenameTally tally={dialog.tally} open onClose={() => setDialog(null)} />}
+    {dialog?.kind === "settings" && <TallySettings tally={dialog.tally} open onClose={() => setDialog(null)} />}
+    {dialog?.kind === "log" && <DockLogDialog tally={dialog.tally} onClose={() => setDialog(null)} />}
   </div></ThemeProvider>
 }
 

@@ -7,15 +7,27 @@ linux:
   executableName: acc-tally
   category: AudioVideo
 win: 
-  target: portable
+  # an installer, so the app can update itself (electron/src/updates.js); the portable exe could not
+  target: nsis
   icon: build/icons/icon.png
-  artifactName: acc-tally-${version}-${os}-${arch}-portable.${ext}
-# The portable exe unpacks itself to %TEMP%\<this name> on every start. A fixed name keeps the
-# path the same across versions, so Windows Firewall's "allow" for ACC Tally (needed for the lights'
-# UDP packets) still applies after an update instead of asking again or silently blocking.
-portable:
-  # kept from the vTally days on purpose: renaming it would make Windows Firewall ask again
-  unpackDirName: vtally-hub
+nsis:
+  # one click, for this Windows user only: no administrator needed, neither for the install nor for the updates
+  # that follow. It goes to %LOCALAPPDATA%\Programs and keeps that path across updates, so Windows Firewall's
+  # "allow" for ACC Tally is asked once and then stays.
+  oneClick: true
+  perMachine: false
+  artifactName: acc-tally-${version}-setup.${ext}
+  shortcutName: ACC Tally
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+# where the installed app looks for a newer version: this repository's GitHub releases. The build itself never
+# publishes (npm run dist passes --publish never); the workflow's release step uploads the installer together with
+# latest.yml, which is what the app reads.
+publish:
+  - provider: github
+    owner: bigmes-rgb
+    repo: wifi-tally
 mac:
   target: dmg
   category: public.app-category.video

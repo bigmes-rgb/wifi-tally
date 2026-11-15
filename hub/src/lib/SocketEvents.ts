@@ -1,3 +1,4 @@
+import { AppUpdateState } from './AppUpdate'
 import { AtemConfigurationSaveType } from "../mixer/atem/AtemConfiguration";
 import { MockConfigurationSaveType } from "../mixer/mock/MockConfiguration";
 import { ObsConfigurationSaveType } from "../mixer/obs/ObsConfiguration";
@@ -48,6 +49,8 @@ export interface ServerSentEvents {
     'hub.info': (info: HubInfoType) => void
     // other ACC Tally hubs heard on the network; lights go missing with more than one
     'hub.others': (others: OtherHubType[]) => void
+    // the desktop app updating itself (lib/AppUpdate.ts)
+    'app.update': (state: AppUpdateState) => void
     // "Update lights": who was told to fetch the program, and each light's answer
     'tallies.update.sent': (data: { sentTo: string[], needUsb: string[] }) => void
     'tallies.update.answer': (data: { tallyName: string, stamp: string, outcome: "saved" | "failed" | "done" }) => void
@@ -105,6 +108,10 @@ export interface ClientSentEvents {
     'config.change.setup': (completed: boolean) => void
     'hub.info.get': () => void
     'hub.others.get': () => void
+    'app.update.get': () => void
+    // restart into the downloaded version, or look for a new one now
+    'app.update.install': () => void
+    'app.update.check': () => void
     'tallies.update.send': () => void
 
     // listenMs: how long to listen to a board that does not answer (the hub listens longer right after an install)
