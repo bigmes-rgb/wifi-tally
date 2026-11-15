@@ -3,6 +3,15 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] ACC Tally's own update, from a review of 0.9.32: a page or dock that reconnects after the restart now
+  hears the new state at once, instead of offering the update it just installed for up to 4 hours. "Restarting…"
+  no longer carries over to the next update, and says so after 90 seconds if the restart never came. The tray and
+  pages know from the start that the app can update itself. A fix published while an update waits now replaces
+  it, so the restart installs the newest.
+* [CHANGE] OBS dock: dimmed lights no longer put a yellow bar across the dock. The brightness button turns amber
+  instead; the pre-service check still lists it.
+* [BUGFIX] OBS dock: a light and a phone with the same name each get their own menu. A light's Settings or Log
+  shows the light as it is now, and closes when the light is removed.
 * [FEATURE] ACC Tally for Windows is now installed once (`acc-tally-<version>-setup.exe`, no administrator
   needed) and then keeps itself up to date: it looks for a new version when it starts and every 4 hours, downloads
   it in the background, and offers "Restart and update" on the Tallies page, in the OBS dock and in the tray. It

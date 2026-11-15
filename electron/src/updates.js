@@ -25,16 +25,24 @@ function startUpdates() {
     let ready = null  // the version downloaded and waiting
     let lastPercent = -1
     const set = state => appUpdate.set({ current, ...state })
+    // straight away, so the tray and the pages know from the start that this app can update itself
+    set({ status: "checking" })
 
-    autoUpdater.on('checking-for-update', () => set({ status: "checking" }))
-    autoUpdater.on('update-not-available', () => set({ status: "current" }))
+    // It keeps looking while a version waits: a fix published meanwhile replaces it, so the restart installs the
+    // newest. Looking again finds the waiting version as well; that must not hide the "ready" it already said.
+    autoUpdater.on('checking-for-update', () => { if (!ready) set({ status: "checking" }) })
+    autoUpdater.on('update-not-available', () => { if (!ready) set({ status: "current" }) })
     autoUpdater.on('update-available', info => {
+        if (info.version === ready) return
         coming = info.version
+        // a newer one replaces the waiting one: nothing to restart into until it is downloaded
+        ready = null
         lastPercent = 0
         log.info(`ACC Tally ${coming} is available; downloading it`)
         set({ status: "downloading", version: coming, percent: 0 })
     })
     autoUpdater.on('download-progress', progress => {
+        if (ready) return
         // the tray shows it; no need to tell every page about each percent
         const percent = Math.floor(progress.percent / 10) * 10
         if (percent === lastPercent) return
@@ -42,9 +50,8 @@ function startUpdates() {
         set({ status: "downloading", version: coming, percent })
     })
     autoUpdater.on('update-downloaded', info => {
+        if (info.version === ready) return
         ready = info.version
-        // nothing more to look for until it is installed
-        clearInterval(timer)
         log.info(`ACC Tally ${ready} is downloaded and installs on the next restart`)
         set({ status: "ready", version: ready })
     })
@@ -55,7 +62,6 @@ function startUpdates() {
     })
 
     const check = () => {
-        if (ready) return
         autoUpdater.checkForUpdates().catch(() => { /* reported by the "error" event */ })
     }
     const install = () => {
@@ -65,7 +71,7 @@ function startUpdates() {
     }
     appUpdate.attach(install, check)
     setTimeout(check, FIRST_CHECK_MS)
-    const timer = setInterval(check, CHECK_EVERY_MS)
+    setInterval(check, CHECK_EVERY_MS)
 }
 
 module.exports = { startUpdates }

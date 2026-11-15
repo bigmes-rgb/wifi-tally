@@ -143,3 +143,47 @@ test("the menu can take a light off its input", () => {
   fireEvent.click(screen.getByTestId("dockmenu-channel-none"))
   expect(patched).toEqual([["Cam 2", "udp", null]])
 })
+
+test("a light and a phone with the same name: each row's menu acts on its own device", () => {
+  const removed: any[] = []
+  const patched: any[] = []
+  server.onServerEvent('tally.remove', (...args: any[]) => removed.push(args))
+  server.onServerEvent('tally.patch', (...args: any[]) => patched.push(args))
+  open()
+  hubSays()
+  lights(light("Cam 1", "1"), { name: "Cam 1", type: "web", channelId: "2", connectedClients: [] })
+  const [lightMenu, phoneMenu] = screen.getAllByTestId("dockmenu-open-Cam 1")
+
+  fireEvent.click(phoneMenu)
+  expect(screen.getByTestId("dockmenu-head").textContent).toContain("Offline · Channel 2")
+  fireEvent.click(screen.getByTestId("dockmenu-remove"))
+  expect(removed).toEqual([["Cam 1", "web"]])
+
+  fireEvent.click(lightMenu)
+  fireEvent.click(screen.getByTestId("dockmenu-input"))
+  fireEvent.click(screen.getByTestId("dockmenu-channel-3"))
+  expect(patched).toEqual([["Cam 1", "udp", "3"]])
+})
+
+test("a light's log closes when the light is removed", () => {
+  open()
+  hubSays()
+  lights(light("Cam 1", "1"), light("Gone", "3", ConnectionState.DISCONNECTED))
+  fireEvent.click(screen.getByTestId("dockmenu-open-Gone"))
+  fireEvent.click(screen.getByTestId("dockmenu-log"))
+  expect(screen.getByTestId("dock-log")).toBeInTheDocument()
+  lights(light("Cam 1", "1"))
+  expect(screen.queryByTestId("dock-log")).toBeNull()
+})
+
+test("dimmed lights do not put a bar across the dock: the brightness button says it", () => {
+  open()
+  hubSays()
+  lights(light("Cam 1", "1"), light("Cam 2", "2"))
+  act(() => { server.emitServerEvent('config.state.dimmer', 40) })
+  expect(screen.queryByTestId("dock-strip")).toBeNull()
+  expect(screen.getByTestId("dimmer").getAttribute("data-dimmed")).toBe("true")
+  // something else that needs attention is still said, and its count leaves the dimming out
+  act(() => { server.emitServerEvent('mixer.state', { isConnected: false, problem: null }) })
+  expect(screen.getByTestId("dock-strip").textContent).toBe("Switcher not connected")
+})
