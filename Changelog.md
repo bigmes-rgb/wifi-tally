@@ -3,6 +3,9 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [CHANGE] The OBS dock lists the lights as slim rows instead of big tiles, so more fit, and a wide dock puts the
+  rows side by side. Its type is smaller, and so is everything that opens from it: the pre-service check fits a
+  narrow dock without scrolling, and its Flash buttons no longer push past the edge when the dock is narrow.
 * [BUGFIX] "Update lights" failed on every light with "could not fetch it". The hub refused the light's request for
   the program (403) because of how the file's path was written inside the installed app, and said nothing about
   it. Every hub since 0.9.24 had this, so no light was ever updated over the network. The hub now serves the file,

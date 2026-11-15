@@ -25,14 +25,14 @@ const lights = (...tallies: any[]) => act(() => { server.emitServerEvent('tally.
 beforeEach(() => { server.connected = true })
 afterEach(() => { server.cleanUp(); server.connected = false })
 
-test("one tile per light in the switcher's order, coloured by what the light shows; a click flashes it", () => {
+test("one row per light in the switcher's order, coloured by what the light shows; a click flashes it", () => {
   const flashed: any[] = []
   server.onServerEvent('tally.highlight', (...args: any[]) => flashed.push(args))
   open()
   hubSays()
   lights(light("Cam 3", "3"), light("Cam 1", "1"), light("Cam 2", "2"), light("Spare"), light("Gone", "3", ConnectionState.DISCONNECTED))
-  const grid = screen.getByTestId("dock-grid")
-  const names = Array.from(grid.querySelectorAll("[data-testid^=dock-]")).map(el => el.getAttribute("data-testid"))
+  const list = screen.getByTestId("dock-list")
+  const names = Array.from(list.querySelectorAll("[data-testid^=dock-]")).map(el => el.getAttribute("data-testid"))
   expect(names).toEqual(["dock-Cam 1", "dock-Cam 2", "dock-Cam 3", "dock-Gone", "dock-Spare"])
   expect(screen.getByTestId("dock-Cam 1").getAttribute("data-state")).toBe("preview")
   expect(screen.getByTestId("dock-Cam 2").getAttribute("data-state")).toBe("program")
@@ -49,7 +49,7 @@ test("one tile per light in the switcher's order, coloured by what the light sho
   expect(screen.getByTestId("precheck-dialog")).toBeInTheDocument()
 })
 
-test("nothing to say when all is well; the switcher off is said and shown on every tile", () => {
+test("nothing to say when all is well; the switcher off is said and shown on every row", () => {
   open()
   hubSays()
   lights(light("Cam 1", "1"), light("Cam 2", "2"))

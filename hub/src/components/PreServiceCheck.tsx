@@ -31,7 +31,13 @@ const useStyles = makeStyles(theme => ({
   fail: { color: theme.palette.error.main },
   section: { marginTop: theme.spacing(3) },
   walkRow: { display: "flex", alignItems: "center", gap: theme.spacing(1.5), padding: theme.spacing(0.75, 0) },
-  walkName: { flexGrow: 1 },
+  // a long name or input shortens to "…" rather than push the Flash button out of a narrow dock
+  walkName: { flexGrow: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  walkFlash: { flexShrink: 0, minWidth: 0 },
+  // in a dock: one line per finding, small icons, less air
+  denseItem: { gap: theme.spacing(1), padding: theme.spacing(0.5, 0) },
+  denseRow: { gap: theme.spacing(1), padding: theme.spacing(0.25, 0) },
+  denseSection: { marginTop: theme.spacing(1.5) },
   walkInput: { color: theme.palette.text.secondary, marginLeft: theme.spacing(1) },
   spinner: { width: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
 }))
@@ -98,8 +104,11 @@ function PreServiceCheck({ compact, openSignal, ...buttonProps }: PreServiceChec
     step(0)
   }
 
-  const statusIcon = (status: FindingStatus) => status === "ok" ? <CheckCircleIcon className={classes.ok} />
-    : status === "warn" ? <WarningIcon className={classes.warn} /> : <ErrorIcon className={classes.fail} />
+  // the dock's button is the compact one; there the dialog is dense too
+  const dense = !!compact
+  const iconSize = dense ? "small" : "default"
+  const statusIcon = (status: FindingStatus) => status === "ok" ? <CheckCircleIcon className={classes.ok} fontSize={iconSize} />
+    : status === "warn" ? <WarningIcon className={classes.warn} fontSize={iconSize} /> : <ErrorIcon className={classes.fail} fontSize={iconSize} />
   const severity = summary.status === "ok" ? "success" : summary.status === "warn" ? "warning" : "error"
   const act = (finding: Finding) => {
     if (finding.action === "full-brightness") return <Button size="small" variant="outlined" className={classes.itemAction} onClick={() => socket.emit('config.change.dimmer', 100)} data-testid="precheck-full-brightness">Set to full</Button>
@@ -118,19 +127,19 @@ function PreServiceCheck({ compact, openSignal, ...buttonProps }: PreServiceChec
       <DialogContent>
         <Alert severity={severity} data-testid="precheck-verdict">{summary.title}</Alert>
         <ul className={classes.list} data-testid="precheck-findings">
-          {findings.map(f => <li key={f.id} className={classes.item} data-testid={`precheck-${f.id}`} data-status={f.status}>
+          {findings.map(f => <li key={f.id} className={[classes.item, dense ? classes.denseItem : ""].join(" ")} data-testid={`precheck-${f.id}`} data-status={f.status}>
             <span className={classes.itemIcon}>{statusIcon(f.status)}</span>
             <span className={classes.itemText}>
-              <Typography variant="body1">{f.title}</Typography>
-              {f.detail && <Typography variant="body2" className={classes.detail}>{f.detail}</Typography>}
+              <Typography variant={dense ? "body2" : "body1"}>{f.title}</Typography>
+              {f.detail && <Typography variant={dense ? "caption" : "body2"} component="div" className={classes.detail}>{f.detail}</Typography>}
             </span>
             {act(f)}
           </li>)}
         </ul>
 
-        <div className={classes.section}>
-          <Typography variant="subtitle1">Walk test</Typography>
-          <Typography variant="body2" color="textSecondary" paragraph>
+        <div className={[classes.section, dense ? classes.denseSection : ""].join(" ")}>
+          <Typography variant={dense ? "subtitle2" : "subtitle1"}>Walk test</Typography>
+          <Typography variant={dense ? "caption" : "body2"} component="p" color="textSecondary" paragraph>
             Each light flashes white for {WALK_FLASH_MS / 1000} seconds, one after the other in the switcher's order, so whoever stands in the room sees every camera's light respond. A light that stays dark: check its power and where it points.
           </Typography>
           {walkable.length === 0
@@ -138,14 +147,14 @@ function PreServiceCheck({ compact, openSignal, ...buttonProps }: PreServiceChec
             : <div data-testid="walk-list">
               {walkable.map(t => {
                 const state = walk.current === t.name ? "now" : walk.done.includes(t.name) ? "done" : "todo"
-                return <div key={t.name} className={classes.walkRow} data-testid={`walk-${t.name}`} data-state={state}>
-                  {state === "now" ? <span className={classes.spinner}><CircularProgress size={18} /></span>
-                    : state === "done" ? <CheckCircleIcon className={classes.ok} /> : <RadioButtonUncheckedIcon color="disabled" />}
-                  <span className={classes.walkName}>
+                return <div key={t.name} className={[classes.walkRow, dense ? classes.denseRow : ""].join(" ")} data-testid={`walk-${t.name}`} data-state={state}>
+                  {state === "now" ? <span className={classes.spinner}><CircularProgress size={dense ? 14 : 18} /></span>
+                    : state === "done" ? <CheckCircleIcon className={classes.ok} fontSize={iconSize} /> : <RadioButtonUncheckedIcon color="disabled" fontSize={iconSize} />}
+                  <span className={classes.walkName} style={dense ? { fontSize: "0.8rem" } : undefined}>
                     <strong>{t.name}</strong><span className={classes.walkInput}>{channelLabel(t.channelId, channels)}</span>
                     {state === "now" && <span className={classes.walkInput}>flashing now</span>}
                   </span>
-                  <Button size="small" disabled={walk.running} onClick={() => flash(t.name)} data-testid={`walk-flash-${t.name}`}>Flash</Button>
+                  <Button size="small" className={classes.walkFlash} disabled={walk.running} onClick={() => flash(t.name)} data-testid={`walk-flash-${t.name}`}>Flash</Button>
                 </div>
               })}
             </div>}

@@ -1,5 +1,7 @@
 import { ButtonGroup, createMuiTheme, fade, makeStyles, ThemeProvider, Tooltip, Typography } from '@material-ui/core'
 import { myThemeOptions } from '../components/layout/MyTheme'
+// lets the theme below style the Alert from @material-ui/lab
+import type {} from '@material-ui/lab/themeAugmentation'
 import ChevronRightIcon from '@material-ui/icons/ChevronRight'
 import PhoneIphoneIcon from '@material-ui/icons/PhoneIphone'
 import React, { useEffect, useRef, useState } from 'react'
@@ -21,10 +23,28 @@ import { channelLabel, preServiceFindings, verdict } from '../lib/preService'
 import { orderTallies } from '../lib/tallyOrder'
 
 // The main theme sets its type for a desktop screen (about 18 px body text). A dock inside OBS is a few hundred
-// pixels wide, so everything that opens from it (the check, the dimmer) is set smaller: about 14 px body text.
+// pixels wide, and Windows' display scaling makes every pixel bigger again, so the dock and everything that opens
+// from it (the check, the dimmer) is set small and dense: about 12.5 px body text, tighter dialogs and alerts.
+// These are theme settings, not class names: under a second theme MUI's class names get a suffix.
 export const dockTheme = createMuiTheme({
   ...myThemeOptions,
-  typography: { ...(myThemeOptions.typography as object), fontSize: 12.5, htmlFontSize: 16 },
+  typography: { ...(myThemeOptions.typography as object), fontSize: 11, htmlFontSize: 16 },
+  props: {
+    MuiSvgIcon: { fontSize: "small" },
+    MuiButton: { size: "small" },
+  },
+  overrides: {
+    MuiDialogTitle: { root: { padding: "12px 14px 6px" } },
+    MuiDialogContent: { root: { padding: "4px 14px" } },
+    MuiDialogActions: { root: { padding: "8px 10px" } },
+    MuiAlert: {
+      root: { padding: "2px 10px" },
+      icon: { padding: "5px 0", marginRight: 8, fontSize: 18 },
+      message: { padding: "5px 0" },
+    },
+    MuiButton: { sizeSmall: { padding: "3px 8px" }, outlinedSizeSmall: { padding: "2px 7px" } },
+    MuiTooltip: { tooltip: { fontSize: "0.7rem" } },
+  },
 })
 
 // what a tile shows, from the light's state and the switcher's
@@ -53,8 +73,8 @@ const useStyles = makeStyles(theme => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(1),
-    padding: theme.spacing(0.5, 1),
-    minHeight: 40,
+    padding: theme.spacing(0.25, 0.75),
+    minHeight: 32,
     borderBottom: "1px solid " + theme.palette.grey[800],
   },
   dot: {
@@ -63,7 +83,7 @@ const useStyles = makeStyles(theme => ({
   },
   dotOff: { background: theme.palette.error.main },
   brand: {
-    fontSize: "0.8rem",
+    fontSize: "0.7rem",
     letterSpacing: "0.04em",
     textTransform: "uppercase",
     color: theme.palette.text.secondary,
@@ -72,14 +92,14 @@ const useStyles = makeStyles(theme => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  tools: { flexShrink: 0 },
+  tools: { flexShrink: 0, "& button": { minWidth: 30, padding: "2px 6px" } },
   // one line for what needs attention; it opens the pre-service check
   strip: {
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(0.5),
-    padding: theme.spacing(0.75, 1),
-    fontSize: "0.8rem",
+    padding: theme.spacing(0.5, 1),
+    fontSize: "0.72rem",
     lineHeight: 1.3,
     cursor: "pointer",
     userSelect: "none",
@@ -87,29 +107,30 @@ const useStyles = makeStyles(theme => ({
   },
   stripFail: { background: theme.palette.error.main, color: theme.palette.getContrastText(theme.palette.error.main) },
   stripWarn: { background: theme.palette.warning.main, color: theme.palette.getContrastText(theme.palette.warning.main) },
-  grid: {
+  // one row per light; a wide dock (a strip under the preview) gets several columns of rows
+  list: {
     flexGrow: 1,
     overflowY: "auto",
-    padding: theme.spacing(1),
+    padding: theme.spacing(0.75),
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
     gridAutoRows: "min-content",
-    gap: theme.spacing(1),
+    gap: 4,
     alignContent: "start",
   },
-  tile: {
-    position: "relative",
-    minHeight: 60,
-    borderRadius: 6,
-    padding: theme.spacing(1, 1.25),
+  row: {
     display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    minHeight: 30,
+    padding: "3px 8px 3px 10px",
+    borderRadius: 4,
     cursor: "pointer",
+    userSelect: "none",
     transition: "background-color 150ms, box-shadow 150ms",
     background: theme.palette.grey[800],
     border: "1px solid transparent",
-    "&:hover": { filter: "brightness(1.08)" },
+    "&:hover": { filter: "brightness(1.1)" },
   },
   program: { background: theme.palette.error.main, color: "#fff" },
   preview: { background: theme.palette.success.main, color: "#fff" },
@@ -118,9 +139,11 @@ const useStyles = makeStyles(theme => ({
   unpatched: { borderColor: theme.palette.grey[600], borderStyle: "dashed", color: theme.palette.text.secondary },
   missing: { background: fade(theme.palette.warning.main, 0.25), borderColor: theme.palette.warning.main },
   offline: { background: theme.palette.grey[900], color: theme.palette.text.secondary, borderColor: theme.palette.grey[800] },
-  flashing: { boxShadow: "inset 0 0 0 3px #fff" },
+  flashing: { boxShadow: "inset 0 0 0 2px #fff" },
   name: {
-    fontSize: "0.95rem",
+    flex: "0 1 auto",
+    minWidth: 0,
+    fontSize: "0.8rem",
     fontWeight: 600,
     lineHeight: 1.25,
     whiteSpace: "nowrap",
@@ -128,24 +151,25 @@ const useStyles = makeStyles(theme => ({
     textOverflow: "ellipsis",
   },
   input: {
-    fontSize: "0.72rem",
-    lineHeight: 1.3,
-    opacity: 0.85,
+    flex: "1 1 auto",
+    minWidth: 0,
+    fontSize: "0.7rem",
+    lineHeight: 1.25,
+    opacity: 0.8,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  // a small word in the corner when the light is not simply following the switcher
+  // a small word at the end when the light is not simply following the switcher
   tag: {
-    position: "absolute",
-    top: 6, right: 8,
-    fontSize: "0.65rem",
+    flexShrink: 0,
+    fontSize: "0.6rem",
     textTransform: "uppercase",
     letterSpacing: "0.06em",
     opacity: 0.9,
   },
-  phone: { position: "absolute", top: 6, right: 8, fontSize: "0.9rem", opacity: 0.7 },
-  empty: { padding: theme.spacing(3, 2), textAlign: "center" },
+  phone: { flexShrink: 0, fontSize: "0.85rem", opacity: 0.7 },
+  empty: { padding: theme.spacing(3, 2), textAlign: "center", fontSize: "0.8rem" },
 }))
 
 const tagFor = (state: TileState): string | null => {
@@ -159,9 +183,9 @@ const tagFor = (state: TileState): string | null => {
 }
 
 // The Tallies page made for a dock inside OBS: a narrow column or a wide strip, dark, readable from the booth
-// at a glance. One tile per light in the switcher's order, coloured by what the light shows; a one-line strip
+// at a glance. One row per light in the switcher's order, coloured by what the light shows; a one-line strip
 // when something needs attention, which opens the pre-service check; the check and the dimmer in a slim bar.
-// No menu: the full page at / is for the desktop. Clicking a tile flashes its light, to tell which is which.
+// No menu: the full page at / is for the desktop. Clicking a row flashes its light, to tell which is which.
 function DockPage() {
   const classes = useStyles()
   const rawTallies = useTallies()
@@ -211,14 +235,14 @@ function DockPage() {
       ? <Typography className={classes.empty} color="textSecondary">ACC Tally is not set up yet. <RouterLink to="/setup" style={{ color: "inherit" }}>Open the setup</RouterLink> on the hub computer.</Typography>
       : tallies.length === 0
         ? <Typography className={classes.empty} color="textSecondary" data-testid="dock-empty">No lights yet. Add them on the hub's Tallies page.</Typography>
-        : <div className={classes.grid} data-testid="dock-grid">
+        : <div className={classes.list} data-testid="dock-list">
           {tallies.map(tally => {
             const state = tileState(tally, programs, previews)
             const tag = tagFor(state)
             return <Tooltip key={tally.name} title="Click to flash this light" enterDelay={700}>
-              <div className={[classes.tile, classes[state], flashing === tally.name ? classes.flashing : ""].join(" ")} onClick={() => flash(tally)} data-testid={`dock-${tally.name}`} data-state={state}>
-                <div className={classes.name}>{tally.name}</div>
-                <div className={classes.input}>{tally.isPatched() ? channelLabel(tally.channelId, channels) : "No input"}</div>
+              <div className={[classes.row, classes[state], flashing === tally.name ? classes.flashing : ""].join(" ")} onClick={() => flash(tally)} data-testid={`dock-${tally.name}`} data-state={state} role="button">
+                <span className={classes.name}>{tally.name}</span>
+                <span className={classes.input}>{tally.isPatched() ? channelLabel(tally.channelId, channels) : "No input"}</span>
                 {tag && <span className={classes.tag}>{tag}</span>}
                 {!tag && tally.isWebTally() && <PhoneIphoneIcon className={classes.phone} />}
               </div>
