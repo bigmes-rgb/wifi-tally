@@ -17,12 +17,16 @@ The latest version of ACC Tally is [{{ latest_version }}]({{ github_link }}/rele
 
 ## Windows
 
-Download [vtally-{{ latest_version }}-win-x64-portable.exe]({{ github_link }}/releases/download/{{ latest_version }}/vtally-{{ latest_version }}-win-x64-portable.exe).
+Download [acc-tally-{{ latest_version }}-setup.exe]({{ github_link }}/releases/download/v{{ latest_version }}/acc-tally-{{ latest_version }}-setup.exe)
+and double-click it. Windows might say it cannot verify the publisher: choose "More info", then "Run anyway".
 
-Windows Defender might complain multiple times, that it can not verify the source. Just be stubborn.
+It installs for your Windows user in a few seconds, without asking for an administrator, puts ACC Tally on the
+desktop and in the Start menu, and starts it. A tray icon pops up: right click it and select "Open in Browser",
+and you see the hub.
 
-It does not require installation. Just double-click, and a tray icon should pop up. Right click and select
-"Open in Browser", and you see the hub.
+You install it once. After that ACC Tally looks for a newer version by itself, downloads it in the background,
+and offers "Restart and update" on the Tallies page, in the OBS dock and in the tray. It never restarts by itself
+during a service; if you leave it, the update installs the next time ACC Tally closes.
 
 To exit ACC Tally, right click the tray icon, click "Exit" and confirm.
 

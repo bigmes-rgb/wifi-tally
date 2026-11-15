@@ -3,6 +3,16 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] ACC Tally for Windows is now installed once (`acc-tally-<version>-setup.exe`, no administrator
+  needed) and then keeps itself up to date: it looks for a new version when it starts and every 4 hours, downloads
+  it in the background, and offers "Restart and update" on the Tallies page, in the OBS dock and in the tray. It
+  never restarts by itself during a service; left alone, the update installs the next time ACC Tally closes. The
+  portable exe is no longer built. Settings and lights carry over; Windows Firewall asks once more for the
+  installed app.
+* [FEATURE] Each light in the OBS dock has a ⋮ menu (also on a right-click): flash it, move it to another input,
+  rename it, its settings, its log, and remove it once it is off the network. Adding lights stays on the full page.
+* [BUGFIX] The OBS dock dropped the main theme's defaults, so its alerts and fields looked different from the
+  desktop page, and its dialogs had headings the size of the desktop's.
 * [CHANGE] The OBS dock lists the lights as slim rows instead of big tiles, so more fit, and a wide dock puts the
   rows side by side. Its type is smaller, and so is everything that opens from it: the pre-service check fits a
   narrow dock without scrolling, and its Flash buttons no longer push past the edge when the dock is narrow.

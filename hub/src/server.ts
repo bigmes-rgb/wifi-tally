@@ -36,6 +36,7 @@ import { lineLogger } from './flasher/LineLogger'
 import { getHubInfo, listLanAddresses, OtherHubType } from './lib/HubInfo'
 import { hubAddressFor, updatePlan } from './lib/LightUpdates'
 import { serveLightProgram } from './tally/LightProgramRoute'
+import appUpdate from './lib/AppUpdate'
 import { pageClosedLine, pageOpenedLine, pagePath } from './lib/PageLog'
 
 const argv = yargs.argv
@@ -115,6 +116,9 @@ myEmitter.on('program.changed', ({programs, previews}) => {
 })
 
 // socket.io server
+// the desktop app's update status goes to every page as it changes
+appUpdate.on('change', state => io.emit('app.update', state))
+
 io.on('connection', (socket: ServerSideSocket) => {
   (socket as socketIo.Socket).setMaxListeners(99)
   const page = pagePath((socket as socketIo.Socket).handshake?.headers?.referer)
@@ -421,6 +425,12 @@ io.on('connection', (socket: ServerSideSocket) => {
     myConfiguration.setSetupCompleted(completed === true)
   })
   socket.on('hub.others.get', () => socket.emit('hub.others', myHubBeacon.list()))
+  socket.on('app.update.get', () => socket.emit('app.update', appUpdate.get()))
+  socket.on('app.update.install', () => {
+    const { current, version } = appUpdate.get()
+    if (appUpdate.install()) console.info(`Restarting to update ACC Tally from ${current} to ${version}, as asked on a page`)
+  })
+  socket.on('app.update.check', () => { appUpdate.check() })
   socket.on('hub.info.get', () => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort(), programStamp))
   })

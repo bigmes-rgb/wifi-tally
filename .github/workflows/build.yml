@@ -1,7 +1,8 @@
 # Builds and tests every push and pull request.
 # A tag that looks like v1.2.3 (or v1.2.3-rc1), or "Run workflow" with a
 # version typed in, additionally produces a GitHub Release on this repository with:
-#   - acc-tally-<version>-win-x64-portable.exe   the hub as a Windows desktop app
+#   - acc-tally-<version>-setup.exe              the hub as a Windows desktop app, installed once,
+#                                                then kept up to date by itself (latest.yml)
 #   - acc-tally-<version>.tgz                  the hub as an npm package
 #   - acc-tally-<version>-esp8266.zip             firmware + code for the tally lights
 #
@@ -286,7 +287,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: electron-windows
-          path: electron/dist/acc-tally-*-portable.exe
+          # the installer, and what the installed app reads to find and check an update
+          path: |
+            electron/dist/acc-tally-*-setup.exe
+            electron/dist/acc-tally-*-setup.exe.blockmap
+            electron/dist/latest.yml
           if-no-files-found: error
           retention-days: 1
 
@@ -315,6 +320,8 @@ jobs:
       # the hub's npm package keeps its internal name; its tarball is renamed for the release page
       - run: for f in artifacts/vtally-*.tgz; do mv "$f" "${f/vtally-/acc-tally-}"; done
       - run: ls -l artifacts
+      # the installed app updates from these: without latest.yml it would never see this release
+      - run: test -f artifacts/latest.yml && grep -q "acc-tally-${{ needs.setup.outputs.version }}-setup.exe" artifacts/latest.yml
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.setup.outputs.build_name }}
@@ -324,6 +331,8 @@ jobs:
           prerelease: ${{ contains(needs.setup.outputs.version, '-') }}
           generate_release_notes: true
           files: |
-            artifacts/acc-tally-*-portable.exe
+            artifacts/acc-tally-*-setup.exe
+            artifacts/acc-tally-*-setup.exe.blockmap
+            artifacts/latest.yml
             artifacts/acc-tally-*.tgz
             artifacts/acc-tally-*-esp8266.zip

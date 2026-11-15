@@ -84,3 +84,62 @@ test("tile states, from the light and the switcher", () => {
   expect(tileState(new UdpTally("d", undefined, "192.168.1.2", 7411, ConnectionState.CONNECTED), ["1"], [])).toBe("unpatched")
   expect(tileState(new WebTally("phone", "1", [{ address: "1.2.3.4" }]), ["1"], [])).toBe("program")
 })
+
+test("each row's menu: flash, move to another input, rename, log; remove only once the light is off the network", () => {
+  const flashed: any[] = []
+  const patched: any[] = []
+  const removed: any[] = []
+  server.onServerEvent('tally.highlight', (...args: any[]) => flashed.push(args))
+  server.onServerEvent('tally.patch', (...args: any[]) => patched.push(args))
+  server.onServerEvent('tally.remove', (...args: any[]) => removed.push(args))
+  open()
+  hubSays()
+  lights(light("Cam 1", "1"), light("Gone", "3", ConnectionState.DISCONNECTED))
+
+  // the ⋮ opens the menu and does not flash the light
+  fireEvent.click(screen.getByTestId("dockmenu-open-Cam 1"))
+  expect(flashed).toEqual([])
+  expect(screen.getByTestId("dockmenu-head").textContent).toContain("Cam 1")
+  expect(screen.getByTestId("dockmenu-head").textContent).toContain("On preview · Wide")
+  expect(screen.queryByTestId("dockmenu-remove")).toBeNull()
+  fireEvent.click(screen.getByTestId("dockmenu-flash"))
+  expect(flashed).toEqual([["Cam 1", "udp", WALK_FLASH_MS]])
+
+  // the input list opens in place of the menu, the current one ticked
+  fireEvent.click(screen.getByTestId("dockmenu-open-Cam 1"))
+  fireEvent.click(screen.getByTestId("dockmenu-input"))
+  expect(screen.getByTestId("dockmenu-channel-1").getAttribute("class")).toContain("selected")
+  fireEvent.click(screen.getByTestId("dockmenu-channel-3"))
+  expect(patched).toEqual([["Cam 1", "udp", "3"]])
+
+  // rename opens the same dialog as the card on the full page
+  fireEvent.click(screen.getByTestId("dockmenu-open-Cam 1"))
+  fireEvent.click(screen.getByTestId("dockmenu-rename"))
+  expect(screen.getByTestId("tally-Cam 1-rename-name")).toBeInTheDocument()
+  fireEvent.click(screen.getByTestId("tally-Cam 1-rename-close"))
+
+  // the log fills the dock
+  fireEvent.click(screen.getByTestId("dockmenu-open-Cam 1"))
+  fireEvent.click(screen.getByTestId("dockmenu-log"))
+  expect(screen.getByTestId("dock-log").textContent).toContain("Cam 1's log")
+  fireEvent.click(screen.getByTestId("dock-log-close"))
+
+  // an offline light: no rename, no flash, but it can be removed; a right-click opens the menu too
+  fireEvent.contextMenu(screen.getByTestId("dock-Gone"))
+  expect(screen.getByTestId("dockmenu-rename").getAttribute("aria-disabled")).toBe("true")
+  expect(screen.getByTestId("dockmenu-flash").getAttribute("aria-disabled")).toBe("true")
+  fireEvent.click(screen.getByTestId("dockmenu-remove"))
+  expect(removed).toEqual([["Gone", "udp"]])
+})
+
+test("the menu can take a light off its input", () => {
+  const patched: any[] = []
+  server.onServerEvent('tally.patch', (...args: any[]) => patched.push(args))
+  open()
+  hubSays()
+  lights(light("Cam 2", "2"))
+  fireEvent.click(screen.getByTestId("dockmenu-open-Cam 2"))
+  fireEvent.click(screen.getByTestId("dockmenu-input"))
+  fireEvent.click(screen.getByTestId("dockmenu-channel-none"))
+  expect(patched).toEqual([["Cam 2", "udp", null]])
+})
