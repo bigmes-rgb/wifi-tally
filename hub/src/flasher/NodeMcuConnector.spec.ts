@@ -995,10 +995,12 @@ describe("the install record: what the checks after an install advise, and for h
     const installed = Date.now()
     const delivered: number[] = []
     const pages: Promise<any>[] = []
+    // reloads every 300 ms: the third page closes at 900, well clear of the end of the 1200 ms wait. At 400 ms it
+    // closed at 1200, the same moment, and a busy machine let that page get the answer
     for (let i = 0; i < 4; i++) {
       let open = true
       pages.push(connector.getDevice(100, undefined, () => open).then(() => { if (open) delivered.push(i) }))
-      if (i < 3) { await sleep(400); open = false }
+      if (i < 3) { await sleep(300); open = false }
     }
     await Promise.all(pages)
     expect(delivered).toEqual([3])

@@ -425,12 +425,13 @@ io.on('connection', (socket: ServerSideSocket) => {
     myConfiguration.setSetupCompleted(completed === true)
   })
   socket.on('hub.others.get', () => socket.emit('hub.others', myHubBeacon.list()))
+  // said on every connection, so a page that reconnects after the hub restarted into a new version hears it
+  socket.emit('app.update', appUpdate.get())
   socket.on('app.update.get', () => socket.emit('app.update', appUpdate.get()))
   socket.on('app.update.install', () => {
     const { current, version } = appUpdate.get()
     if (appUpdate.install()) console.info(`Restarting to update ACC Tally from ${current} to ${version}, as asked on a page`)
   })
-  socket.on('app.update.check', () => { appUpdate.check() })
   socket.on('hub.info.get', () => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort(), programStamp))
   })

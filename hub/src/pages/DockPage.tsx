@@ -232,16 +232,21 @@ function DockPage() {
   const [openCheck, setOpenCheck] = useState(0)
   const [flashing, setFlashing] = useState<string | null>(null)
   // one light's menu (from its ⋮ or a right-click), and the dialog it opened
-  const [menu, setMenu] = useState<{ name: string, anchor: DockMenuAnchor } | null>(null)
+  const [menu, setMenu] = useState<{ name: string, type: string, anchor: DockMenuAnchor } | null>(null)
   const [dialog, setDialog] = useState<{ kind: "rename" | "settings" | "log", tally: Tally } | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
+  const dialogGone = !!dialog && dialog.kind !== "rename" && !!rawTallies && !rawTallies.some(t => t.name === dialog.tally.name && t.type === dialog.tally.type)
+  useEffect(() => { if (dialogGone) setDialog(null) }, [dialogGone])
 
   const tallies = orderTallies(rawTallies || [], channels)
   const findings = preServiceFindings({ mixerConnected, mixerProblem, tallies, channels, otherHubs, programStamp: hub?.programStamp, dimmer })
-  const summary = verdict(findings)
-  const attention = findings.filter(f => f.status !== "ok")
-  const worst = findings.find(f => f.status === "fail") || attention[0]
+  // Dimmed lights are not in the strip: the brightness button already turns amber, and an evening service may be
+  // dimmed on purpose all the way through. The pre-service check still lists it.
+  const stripFindings = findings.filter(f => f.id !== "brightness")
+  const summary = verdict(stripFindings)
+  const attention = stripFindings.filter(f => f.status !== "ok")
+  const worst = stripFindings.find(f => f.status === "fail") || attention[0]
 
   const flash = (tally: Tally) => {
     socket.emit('tally.highlight', tally.name, tally.type, WALK_FLASH_MS)
@@ -250,8 +255,14 @@ function DockPage() {
     flashTimer.current = setTimeout(() => setFlashing(null), WALK_FLASH_MS)
   }
 
-  const menuTally = menu && tallies.find(t => t.name === menu.name)
-  const openMenu = (tally: Tally, anchor: DockMenuAnchor) => setMenu({ name: tally.name, anchor })
+  // a light and a phone may share a name: a light is its name and its type
+  const find = (name: string, type: string) => tallies.find(t => t.name === name && t.type === type)
+  const menuTally = menu && find(menu.name, menu.type)
+  const openMenu = (tally: Tally, anchor: DockMenuAnchor) => setMenu({ name: tally.name, type: tally.type, anchor })
+  // dialogs show the light as it is now; one removed meanwhile closes its dialog, except a rename, whose light
+  // comes back under its new name
+  const liveDialogTally = dialog && find(dialog.tally.name, dialog.tally.type)
+  const dialogTally = liveDialogTally || (dialog?.kind === "rename" ? dialog.tally : null)
 
   return <ThemeProvider theme={dockTheme}><div className={classes.root} data-testid="dock">
     <div className={classes.bar}>
@@ -277,7 +288,7 @@ function DockPage() {
           {tallies.map(tally => {
             const state = tileState(tally, programs, previews)
             const tag = tagFor(state)
-            return <Tooltip key={tally.name} title="Click to flash this light" enterDelay={700}>
+            return <Tooltip key={`${tally.type}-${tally.name}`} title="Click to flash this light" enterDelay={700}>
               <div className={[classes.row, classes[state], flashing === tally.name ? classes.flashing : ""].join(" ")} onClick={() => flash(tally)}
                 onContextMenu={e => { e.preventDefault(); openMenu(tally, { position: { top: e.clientY, left: e.clientX } }) }}
                 data-testid={`dock-${tally.name}`} data-state={state} role="button">
@@ -295,9 +306,9 @@ function DockPage() {
         </div>}
     {menuTally && <DockTallyMenu tally={menuTally} state={tileState(menuTally, programs, previews)} channels={channels} anchor={menu!.anchor}
       onClose={() => setMenu(null)} onFlash={flash} onOpen={(kind, tally) => setDialog({ kind, tally })} />}
-    {dialog?.kind === "rename" && <RenameTally tally={dialog.tally} open onClose={() => setDialog(null)} />}
-    {dialog?.kind === "settings" && <TallySettings tally={dialog.tally} open onClose={() => setDialog(null)} />}
-    {dialog?.kind === "log" && <DockLogDialog tally={dialog.tally} onClose={() => setDialog(null)} />}
+    {dialogTally && dialog?.kind === "rename" && <RenameTally tally={dialogTally} open onClose={() => setDialog(null)} />}
+    {dialogTally && dialog?.kind === "settings" && <TallySettings tally={dialogTally} open onClose={() => setDialog(null)} />}
+    {dialogTally && dialog?.kind === "log" && <DockLogDialog tally={dialogTally} onClose={() => setDialog(null)} />}
   </div></ThemeProvider>
 }
 
