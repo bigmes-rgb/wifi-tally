@@ -3,6 +3,11 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [BUGFIX] "Update lights" failed on every light with "could not fetch it". The hub refused the light's request for
+  the program (403) because of how the file's path was written inside the installed app, and said nothing about
+  it. Every hub since 0.9.24 had this, so no light was ever updated over the network. The hub now serves the file,
+  and logs it when a light asks and it cannot. A light that fails to load its update code says so in the hub's
+  log too, instead of only on its USB console.
 * [CHANGE] The app is now called ACC | Tally: the header, the page title, the Windows app and its tray, the
   messages, the docs. The Windows app is `acc-tally-<version>-win-x64-portable.exe`, and its log file moved to
   `%APPDATA%\ACC Tally\logs\main.log`. Nothing else moves: the hub's settings file, the lights and their
