@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import {socket} from './useSocket'
+import { socket, socketEventEmitter } from './useSocket'
 import ConfigTracker from './tracker/config'
 import VmixConfiguration from '../mixer/vmix/VmixConfiguration';
 import ObsConfiguration from '../mixer/obs/ObsConfiguration';
@@ -10,7 +10,7 @@ import AtemConfiguration from '../mixer/atem/AtemConfiguration';
 import { DefaultTallyConfiguration } from '../tally/TallyConfiguration';
 import { SetupStateType } from '../lib/SocketEvents';
 
-const configTracker = new ConfigTracker(socket)
+const configTracker = new ConfigTracker(socket, socketEventEmitter)
 
 export function useMixerNameConfiguration() {
   const [mixerName, setMixerName] = useState(configTracker.mixerName)

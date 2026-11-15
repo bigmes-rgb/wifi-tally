@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import {socket} from './useSocket'
+import { socket, socketEventEmitter } from './useSocket'
 import MixerTracker from './tracker/mixer'
 
-const mixerTracker = new MixerTracker(socket)
+const mixerTracker = new MixerTracker(socket, socketEventEmitter)
 
 // the hook
 function useMixerInfo() {

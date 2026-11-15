@@ -1,5 +1,7 @@
 // set NODE_ENV from argument to enable portability to windows
 import yargs from 'yargs'
+import fs from 'fs'
+import path from 'path'
 
 import TallyContainer from './tally/TallyContainer'
 import { UdpTally } from './domain/Tally'
@@ -433,7 +435,7 @@ io.on('connection', (socket: ServerSideSocket) => {
     if (appUpdate.install()) console.info(`Restarting to update ACC Tally from ${current} to ${version}, as asked on a page`)
   })
   socket.on('hub.info.get', () => {
-    socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort(), programStamp))
+    socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort(), programStamp, hubVersion))
   })
 
   socket.on('flasher.device.get', (options?: { listenMs?: number, path?: string, newBoard?: boolean }) => {
@@ -519,6 +521,14 @@ io.on('connection', (socket: ServerSideSocket) => {
 
 // the light program for lights updating over the network (see LightProgramRoute.ts and tally/src/my-update.lua)
 app.get('/tally/lfs.img', serveLightProgram(() => NodeMcuConnector.getLocalFile("lfs.img")))
+// this hub's version, from its package.json (src/server.js sits one folder below it, in development and in a release)
+const hubVersion: string | undefined = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")).version
+  } catch (e) {
+    return undefined
+  }
+})()
 // which build of the light program this hub ships; read once, it changes only with the hub
 let programStamp: string | undefined
 NodeMcuConnector.getProgramStamp().then(stamp => {

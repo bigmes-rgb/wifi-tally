@@ -23,7 +23,7 @@ class ConfigTracker extends EventEmitter{
     setupState?: SetupStateType
     dimmer?: number
 
-    constructor(socket: ClientSideSocket) {
+    constructor(socket: ClientSideSocket, socketEventEmitter: EventEmitter) {
         super()
 
         socket.on('config.state.dimmer', (dimmer) => {
@@ -76,6 +76,10 @@ class ConfigTracker extends EventEmitter{
             this.emit('setup', this.setupState)
         })
         socket.emit('events.config.subscribe')
+        // the hub keeps subscriptions per connection: after it restarted (an update, say) it has to be asked again
+        socketEventEmitter.on("connected", () => {
+            socket.emit('events.config.subscribe')
+        })
     }
 }
 
