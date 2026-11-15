@@ -10,12 +10,14 @@ import FlasherPage from './pages/FlasherPage'
 import SetupPage from './pages/SetupPage'
 import BuildLightPage from './pages/BuildLightPage'
 import DockPage from './pages/DockPage'
+import { ReloadOnNewVersion } from './hooks/useReloadOnNewVersion'
 
 function App() {
   return (
     <Router>
       <MyTheme>
         <CssBaseline />
+        <ReloadOnNewVersion />
         <Switch>
           <Route exact path="/tally/:tallyId">
             <WebTallyPage />

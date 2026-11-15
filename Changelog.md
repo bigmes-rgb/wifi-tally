@@ -3,6 +3,13 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Open pages and the OBS dock follow the hub on their own. When ACC Tally updates itself, they reload
+  into the new version by themselves; no more reloading the dock by hand. (This starts with the pages loaded from
+  0.9.34: reload the dock once after this update.)
+* [BUGFIX] After the hub restarted, an open page or dock kept showing the switcher's state, the brightness and the
+  other settings from before the restart, and the light program and "another hub" checks from before as well,
+  until it was reloaded. It now asks for all of them again as soon as it reconnects, like it already did for the
+  lights, the inputs and what is on air.
 * [BUGFIX] ACC Tally's own update, from a review of 0.9.32: a page or dock that reconnects after the restart now
   hears the new state at once, instead of offering the update it just installed for up to 4 hours. "Restarting…"
   no longer carries over to the next update, and says so after 90 seconds if the restart never came. The tray and

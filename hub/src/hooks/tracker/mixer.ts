@@ -5,7 +5,7 @@ class MixerTracker extends EventEmitter{
     connectionState: boolean | null
     problem: string | null = null
 
-    constructor(socket: ClientSideSocket) {
+    constructor(socket: ClientSideSocket, socketEventEmitter: EventEmitter) {
         super()
         this.connectionState = null
         
@@ -16,6 +16,10 @@ class MixerTracker extends EventEmitter{
             this.emit('problem', this.problem)
         })
         socket.emit('events.mixer.subscribe')
+        // the hub keeps subscriptions per connection: after it restarted (an update, say) it has to be asked again
+        socketEventEmitter.on("connected", () => {
+            socket.emit('events.mixer.subscribe')
+        })
     }
 }
 
