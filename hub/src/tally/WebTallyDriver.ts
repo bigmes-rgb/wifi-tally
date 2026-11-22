@@ -52,6 +52,24 @@ class WebTallyDriver {
       tally.channelId = channelId || undefined
       this.container.update(tally)
     }
+    // The director renamed a phone: it takes the new name at once (a phone has nothing to save or restart). Its open
+    // pages move with it and are told, so they follow to the new name.
+    rename(tallyName: string, newName: string) {
+      const sockets = this.sockets.get(tallyName) || []
+      this.sockets.delete(tallyName)
+      this.sockets.set(newName, sockets)
+      this.container.rename(tallyName, "web", newName)
+      sockets.forEach(socket => socket.emit('webTally.renamed', { from: tallyName, to: newName }))
+    }
+
+    // The director removed a phone: its open pages are told, so they say so instead of waiting for data.
+    remove(tallyName: string) {
+      const sockets = this.sockets.get(tallyName) || []
+      this.sockets.delete(tallyName)
+      this.container.remove(tallyName, "web")
+      sockets.forEach(socket => socket.emit('webTally.invalid', tallyName))
+    }
+
     unsubscribe(tallyName: string, socket: ServerSideSocket) {
       const oldSockets = this.sockets.get(tallyName) || []
       const newSockets = oldSockets.filter(knownSocket => knownSocket.id !== socket.id)

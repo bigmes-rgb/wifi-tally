@@ -47,10 +47,11 @@ function TallyMenu({ tally, className }: TallyMenuProps) {
   const [anchorEl, setAnchorEl] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
-  // a light is renamed over the network, so it has to be on it; web tallies are named when they are created
-  const allowRename = !tally.isWebTally() && tally.isConnected()
+  // a light is renamed over the network, so it has to be on it; a phone takes a new name at once
+  const allowRename = tally.isWebTally() || tally.isConnected()
   const allowHighlight = tally.isActive()
-  const allowRemove = !tally.isConnected()
+  // a phone can be removed while it is on (its screen says so); a light only once it is off the network
+  const allowRemove = tally.isWebTally() || !tally.isConnected()
 
   const handleMenuClick = (event) => {
     setAnchorEl(event.currentTarget)
@@ -98,15 +99,13 @@ function TallyMenu({ tally, className }: TallyMenuProps) {
         <ListItemText>Settings</ListItemText>
       </MenuItem>
       <TallySettings tally={tally} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {!tally.isWebTally() && (
-        <Tooltip data-testid={`tally-${tally.name}-rename-item`} title={!allowRename ? "The light has to be on the network to be renamed" : ""}><div>
+      <Tooltip data-testid={`tally-${tally.name}-rename-item`} title={!allowRename ? "The light has to be on the network to be renamed" : ""}><div>
           <MenuItem component="div" disabled={!allowRename} onClick={() => {handleClose(); setRenameOpen(true)}}>
             <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
             <ListItemText>Rename</ListItemText>
           </MenuItem>
         </div></Tooltip>
-      )}
-      {!tally.isWebTally() && <RenameTally tally={tally} open={renameOpen} onClose={() => setRenameOpen(false)} />}
+      <RenameTally tally={tally} open={renameOpen} onClose={() => setRenameOpen(false)} />
       <MenuItemLink testid={`tally-${tally.name}-logs`} to={`/tally/${tally.getId()}/log`}>
         <ListItemIcon><SubjectIcon fontSize="small" /></ListItemIcon>
         <ListItemText>Logs</ListItemText>

@@ -78,8 +78,8 @@ class TallyContainer {
     }
   }
 
-  // A light took a new name (it restarts and comes back under it): its channel, settings and address move with it,
-  // so it does not show up as a new, unpatched light next to the old one.
+  // A light took a new name (it restarts and comes back under it), or the director renamed a phone: its channel,
+  // settings and address move with it, so it does not show up as a new, unpatched tally next to the old one.
   rename(tallyName: string, tallyType: TallyType, newName: string) {
     const tally = this.get(tallyName, tallyType)
     if (!tally || tallyName === newName) return
@@ -93,7 +93,7 @@ class TallyContainer {
     this.updateTallyState(tally)
     this.configuration.setTallies(Array.from(this.tallies.values()))
     console.info(`Tally "${tallyName}" renamed to "${newName}"`)
-    this.emitter.emit('tally.removed', new UdpTally(tallyName))
+    this.emitter.emit('tally.removed', tallyType === "web" ? new WebTally(tallyName) : new UdpTally(tallyName))
     this.emitter.emit('tally.changed', tally)
   }
 

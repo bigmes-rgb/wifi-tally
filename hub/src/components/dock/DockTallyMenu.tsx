@@ -56,8 +56,10 @@ function DockTallyMenu({ tally, state, channels, anchor, onClose, onFlash, onOpe
 
   const isLight = !tally.isWebTally()
   const canFlash = tally.isActive()
-  const canRename = isLight && tally.isConnected()
-  const canRemove = !tally.isConnected()
+  // a light renames over the network, so it must be on; a phone takes a new name at once, on or off
+  const canRename = !isLight || tally.isConnected()
+  // a phone can go any time (it says so on its screen); a light only once it is off the network
+  const canRemove = !isLight || !tally.isConnected()
   const input = tally.isPatched() ? channelLabel(tally.channelId, channels) : "No input"
   const then = (fn: () => void) => () => { onClose(); fn() }
   const patch = (channelId: string | null) => then(() => socket.emit('tally.patch', tally.name, tally.type, channelId))
@@ -80,7 +82,7 @@ function DockTallyMenu({ tally, state, channels, anchor, onClose, onFlash, onOpe
       <ListItemText className={classes.text} primary="Input" secondary={input} secondaryTypographyProps={secondary} />
       <ChevronRightIcon className={classes.end} />
     </MenuItem>,
-    isLight && <MenuItem key="rename" dense className={classes.item} disabled={!canRename} onClick={then(() => onOpen("rename", tally))} data-testid="dockmenu-rename">
+    <MenuItem key="rename" dense className={classes.item} disabled={!canRename} onClick={then(() => onOpen("rename", tally))} data-testid="dockmenu-rename">
       <ListItemIcon className={classes.icon}><EditIcon /></ListItemIcon>
       <ListItemText className={classes.text} primary="Rename…" secondary={canRename ? undefined : "Needs the light on the network"} secondaryTypographyProps={secondary} />
     </MenuItem>,
@@ -95,7 +97,7 @@ function DockTallyMenu({ tally, state, channels, anchor, onClose, onFlash, onOpe
     canRemove && <Divider key="d2" />,
     canRemove && <MenuItem key="remove" dense className={classes.item} onClick={then(() => socket.emit('tally.remove', tally.name, tally.type))} data-testid="dockmenu-remove">
       <ListItemIcon className={[classes.icon, classes.remove].join(" ")}><DeleteIcon /></ListItemIcon>
-      <ListItemText className={classes.text} primary="Remove from the list" secondary="It comes back if it connects again" secondaryTypographyProps={secondary} />
+      <ListItemText className={classes.text} primary="Remove from the list" secondary={isLight ? "It comes back if it connects again" : "The phone says so; it can join again"} secondaryTypographyProps={secondary} />
     </MenuItem>,
   ].filter(Boolean)
 
