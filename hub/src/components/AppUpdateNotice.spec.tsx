@@ -67,3 +67,14 @@ test("what it said about one update does not carry over to the next, and a resta
     jest.useRealTimers()
   }
 })
+
+test("in the dock, Not now puts the line away until the next version", () => {
+  render(<AppUpdateNotice compact />)
+  act(() => { server.emitServerEvent('app.update', { status: "ready", current: "0.9.35", version: "0.9.36" }) })
+  expect(screen.getByTestId("app-update-dock").textContent).toContain("Update ready: ACC Tally 0.9.36")
+  fireEvent.click(screen.getByTestId("app-update-dock"))
+  fireEvent.click(screen.getByTestId("app-update-notnow"))
+  expect(screen.queryByTestId("app-update-dock")).toBeNull()
+  act(() => { server.emitServerEvent('app.update', { status: "ready", current: "0.9.35", version: "0.9.37" }) })
+  expect(screen.getByTestId("app-update-dock").textContent).toContain("0.9.37")
+})

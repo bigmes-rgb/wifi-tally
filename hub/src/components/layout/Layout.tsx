@@ -1,6 +1,8 @@
 import React from 'react'
 import { AppBar, Button, Container, makeStyles, Toolbar } from '@material-ui/core'
 import { Link as RouterLink } from 'react-router-dom'
+import AppUpdateNotice from '../AppUpdateNotice'
+import { AppVersion } from '../AppVersion'
 
 const useStyles = makeStyles(theme => {
   return {
@@ -41,9 +43,14 @@ const Layout = ({testId: cypressId, children}: LayoutProps) => {
         <Button component={RouterLink} to="/config">Configuration</Button>
         <Button component={RouterLink} to="/flasher">Flash</Button>
         <Button component={RouterLink} to="/setup">Setup</Button>
+        <AppVersion />
       </Toolbar>
     </AppBar>
-    { children && (<Container maxWidth={false} className={classes.contentContainer} children={children} />) }
+    { children && (<Container maxWidth={false} className={classes.contentContainer}>
+      {/* a new version of ACC Tally, ready to install: first thing on every page */}
+      <AppUpdateNotice />
+      {children}
+    </Container>) }
   </div>)
 }
 

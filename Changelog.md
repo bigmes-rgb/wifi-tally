@@ -3,6 +3,10 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] The version that runs is shown: at the right of the page header (with a dot for where its update
+  stands, and a click for "Check for updates") and small in the OBS dock's top bar.
+* [CHANGE] A new version ready to install is now said at the top of every page, not only the Tallies page, and in
+  the OBS dock as a blue line under the top bar instead of a small button.
 * [FEATURE] Open pages and the OBS dock follow the hub on their own. When ACC Tally updates itself, they reload
   into the new version by themselves; no more reloading the dock by hand. (This starts with the pages loaded from
   0.9.34: reload the dock once after this update.)

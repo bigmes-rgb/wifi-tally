@@ -8,6 +8,7 @@ import PhoneIphoneIcon from '@material-ui/icons/PhoneIphone'
 import React, { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import AppUpdateNotice from '../components/AppUpdateNotice'
+import { DockVersion } from '../components/AppVersion'
 import Dimmer from '../components/Dimmer'
 import DockLogDialog from '../components/dock/DockLogDialog'
 import DockTallyMenu, { DockMenuAnchor } from '../components/dock/DockTallyMenu'
@@ -108,11 +109,12 @@ const useStyles = makeStyles(theme => ({
     letterSpacing: "0.04em",
     textTransform: "uppercase",
     color: theme.palette.text.secondary,
-    flexGrow: 1,
+    minWidth: 0,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
+  spacer: { flexGrow: 1 },
   tools: { flexShrink: 0, "& button": { minWidth: 30, padding: "2px 6px" } },
   // one line for what needs attention; it opens the pre-service check
   strip: {
@@ -268,7 +270,8 @@ function DockPage() {
     <div className={classes.bar}>
       <Tooltip title={isHubConnected ? "Hub connected" : "Hub disconnected"}><span className={[classes.dot, isHubConnected ? "" : classes.dotOff].join(" ")} data-testid="dock-hub" data-connected={isHubConnected} /></Tooltip>
       <span className={classes.brand}>ACC | Tally</span>
-      <AppUpdateNotice compact />
+      <DockVersion />
+      <span className={classes.spacer} />
       <ButtonGroup size="small" variant="outlined" className={classes.tools}>
         <PreServiceCheck compact openSignal={openCheck} />
         <Dimmer compact />
@@ -280,6 +283,7 @@ function DockPage() {
         <span>{worst.title}{attention.length > 1 ? ` · ${summary.title}` : ""}</span>
         <ChevronRightIcon fontSize="small" />
       </div>}
+    <AppUpdateNotice compact />
     {setupState?.needed
       ? <Typography className={classes.empty} color="textSecondary">ACC Tally is not set up yet. <RouterLink to="/setup" style={{ color: "inherit" }}>Open the setup</RouterLink> on the hub computer.</Typography>
       : tallies.length === 0

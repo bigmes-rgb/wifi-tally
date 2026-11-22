@@ -109,8 +109,9 @@ export interface ClientSentEvents {
     'hub.info.get': () => void
     'hub.others.get': () => void
     'app.update.get': () => void
-    // restart into the downloaded version
+    // restart into the downloaded version, or look for a new one now (the version badge in the page header)
     'app.update.install': () => void
+    'app.update.check': () => void
     'tallies.update.send': () => void
 
     // listenMs: how long to listen to a board that does not answer (the hub listens longer right after an install)
