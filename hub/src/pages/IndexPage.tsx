@@ -17,7 +17,6 @@ import { useSetupConfiguration } from '../hooks/useConfiguration'
 import useOtherHubs from '../hooks/useOtherHubs'
 import useChannels from '../hooks/useChannels'
 import UpdateLights from '../components/UpdateLights'
-import AppUpdateNotice from '../components/AppUpdateNotice'
 import PreServiceCheck from '../components/PreServiceCheck'
 import Dimmer from '../components/Dimmer'
 import Channel from '../domain/Channel'
@@ -119,7 +118,6 @@ const IndexPage = () => {
           the other computer and leave only this one running.
         </Alert>
       )}
-      { isHubConnected && <AppUpdateNotice /> }
       { isHubConnected && <UpdateLights /> }
       { isHubConnected && !isMixerConnected && mixerProblem && (
         <Alert severity="warning" className={classes.alert} data-testid="mixer-problem">

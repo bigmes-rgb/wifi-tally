@@ -434,6 +434,9 @@ io.on('connection', (socket: ServerSideSocket) => {
     const { current, version } = appUpdate.get()
     if (appUpdate.install()) console.info(`Restarting to update ACC Tally from ${current} to ${version}, as asked on a page`)
   })
+  socket.on('app.update.check', () => {
+    if (appUpdate.check()) console.info("Looking for a new version of ACC Tally, as asked on a page")
+  })
   socket.on('hub.info.get', () => {
     socket.emit('hub.info', getHubInfo(myConfiguration.getTallyPort(), programStamp, hubVersion))
   })

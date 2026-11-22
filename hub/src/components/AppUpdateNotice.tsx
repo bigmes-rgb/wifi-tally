@@ -1,4 +1,5 @@
-import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, makeStyles, Tooltip, Typography } from '@material-ui/core'
+import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, makeStyles, Typography } from '@material-ui/core'
+import ChevronRightIcon from '@material-ui/icons/ChevronRight'
 import { Alert, AlertTitle } from '@material-ui/lab'
 import SystemUpdateAltIcon from '@material-ui/icons/SystemUpdateAlt'
 import React, { useEffect, useState } from 'react'
@@ -15,12 +16,19 @@ const useStyles = makeStyles(theme => ({
   restarting: { display: "flex", alignItems: "center", gap: theme.spacing(1), marginTop: theme.spacing(1) },
   // a dock is narrow: less margin around the dialog, so both buttons stay on one line
   dockPaper: { margin: theme.spacing(1.5), width: "calc(100% - 24px)" },
-  dockButton: {
-    minWidth: 30,
-    padding: "2px 6px",
-    flexShrink: 0,
-    color: theme.palette.info.main,
-    borderColor: theme.palette.info.main,
+  // in the dock: a line of its own under the top bar, like the line for things that need attention
+  dockStrip: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.75),
+    padding: theme.spacing(0.5, 1),
+    fontSize: "0.72rem",
+    lineHeight: 1.3,
+    cursor: "pointer",
+    userSelect: "none",
+    background: theme.palette.info.dark,
+    color: theme.palette.getContrastText(theme.palette.info.dark),
+    "& span": { flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   },
 }))
 
@@ -32,8 +40,8 @@ const WHAT_HAPPENS = "Restarting takes about 20 seconds. Meanwhile the lights sh
 const OR_LATER = "Leave it, and it installs itself the next time ACC Tally closes."
 
 // The desktop app has downloaded a newer version of itself. Nothing restarts on its own in the middle of a service:
-// the operator picks the moment. On the Tallies page a notice above the lights; in the OBS dock (compact) a small
-// button in the top bar that opens the same words in a dialog.
+// the operator picks the moment. At the top of every page a notice; in the OBS dock (compact) a blue line under the
+// top bar that opens the same words in a dialog.
 function AppUpdateNotice({ compact }: { compact?: boolean }) {
   const classes = useStyles()
   const update = useAppUpdate()
@@ -42,7 +50,7 @@ function AppUpdateNotice({ compact }: { compact?: boolean }) {
   const [stuck, setStuck] = useState(false)
   const [open, setOpen] = useState(false)
   // the dock stays open across updates: what it said about the last one must not carry over to the next
-  useEffect(() => { setRestarting(false); setStuck(false) }, [update?.status, update?.version])
+  useEffect(() => { setRestarting(false); setStuck(false); setLater(false) }, [update?.status, update?.version])
   useEffect(() => {
     if (!restarting) return
     const timer = setTimeout(() => { setRestarting(false); setStuck(true) }, RESTART_GIVE_UP_MS)
@@ -66,9 +74,11 @@ function AppUpdateNotice({ compact }: { compact?: boolean }) {
 
   if (compact) {
     return <>
-      <Tooltip title={title}>
-        <Button variant="outlined" size="small" className={classes.dockButton} onClick={() => setOpen(true)} aria-label={title} data-testid="app-update-dock"><SystemUpdateAltIcon fontSize="small" /></Button>
-      </Tooltip>
+      {!later && <div className={classes.dockStrip} role="button" onClick={() => setOpen(true)} data-testid="app-update-dock">
+        <SystemUpdateAltIcon fontSize="small" />
+        <span>Update ready: ACC Tally {update.version}</span>
+        <ChevronRightIcon fontSize="small" />
+      </div>}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs" classes={{ paper: classes.dockPaper }} data-testid="app-update-dialog">
         <DialogTitle>{title}</DialogTitle>
         <DialogContent>
@@ -78,7 +88,7 @@ function AppUpdateNotice({ compact }: { compact?: boolean }) {
           {stuckLine}
         </DialogContent>
         <DialogActions>
-          <Button className={classes.button} onClick={() => setOpen(false)}>Not now</Button>
+          <Button className={classes.button} onClick={() => { setOpen(false); setLater(true) }} data-testid="app-update-notnow">Not now</Button>
           {restartButton}
         </DialogActions>
       </Dialog>
