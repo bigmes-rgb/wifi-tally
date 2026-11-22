@@ -5,6 +5,7 @@ import useChannels from '../hooks/useChannels'
 import { socket } from '../hooks/useSocket'
 import useTallies from '../hooks/useTallies'
 import ChannelSelector from './ChannelSelector'
+import { AddPhoneDialog } from './AddPhone'
 
 const useStyles = makeStyles(theme => {
   return {
@@ -68,7 +69,7 @@ function TallyCreatePopup({classes, open, onClose}: TallyCreatePopupProps) {
 
   return (
     <Dialog data-testid="tally-create-popup" maxWidth="xs" open={open} onClose={onClose}>
-      <DialogTitle>Create Web Tally</DialogTitle>
+      <DialogTitle>Add by name</DialogTitle>
       <DialogContent>
         { !hasUdpTally ? (
           <Alert className={classes.alert} severity="warning" variant="outlined" data-testid="tally-create-warning">
@@ -76,7 +77,7 @@ function TallyCreatePopup({classes, open, onClose}: TallyCreatePopupProps) {
             be created via this form.
           </Alert>
         ) : "" }
-        <Typography paragraph>A Web Tally, that can be viewed in any browser.</Typography>
+        <Typography paragraph>A tally light in any browser: a computer or a tablet. For a phone, the code is quicker.</Typography>
 
         <div className={classes.formWrapper}>
           <TextField
@@ -101,13 +102,16 @@ function TallyCreatePopup({classes, open, onClose}: TallyCreatePopupProps) {
   )
 }
 
+// The last card in the list: add a phone with the code, or (a click further) a browser by name
 function TallyCreate() {
   const classes = useStyles()
+  const [phoneOpen, setPhoneOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
-  
+
   return (
     <Paper variant="outlined" className={classes.root}>
-      <Button onClick={() => setModalOpen(true)} data-testid={`tally-create`}>Create Web Tally</Button>
+      <Button onClick={() => setPhoneOpen(true)} data-testid={`tally-create`}>Add a phone</Button>
+      <AddPhoneDialog open={phoneOpen} onClose={() => setPhoneOpen(false)} onManual={() => { setPhoneOpen(false); setModalOpen(true) }} />
       <TallyCreatePopup open={modalOpen} onClose={() => setModalOpen(false)} classes={classes} />
     </Paper>
   )

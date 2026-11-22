@@ -37,18 +37,20 @@ function RenameTally({ tally, open, onClose }: RenameTallyProps) {
 
   const send = () => {
     setResult({ tallyName: tally.name, newName: name, outcome: "sent" })
-    socket.emit('tally.rename', tally.name, name)
+    socket.emit('tally.rename', tally.name, name, tally.type)
   }
   const busy = result?.outcome === "sent"
 
   return <FormDialog data-testid={`tally-${tally.name}-rename`} label={`Rename ${tally.name}`} open={open} onClose={onClose} onSubmit={send} isLoading={busy || result?.outcome === "saved"}>
     <Typography paragraph>
-      The light saves the new name and restarts with it. Its channel and settings stay as they are.
+      {tally.isWebTally()
+        ? "The phone shows the new name at once. Its input and settings stay as they are."
+        : "The light saves the new name and restarts with it. Its channel and settings stay as they are."}
     </Typography>
     <TextField label="Name" value={name} onChange={e => setName(e.currentTarget.value)} className={classes.field} fullWidth autoFocus
       inputProps={{ maxLength: 26, "data-testid": `tally-${tally.name}-rename-name` }} disabled={busy} />
     {result?.outcome === "sent" && <Alert severity="info" className={classes.block} data-testid={`tally-${tally.name}-rename-sent`}>Sent to the light. Waiting for it to answer…</Alert>}
-    {result?.outcome === "saved" && <Alert severity="success" className={classes.block} data-testid={`tally-${tally.name}-rename-saved`}>Renamed to "{result.newName}". The light is restarting and comes back under its new name in a few seconds.</Alert>}
+    {result?.outcome === "saved" && <Alert severity="success" className={classes.block} data-testid={`tally-${tally.name}-rename-saved`}>Renamed to "{result.newName}".{tally.isWebTally() ? " The phone shows it already." : " The light is restarting and comes back under its new name in a few seconds."}</Alert>}
     {result?.outcome === "failed" && <Alert severity="error" className={classes.block} data-testid={`tally-${tally.name}-rename-failed`}>{result.problem || "The light could not save the name. Try again; if that fails, name it over USB in Build a light."}</Alert>}
   </FormDialog>
 }

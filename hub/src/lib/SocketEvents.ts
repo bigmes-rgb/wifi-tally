@@ -26,6 +26,10 @@ export interface ServerSentEvents {
     'tally.log.state': (data: {tallyId: string, logs: LogObjectType[]}[]) => void
     'webTally.state': (data: {tally: WebTallyObjectType, command: StateCommand}) => void
     'webTally.invalid': (tallyName: string) => void
+    // the director renamed this phone: the page follows it to its new name
+    'webTally.renamed': (data: { from: string, to: string }) => void
+    // a phone that scanned the code: its name was taken (problem says why), or it is a tally light now
+    'tally.join.result': (result: { name: string, ok: boolean, problem?: string }) => void
 
     'mixer.state': (data: {isConnected: boolean, problem?: string | null}) => void
     'program.state': (data: {programs: ChannelList, previews: ChannelList}) => void
@@ -93,6 +97,8 @@ export interface ClientSentEvents {
     'tally.highlight': (tallyName: string, tallyType: TallyType, ms?: number) => void
     'tally.remove': (tallyName: string, tallyType: TallyType) => void
     'tally.create': (tallyName: string, channelId?: string) => void
+    // a phone joins as a tally light (pages/JoinPage.tsx); answered with tally.join.result
+    'tally.join': (name: string, channelId?: string) => void
     'tally.settings': (tallyName: string, tallyType: TallyType, settings: TallyConfigurationObjectType) => void
 
     'config.change.atem': (atemConfiguration: AtemConfigurationSaveType, newMixer?: "atem") => void
@@ -118,7 +124,8 @@ export interface ClientSentEvents {
     // newBoard: another board was plugged in, so the install on the last one says nothing about this one
     'flasher.device.get': (options?: { listenMs?: number, path?: string, newBoard?: boolean }) => void
     'tallies.wifi.send': (ssid: string, password: string) => void
-    'tally.rename': (tallyName: string, newName: string) => void
+    // a light (udp, the default) renames over the network and restarts; a phone (web) takes the name at once
+    'tally.rename': (tallyName: string, newName: string, tallyType?: TallyType) => void
     'flasher.watch.start': (path: string) => void
     'flasher.watch.stop': () => void
     'flasher.light.watch.start': (path: string) => void

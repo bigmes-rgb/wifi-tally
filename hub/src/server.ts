@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 
 import TallyContainer from './tally/TallyContainer'
-import { UdpTally } from './domain/Tally'
+import { TallyType, UdpTally } from './domain/Tally'
 import UdpTallyDriver from './tally/UdpTallyDriver'
 import HubBeacon from './tally/HubBeacon'
 import { wifiProblem } from './tally/WifiHandover'
@@ -249,10 +249,23 @@ io.on('connection', (socket: ServerSideSocket) => {
     myTallyContainer.highlight(tallyName, tallyType, ms)
   })
   socket.on('tally.remove', (tallyName, tallyType) => {
-    myTallyContainer.remove(tallyName, tallyType)
+    if (tallyType === "web") myWebTallyDriver.remove(tallyName)
+    else myTallyContainer.remove(tallyName, tallyType)
   })
   socket.on('tally.create', (tallyName, channelId) => {
     myWebTallyDriver.create(tallyName, channelId)
+  })
+  // A phone scanned the director's code and picked a name. The same name again (the same phone back after its
+  // screen locked, say) continues as that phone; a name a light or another phone has is refused.
+  socket.on('tally.join', (name: string, channelId?: string) => {
+    const others = myTallyContainer.getTallies().filter(t => !(t.type === "web" && t.name === name)).map(t => t.name)
+    const problem = nameProblem(name, others)
+    if (problem) { socket.emit('tally.join.result', { name, ok: false, problem: problem.replace("Another light", "Something") }); return }
+    const existing = myTallyContainer.get(name, "web")
+    // back again: it keeps the input the director gave it
+    myWebTallyDriver.create(name, existing ? existing.channelId : channelId)
+    console.info(`[phone] "${name}" ${existing ? "is back" : "joined"} from ${(socket as socketIo.Socket).handshake?.address}`)
+    socket.emit('tally.join.result', { name, ok: true })
   })
   // "Change Wi-Fi on all lights": send it, then pass each light's answer to this page for a while
   socket.on('tallies.wifi.send', (ssid: string, password: string) => {
@@ -280,7 +293,20 @@ io.on('connection', (socket: ServerSideSocket) => {
     socket.emit('tallies.update.sent', { sentTo, needUsb: plan.needUsb })
   })
   // Rename a light over the network: the light saves the name, answers, and restarts under it
-  socket.on('tally.rename', (tallyName: string, newName: string) => {
+  socket.on('tally.rename', (tallyName: string, newName: string, tallyType?: TallyType) => {
+    if (tallyType === "web") {
+      // a phone takes the name at once; it must not take a light's name either, or the two would be confused
+      const taken = myTallyContainer.getTallies().filter(t => !(t.type === "web" && t.name === tallyName)).map(t => t.name)
+      const problem = nameProblem(newName, taken, tallyName)
+      if (problem || !myTallyContainer.get(tallyName, "web")) {
+        socket.emit('tally.rename.result', { tallyName, newName, outcome: "failed", problem: problem?.replace("Another light", "Something") || "This phone is not in the list any more." })
+        return
+      }
+      myWebTallyDriver.rename(tallyName, newName)
+      console.info(`[phone] "${tallyName}" renamed to "${newName}"`)
+      socket.emit('tally.rename.result', { tallyName, newName, outcome: "saved" })
+      return
+    }
     const taken = myTallyContainer.getTallies().filter(t => t.type === "udp").map(t => t.name)
     const problem = nameProblem(newName, taken, tallyName)
     if (problem) { socket.emit('tally.rename.result', { tallyName, newName, outcome: "failed", problem }); return }

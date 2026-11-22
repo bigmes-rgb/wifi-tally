@@ -36,6 +36,7 @@ describe('Web Tally Creation', () => {
   it('can create an unpatched web tally', () => {
     const name = registerRandomTallyName()
     cy.getTestId("tally-create").click()
+    cy.getTestId("add-phone-manual").click()
     cy.getTestId("tally-create-popup")
     cy.getTestId("tally-create-name").type('{selectall}' + name)
     cy.getTestId("tally-create-ok").click()
@@ -51,6 +52,7 @@ describe('Web Tally Creation', () => {
   it('can create a patched web tally', () => {
     const name = registerRandomTallyName()
     cy.getTestId("tally-create").click()
+    cy.getTestId("add-phone-manual").click()
     cy.getTestId("tally-create-popup")
     cy.getTestId("tally-create-name").type('{selectall}' + name)
     cy.get(`*[data-testid=tally-create-popup] *[data-testid=channel-selector] select`).select("Channel 1")
@@ -66,6 +68,7 @@ describe('Web Tally Creation', () => {
   it('only shows the warning when no UDP tallies are configured', () => {
     // it should be shown if no UDP tally exists
     cy.getTestId("tally-create").click()
+    cy.getTestId("add-phone-manual").click()
     cy.getTestId("tally-create-popup")
     cy.getTestId("tally-create-warning").should('exist')
     cy.getTestId("tally-create-cancel").click()

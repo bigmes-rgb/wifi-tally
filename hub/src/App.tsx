@@ -10,6 +10,7 @@ import FlasherPage from './pages/FlasherPage'
 import SetupPage from './pages/SetupPage'
 import BuildLightPage from './pages/BuildLightPage'
 import DockPage from './pages/DockPage'
+import JoinPage from './pages/JoinPage'
 import { ReloadOnNewVersion } from './hooks/useReloadOnNewVersion'
 
 function App() {
@@ -36,6 +37,9 @@ function App() {
           </Route>
           <Route exact path="/setup/:step?">
             <SetupPage />
+          </Route>
+          <Route exact path="/join">
+            <JoinPage />
           </Route>
           <Route exact path="/dock">
             <DockPage />

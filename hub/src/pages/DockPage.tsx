@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import AppUpdateNotice from '../components/AppUpdateNotice'
 import { DockVersion } from '../components/AppVersion'
+import AddPhoneButton from '../components/AddPhone'
 import Dimmer from '../components/Dimmer'
 import DockLogDialog from '../components/dock/DockLogDialog'
 import DockTallyMenu, { DockMenuAnchor } from '../components/dock/DockTallyMenu'
@@ -273,6 +274,7 @@ function DockPage() {
       <DockVersion />
       <span className={classes.spacer} />
       <ButtonGroup size="small" variant="outlined" className={classes.tools}>
+        <AddPhoneButton compact />
         <PreServiceCheck compact openSignal={openCheck} />
         <Dimmer compact />
       </ButtonGroup>

@@ -3,6 +3,12 @@
 This is the `bigmes-rgb/wifi-tally` fork. Releases are published on this repository's
 [Releases page](https://github.com/bigmes-rgb/wifi-tally/releases) instead of npmjs.com.
 
+* [FEATURE] Add a phone as a tally light with a QR code. The director taps the phone icon in the OBS dock (or "Add a
+  phone" on the Tallies page) and shows the code; the volunteer scans it, types the camera's name, taps Start. The
+  phone goes full screen, keeps its screen on, and shows red on air, green next, with its name and input. The
+  director sees it join in the dialog, and it is in the list like any light: flash, input, rename (at once, the
+  phone follows), settings, log, remove (the phone says so, with "Join again"). A phone that scans again continues
+  under its name with its input. A phone off the church Wi-Fi is told so.
 * [FEATURE] The version that runs is shown: at the right of the page header (with a dot for where its update
   stands, and a click for "Check for updates") and small in the OBS dock's top bar.
 * [CHANGE] A new version ready to install is now said at the top of every page, not only the Tallies page, and in

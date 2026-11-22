@@ -11,6 +11,7 @@ import WifiIcon from '@material-ui/icons/Wifi'
 import ServerIcon from '@material-ui/icons/Dns';
 import { Alert, AlertTitle } from '@material-ui/lab'
 import TallyCreate from '../components/TallyCreate'
+import AddPhoneButton from '../components/AddPhone'
 import { Link as RouterLink, Redirect } from 'react-router-dom'
 import AddIcon from '@material-ui/icons/Add'
 import { useSetupConfiguration } from '../hooks/useConfiguration'
@@ -104,6 +105,7 @@ const IndexPage = () => {
             <Button data-testid="tallies-connected" className={classes.button} color="default" variant="outlined"><WifiIcon className={classes.buttonIcon} /> {nrConnectedTallies === null ? "?" : nrConnectedTallies}</Button>
           </Tooltip>
           <Button data-testid="add-light" className={classes.button} color="primary" component={RouterLink} to="/setup/light"><AddIcon className={classes.buttonIcon} /> Add a light</Button>
+          <AddPhoneButton color="primary" className={classes.button} />
         </ButtonGroup>
         <ButtonGroup size="small" variant="contained" className={classes.tools}>
           <PreServiceCheck />

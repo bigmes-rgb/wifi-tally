@@ -187,3 +187,16 @@ test("dimmed lights do not put a bar across the dock: the brightness button says
   act(() => { server.emitServerEvent('mixer.state', { isConnected: false, problem: null }) })
   expect(screen.getByTestId("dock-strip").textContent).toBe("Switcher not connected")
 })
+
+test("a phone's menu: rename at once, and remove it even while it is on", () => {
+  const removed: any[] = []
+  server.onServerEvent('tally.remove', (...args: any[]) => removed.push(args))
+  open()
+  hubSays()
+  lights({ name: "Balcony", type: "web", channelId: "2", connectedClients: [{ address: "192.168.1.40" }] })
+  fireEvent.click(screen.getByTestId("dockmenu-open-Balcony"))
+  expect(screen.getByTestId("dockmenu-rename").getAttribute("aria-disabled")).toBe("false")
+  expect(screen.getByTestId("dockmenu-remove").textContent).toContain("The phone says so")
+  fireEvent.click(screen.getByTestId("dockmenu-remove"))
+  expect(removed).toEqual([["Balcony", "web"]])
+})
